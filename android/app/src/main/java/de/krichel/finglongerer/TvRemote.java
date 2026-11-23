@@ -222,8 +222,13 @@ final class TvRemote {
         for (int i = 0; i < 16; i++) System.arraycopy(m, 0, pkt, 6 + i * 6, 6);
         try (java.net.DatagramSocket ds = new java.net.DatagramSocket()) {
             ds.setBroadcast(true);
-            for (int port : new int[]{9, 7})
-                ds.send(new java.net.DatagramPacket(pkt, pkt.length, java.net.InetAddress.getByName("255.255.255.255"), port));
+            java.util.List<String> targets = new java.util.ArrayList<>();
+            targets.add("255.255.255.255");
+            String pre = TvScan.localPrefix();
+            if (!pre.isEmpty()) targets.add(pre + ".255");
+            for (String t : targets)
+                for (int port : new int[]{9, 7})
+                    ds.send(new java.net.DatagramPacket(pkt, pkt.length, java.net.InetAddress.getByName(t), port));
         }
     }
 
@@ -402,8 +407,10 @@ final class TvRemote {
             try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
         int st = c.started;
-        if (st < 0) sendTo(ip, keyInject(on ? 224 : 223, DIRECTION_SHORT));        // Zustand unbekannt: WAKEUP bzw. SLEEP
-        else if ((st == 1) != on) sendTo(ip, keyInject(26, DIRECTION_SHORT));
+        if (on) {
+            sendTo(ip, keyInject(224, DIRECTION_SHORT));                       // WAKEUP: weckt Stick und (per HDMI-CEC) den Fernseher
+            if (st == 0) { try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } sendTo(ip, keyInject(26, DIRECTION_SHORT)); }
+        } else if (st != 0) sendTo(ip, keyInject(26, DIRECTION_SHORT));
     }
 
     void key(String ip, int code) throws IOException {

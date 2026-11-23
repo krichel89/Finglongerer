@@ -620,8 +620,6 @@ document.addEventListener('keydown', ev => {
 // ---- Fernseher (Google TV), direkt angesprochen
 const TV_KEY = 'finglongerer.tv';
 const TV_APPS = [['Jellyfin', 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LEANBACK_LAUNCHER;package=org.jellyfin.androidtv;end'], ['YouTube', 'https://www.youtube.com'], ['Netflix', 'netflix://'], ['Prime Video', 'https://app.primevideo.com']];
-// Suche je Anbieter: Link, der direkt die Suchergebnisse in der App öffnet (Jellyfin hat keinen Such-Link)
-const TV_SEARCH = [['YouTube', q => 'https://www.youtube.com/results?search_query=' + q], ['Netflix', q => 'https://www.netflix.com/search?q=' + q], ['Prime Video', q => 'https://app.primevideo.com/search?phrase=' + q]];
 // Android-Tastencodes für Text: a-z 29-54, 0-9 7-16, Leerzeichen 62
 const tvKeyFor = ch => /[a-z]/.test(ch) ? 29 + ch.charCodeAt(0) - 97 : /[0-9]/.test(ch) ? 7 + ch.charCodeAt(0) - 48 : ch === ' ' ? 62 : 0;
 const tvFold = x => x.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -646,9 +644,8 @@ function buildTv() {
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), k('⏯', 85, t('tv.play'))),
     el('div', {class: 'row3'}, k(t('tv.back'), 4), k(t('tv.home'), 3), k(t('tv.menu'), 82)),
     el('div', {class: 'row2'}, ...TV_APPS.map(a => el('button', {type: 'button', text: a[0], 'data-tvapp': a[1]}))),
-    el('input', {type: 'search', id: 'tv-q', placeholder: t('tv.query'), enterkeyhint: 'search', autocomplete: 'off', autocapitalize: 'off'}),
-    el('div', {class: 'row3'}, ...TV_SEARCH.map(a => el('button', {type: 'button', text: '🔍 ' + a[0], 'data-tvsearch': a[0]}))),
-    el('button', {type: 'button', text: '⌨ ' + t('tv.type'), 'data-tvtype': '1'}));
+    el('button', {type: 'button', text: t('tv.search'), 'data-tvkey': 84}),
+    el('input', {type: 'text', id: 'tv-q', placeholder: t('tv.query'), enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off'}));
 }
 function setTab(name) {
   ui.tab = name === 'tv' ? 'tv' : 'bose'; saveUi();
@@ -657,7 +654,15 @@ function setTab(name) {
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
 }
 $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
-$('#tvbody').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'tv-q') { ev.preventDefault(); ev.target.blur(); $('#tvbody [data-tvsearch]').click(); } });
+// Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
+$('#tvbody').addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || ev.target.id !== 'tv-q') return;
+  ev.preventDefault();
+  const inp = ev.target, q = tvFold(inp.value.trim()), ip = tvLoad().ip; if (!q) return;
+  inp.disabled = true;
+  (async () => { for (const ch of q) { const code = tvKeyFor(ch); if (code) await STNative.tv.key(ip, code); } await STNative.tv.key(ip, 66); inp.value = ''; })()
+    .catch(e => toast(e.message, true)).finally(() => { inp.disabled = false; });
+});
 $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
@@ -665,19 +670,13 @@ $('#tvbody').addEventListener('click', ev => {
   tvBusy(b, async () => {
     if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);
     else if (b.dataset.tvapp) await STNative.tv.launch(c.ip, b.dataset.tvapp);
-    else if (b.dataset.tvsearch || b.dataset.tvtype) {
-      const q = $('#tv-q').value.trim(); if (!q) { toast(t('tv.needQuery'), true); return; }
-      if (b.dataset.tvsearch) { await STNative.tv.launch(c.ip, TV_SEARCH.find(a => a[0] === b.dataset.tvsearch)[1](encodeURIComponent(q))); return; }
-      // Text in das Eingabefeld tippen, das auf dem Fernseher gerade den Fokus hat
-      for (const ch of tvFold(q)) { const code = tvKeyFor(ch); if (code) await STNative.tv.key(c.ip, code); }
-    }
     else if (b.dataset.tvpower) {
-      try { await STNative.tv.power(c.ip, b.dataset.tvpower === 'on'); }
-      catch (e) {
-        // Standby ohne offenen Port: Weckruf (Wake-on-LAN) an die MAC-Adresse schicken
-        if (b.dataset.tvpower === 'on' && c.mac) { await STNative.tv.wake(c.mac); toast(t('tv.woke')); return; }
-        throw e;
-      }
+      const on = b.dataset.tvpower === 'on';
+      // Ein: erst Weckruf (Wake-on-LAN) an die MAC-Adresse, dann Einschalttaste über die Verbindung
+      let woke = false;
+      if (on && c.mac) { try { await STNative.tv.wake(c.mac); woke = true; } catch (e) { /* weiter */ } }
+      try { await STNative.tv.power(c.ip, on); }
+      catch (e) { if (woke) { toast(t('tv.woke')); return; } throw e; }
     }
   }).catch(e => toast(e.message, true));
 });

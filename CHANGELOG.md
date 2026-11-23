@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.21.0
+- Suche neu: Eine Taste „Suche" (Tastencode SEARCH) springt in die Suche der gerade offenen App. Darunter ein Textfeld: am Handy tippen, Enter schickt den Text in das markierte Feld des Fernsehers und drückt dort Enter. Die Anbieter-Suchtasten entfallen.
+- Ein: schickt immer zuerst einen Weckruf (Wake-on-LAN, jetzt auch an die Netz-Broadcast-Adresse), dann WAKEUP; war der Stick im Standby, zusätzlich die Power-Taste.
+
 ## 0.20.3
 - Lauter, Leiser und Stumm entfernt; ⏻-Symbole an Ein/Aus entfernt.
 - Ein/Aus und Funktionsmaske wieder wie in 0.20.1 (Aus funktionierte dort).
