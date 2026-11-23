@@ -514,7 +514,7 @@
       const now = await nowFull(src[0].ip);
       // Spielt Music Assistant (Box-Quelle meist AirPlay), zieht MA die Warteschlange selbst um; die Box-Quelle lässt sich dort nicht kopieren
       const log = {move: names(src) + ' -> ' + names(dst), mode, box: [now.source, now.ci.source, now.play || '-', now.track || '-'].join(' | '), via: '', schritte: []};
-      keyLog.push(log); if (keyLog.length > 8) keyLog.shift();
+      keyLog.push(log); if (keyLog.length > 20) keyLog.shift();
       if (mode === 'move') {
         const snap = await maSnapshot(), sq = snap && maLiveQueue(snap, src[0]);
         log.ma = snap ? (sq ? {queue: sq.queue_id, state: sq.state} : 'keine laufende Warteschlange') : 'nicht erreichbar/nicht eingerichtet';
@@ -570,7 +570,7 @@
     async function moveViaMa(snap, sq, src, dst, log) {
       const dstIds = new Set(dst.map(b => b.id)), d0 = dst[0], steps = log.schritte;
       const leaving = src.filter(b => !dstIds.has(b.id));
-      await wake(d0); steps.push('Ziel wach');
+      await wake(d0); await sleep(2000); steps.push('Ziel wach');
       // frisch aufgewachte Box taucht erst nach einigen Sekunden wieder als MA-Player auf
       let tq = null;
       for (let i = 0; i < 8 && !tq; i++) {
@@ -585,13 +585,26 @@
         await maCall(snap.conf, 'player_queues/transfer', {source_queue_id: sq.queue_id, target_queue_id: tq, auto_play: true}, 8000);
         steps.push('player_queues/transfer ok');
       }
-      let st = '';
-      for (let i = 0; i < 6 && st !== 'playing'; i++) {
-        await sleep(1000);
-        try { const q = asList(await maCall(snap.conf, 'player_queues/all', {}, 2500)).find(x => x && x.queue_id === tq); st = q ? q.state : ''; } catch (e) { st = ''; }
+      const waitPlay = async (q, n) => {
+        let st = '';
+        for (let i = 0; i < n && st !== 'playing'; i++) {
+          await sleep(1000);
+          try { const x = asList(await maCall(snap.conf, 'player_queues/all', {}, 2500)).find(y => y && y.queue_id === q); st = x ? x.state : ''; } catch (e) { st = ''; }
+        }
+        return st;
+      };
+      let st = await waitPlay(tq, 5); steps.push('Ziel-Zustand: ' + (st || '?'));
+      for (let k = 0; k < 2 && st !== 'playing'; k++) {      // frisch geweckte Box nimmt den Start oft nicht an: erneut starten
+        try { await maCall(snap.conf, 'player_queues/resume', {queue_id: tq}, 9000); steps.push('player_queues/resume ok'); } catch (e) { steps.push('player_queues/resume FEHLER ' + e.message); }
+        st = await waitPlay(tq, 6); steps.push('Ziel-Zustand: ' + (st || '?'));
       }
-      steps.push('Ziel-Zustand: ' + (st || '?'));
-      if (st !== 'playing') throw new Error(T('err.moveMaNotPlaying', d0.name));
+      if (st !== 'playing') {
+        if (tq !== sq.queue_id) {         // zurück zur Quelle, damit die Musik nicht verloren ist
+          try { await maCall(snap.conf, 'player_queues/transfer', {source_queue_id: tq, target_queue_id: sq.queue_id, auto_play: true}, 8000); steps.push('zurück zur Quelle ok'); }
+          catch (e) { steps.push('zurück zur Quelle FEHLER ' + e.message); }
+        }
+        throw new Error(T('err.moveMaNotPlaying', d0.name));
+      }
       const warn = [];
       if (dst.length > 1) {
         try { if (!(await isStereoPair(dst))) await makeZone(dst); } catch (e) { warn.push(T('err.zone', e.message)); }
@@ -799,7 +812,7 @@
         if (f.source === 'STANDBY') throw new Error(T('err.speakerOff', sp.name));
         const snap = await maSnapshot(), info = snap && maInfo(snap.conf, snap.players, snap.queues, sp, f);
         const log = {key, box: [f.source, f.ci.source, f.play || '-', f.track || '-'].join(' | '), ma: snap ? (info ? {aktiv: info.active, state: info.state, titel: info.title} : 'kein Player') : 'nicht erreichbar/nicht eingerichtet', via: '', schritte: []};
-        keyLog.push(log); if (keyLog.length > 8) keyLog.shift();
+        keyLog.push(log); if (keyLog.length > 20) keyLog.shift();
         try {
           if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
             log.via = 'MA';

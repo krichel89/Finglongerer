@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.6
+- Umziehen mit Music Assistant: Läuft die Musik auf der Ziel-Box nach der Übertragung nicht an (frisch geweckte Box, Quelle „INVALID_SOURCE"), startet die App sie bis zu zweimal neu (`player_queues/resume`). Klappt es nicht, wird die Musik auf die Quelle zurückgelegt, statt verloren zu gehen. Nach dem Wecken der Ziel-Box 2 s Pause.
+- Die Diagnose behält die letzten 20 statt 8 Einträge, damit ein Umzug nicht von späteren Tasten verdrängt wird.
+
 ## 0.16.5
 - Play nach Pause über Music Assistant geht gleich per `player_queues/resume`. Die Diagnose zeigte: `play_pause` meldet bei den UPnP-Boxen „ok", setzt aber nicht fort; die Wartezeit war verschenkt. `play_pause` bleibt als Rückfall, falls resume fehlschlägt.
 - Die Diagnose zeigt bei den Schritten jetzt die Dauer in Millisekunden.
