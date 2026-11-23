@@ -11,7 +11,7 @@ const UI_KEY = 'steasyremote.ui';
 const ui = {order: [], open: {}, sort: false};
 try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; } } catch (e) { /* neu anfangen */ }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open})); } catch (e) { /* egal */ } };
-const presetNames = {};
+const presetNames = {}, presetLoc = {};
 
 async function api(path, body) {
   // Direkt an die Boxen (kein Server): Kernlogik aus core.js, Transport aus native.js
@@ -43,6 +43,12 @@ function pred(key) {
   if (key.startsWith('aux:')) { const s = state[+key.slice(4)]; return !!(s && s.online && s.source === 'AUX'); }
   if (key.startsWith('bt:')) { const s = state[+key.slice(3)]; return !!(s && s.online && s.source === 'BLUETOOTH'); }
   if (key.startsWith('off:')) { const s = state[+key.slice(4)]; return !!(s && s.online && s.standby); }
+  if (key.startsWith('p:')) {       // p:<ekey>:<n> -> gewählte Sendertaste (Stand der ersten Box des Eintrags)
+    const [, kind, id, n] = key.split(':'), loc = (presetLoc[kind + ':' + id] || {})[n];
+    const g = kind === 'g' ? cfg.groups.find(x => x.id === id) : null;
+    const sp = g ? gState(g)[0] : state[cfg.speakers.findIndex(x => x.id === id)];
+    return !!(loc && sp && sp.online && sp.item === loc);
+  }
   const [, gid, what] = key.split(':');
   const g = cfg.groups.find(x => x.id === gid); if (!g) return false;
   const S = gState(g);
@@ -74,14 +80,17 @@ async function act(path, body, btn, keys = []) {
 }
 
 // ---- Anzeige: Gruppen und Einzelboxen gleichrangig
+const SRC_NAMES = {LOCAL_INTERNET_RADIO: 'Internetradio', INTERNET_RADIO: 'Internetradio', TUNEIN: 'TuneIn', BLUETOOTH: 'BT', AIRPLAY: 'AirPlay',
+  SPOTIFY: 'Spotify', DEEZER: 'Deezer', STORED_MUSIC: 'Musikbibliothek', QPLAY: 'QPlay', PRODUCT: 'Eingang', AUX: 'AUX', NOTIFICATION: 'Hinweis'};
+const srcName = x => SRC_NAMES[x] || (x ? x.charAt(0) + x.slice(1).toLowerCase().replace(/_/g, ' ') : 'an');
 function sourceBadge(S) {
   if (!S.length || S.every(s => !s.online)) return ['nicht erreichbar', 'err'];
   const off = S.filter(s => !s.online).length;
   if (off) return [off + ' nicht erreichbar', 'err'];
   if (S.every(s => s.standby)) return ['Standby', ''];
   if (S.every(s => s.source === 'AUX')) return ['AUX', 'on'];
-  if (S.every(s => s.source === 'BLUETOOTH')) return ['Bluetooth', 'on'];
-  if (S.every(s => s.source === S[0].source)) return [S[0].source || 'an', 'on'];
+  if (S.every(s => s.source === 'BLUETOOTH')) return ['BT', 'on'];
+  if (S.every(s => s.source === S[0].source)) return [srcName(S[0].source), 'on'];
   return ['gemischt', ''];
 }
 function balText(b) { return b === 0 ? 'Balance: Mitte' : 'Balance: ' + (b < 0 ? 'links ' + (-b) : 'rechts ' + b) + ' %'; }
@@ -95,8 +104,8 @@ function entries() {
   return out;
 }
 const srcRow = (act, key) => el('div', {class: 'row3'},
-  el('button', {text: 'AUX an', 'data-act': act + 'aux', 'data-key': key('aux')}),
-  el('button', {text: 'Bluetooth', 'data-act': act + 'bt', 'data-key': key('bt')}),
+  el('button', {text: 'AUX', 'data-act': act + 'aux', 'data-key': key('aux')}),
+  el('button', {text: 'BT', 'data-act': act + 'bt', 'data-key': key('bt')}),
   el('button', {text: 'Aus', 'data-act': act + 'off', 'data-key': key('off')}));
 
 async function loadPresetNames(ekey) {
@@ -106,8 +115,8 @@ async function loadPresetNames(ekey) {
   const body = card.dataset.gid ? {gid: card.dataset.gid, action: 'presets'} : {idx: +card.dataset.i};
   try {
     const j = await api(card.dataset.gid ? '/api/group' : '/api/presets', body);
-    const names = {}; (j.presets || []).forEach(p => { if (p.name) names[p.n] = p.name; });
-    presetNames[ekey] = names;
+    const names = {}, locs = {}; (j.presets || []).forEach(p => { if (p.name) names[p.n] = p.name; if (p.item) locs[p.n] = p.item; });
+    presetNames[ekey] = names; presetLoc[ekey] = locs; paint();
     document.querySelectorAll('[data-ekey="' + ekey + '"] [data-act=preset]').forEach(b => {
       b.textContent = b.dataset.n + (names[b.dataset.n] ? ' · ' + names[b.dataset.n] : ''); });
   } catch (e) { /* ohne Namen */ }
@@ -115,7 +124,7 @@ async function loadPresetNames(ekey) {
 function presetBlock(ekey) {
   const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6)'}));
   const names = presetNames[ekey] || {}, grid = el('div', {class: 'pgrid'});
-  for (let n = 1; n <= 6; n++) grid.append(el('button', {text: n + (names[n] ? ' · ' + names[n] : ''), 'data-act': 'preset', 'data-n': n}));
+  for (let n = 1; n <= 6; n++) grid.append(el('button', {text: n + (names[n] ? ' · ' + names[n] : ''), 'data-act': 'preset', 'data-n': n, 'data-key': 'p:' + ekey + ':' + n}));
   d.append(grid);
   d.open = !!ui.open['p:' + ekey];
   d.addEventListener('toggle', () => {

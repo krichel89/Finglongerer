@@ -98,7 +98,9 @@ try {
   r = await call('/api/preset', { idx: 1, n: 4 }); assert.equal(await dbg('127.0.0.3'), '4'); ok('einzelne Box: Taste 4');
   r = await call('/api/group', { gid: 'g1', action: 'preset', n: 2 }); assert.deepEqual([await dbg('127.0.0.2'), await dbg('127.0.0.3'), await dbg('127.0.0.4')], ['2', '4', '0']); ok('Gruppe: Taste 2 nur am Master, Folge-Boxen per Zone');
   await assert.rejects(call('/api/preset', { idx: 0, n: 9 }), /Taste 1 bis 6/); ok('Taste 9 abgelehnt');
-  r = await call('/api/presets', { idx: 0 }); assert.deepEqual(r.presets, [{ n: 1, name: 'Radio Eins' }, { n: 3, name: 'Klassik' }]); ok('Sendernamen aus /presets');
+  r = await call('/api/presets', { idx: 0 }); assert.deepEqual(r.presets.map(p => [p.n, p.name]), [[1, 'Radio Eins'], [3, 'Klassik']]); ok('Sendernamen aus /presets');
+  await call('/api/preset', { idx: 0, n: 1 }); st = await call('/api/state'); r = await call('/api/presets', { idx: 0 });
+  assert.equal(st.speakers[0].item, 'LOCAL_INTERNET_RADIO|x'); assert.equal(r.presets[0].item, 'LOCAL_INTERNET_RADIO|x'); assert.notEqual(r.presets[1].item, st.speakers[0].item); ok('laufende Quelle passt zur gewählten Sendertaste');
   const m5 = spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, '127.0.0.5', 'Flur', 'DEV-E'], { stdio: 'ignore', env: { ...process.env, MOCK_NO_BT_SELECT: '1' } }); mocks.push(m5);
   await new Promise(r => setTimeout(r, 800));
   await call('/api/config', { speakers: [{ id: 'e', name: 'Flur', ip: '127.0.0.5', max: 50 }], groups: [] });

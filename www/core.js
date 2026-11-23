@@ -114,7 +114,9 @@
     }
     async function nowPlaying(ip) {
       const xml = await stGet(ip, '/now_playing');
-      return [attr(xml, 'nowPlaying', 'source'), attr(xml, 'nowPlaying', 'deviceID')];
+      const loc = attr(xml, 'ContentItem', 'location');
+      return [attr(xml, 'nowPlaying', 'source'), attr(xml, 'nowPlaying', 'deviceID'),
+        loc ? attr(xml, 'ContentItem', 'source') + '|' + loc : ''];
     }
     async function getInfo(ip) {
       const xml = await stGet(ip, '/info');
@@ -199,10 +201,10 @@
     async function speakerState(sp) {
       const out = {name: sp.name, ip: sp.ip, max: sp.max, online: false};
       if (!sp.ip) { out.error = 'keine IP eingetragen'; return out; }
-      let src, dev;
-      try { [src, dev] = await nowPlaying(sp.ip); }
+      let src, dev, item;
+      try { [src, dev, item] = await nowPlaying(sp.ip); }
       catch (e) { out.error = 'nicht erreichbar'; return out; }
-      Object.assign(out, {online: true, source: src, standby: src === 'STANDBY', deviceID: dev});
+      Object.assign(out, {online: true, source: src, standby: src === 'STANDBY', deviceID: dev, item: item || ''});
       try { const [v, m] = await getVolume(sp.ip); out.volume = v; out.mute = m; } catch (e) { /* egal */ }
       try {
         const g = await getGroup(sp.ip);
@@ -250,7 +252,8 @@
       try {
         const xml = await stGet(ip, '/presets', 2000), out = [];
         for (const m of xml.matchAll(/<preset\s+id="(\d+)"[^>]*>([\s\S]*?)<\/preset>/g))
-          out.push({n: +m[1], name: tag(m[2], 'itemName') || ''});
+          out.push({n: +m[1], name: tag(m[2], 'itemName') || '',
+            item: attr(m[2], 'ContentItem', 'location') ? attr(m[2], 'ContentItem', 'source') + '|' + attr(m[2], 'ContentItem', 'location') : ''});
         return out;
       } catch (e) { return []; }
     }

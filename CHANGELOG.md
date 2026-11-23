@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.5.1
+- Knappere Beschriftung: „AUX", „BT"; Quellenanzeige „Internetradio" statt „LOCAL_INTERNET_RADIO" (weitere Quellen mit lesbaren Namen).
+- Die laufende Sendertaste (1–6) wird orange markiert (Abgleich der laufenden Quelle mit /presets, sobald die Senderliste geöffnet ist).
+
 ## 0.5.0
 - Gruppen spielen jetzt synchron: AUX, Bluetooth und Sendertasten wirken auf die erste Box der Gruppe (Master), die übrigen Boxen werden als Multiroom-Zone (`/setZone`) angekoppelt und per `/getZone` geprüft.
 - Gruppe „Aus": nacheinander (Master zuerst), damit eine Folge-Box nicht wieder geweckt wird.

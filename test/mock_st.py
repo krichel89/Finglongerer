@@ -44,7 +44,8 @@ class H(BaseHTTPRequestHandler):
             src = S["source"]
             if S["wake_at"] and time.time() < S["wake_at"]:
                 src = "STANDBY"
-            self.send('<nowPlaying deviceID="%s" source="%s"><ContentItem source="%s"/></nowPlaying>' % (DEVID, src, src))
+            ci = '<ContentItem source="LOCAL_INTERNET_RADIO" location="x"/>' if S["preset"] == 1 and src not in ("STANDBY",) else '<ContentItem source="%s"/>' % src
+            self.send('<nowPlaying deviceID="%s" source="%s">%s</nowPlaying>' % (DEVID, src, ci))
         elif p == "/volume":
             self.send('<volume deviceID="%s"><targetvolume>%d</targetvolume><actualvolume>%d</actualvolume><muteenabled>false</muteenabled></volume>' % (DEVID, S["vol"], S["vol"]))
         elif p == "/info":
