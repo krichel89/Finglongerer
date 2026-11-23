@@ -578,7 +578,7 @@
       await wake(d0); await sleep(2000); steps.push('Ziel wach');
       // frisch aufgewachte Box taucht erst nach einigen Sekunden wieder als MA-Player auf
       let tq = null;
-      for (let i = 0; i < 8 && !tq; i++) {
+      for (let i = 0; i < 15 && !tq; i++) {
         maCache.players = null;
         const players = await maPlayers(snap.conf);
         const p = maMatch(players, d0)[0];
@@ -586,9 +586,11 @@
       }
       if (!tq) throw new Error(T('err.moveNoMa', d0.name));
       steps.push('Ziel-Player ' + tq);
+      let transferErr = false;
       if (tq !== sq.queue_id) {
-        await maCall(snap.conf, 'player_queues/transfer', {source_queue_id: sq.queue_id, target_queue_id: tq, auto_play: true}, 8000);
-        steps.push('player_queues/transfer ok');
+        // MA hält die Antwort, bis die Ziel-Box den Stream angenommen hat (kann über 8 s dauern); ein Timeout heißt nicht "gescheitert": danach trotzdem den Zustand prüfen
+        try { await maCall(snap.conf, 'player_queues/transfer', {source_queue_id: sq.queue_id, target_queue_id: tq, auto_play: true}, 30000); steps.push('player_queues/transfer ok'); }
+        catch (e) { steps.push('player_queues/transfer ohne Antwort: ' + e.message + ' - prüfe Ziel'); transferErr = true; }
       }
       const waitPlay = async (q, n) => {
         let st = '';
@@ -598,7 +600,7 @@
         }
         return st;
       };
-      let st = await waitPlay(tq, 5); steps.push('Ziel-Zustand: ' + (st || '?'));
+      let st = await waitPlay(tq, transferErr ? 12 : 5); steps.push('Ziel-Zustand: ' + (st || '?'));
       for (let k = 0; k < 2 && st !== 'playing'; k++) {      // frisch geweckte Box nimmt den Start oft nicht an: erneut starten
         try { await maCall(snap.conf, 'player_queues/resume', {queue_id: tq}, 9000); steps.push('player_queues/resume ok'); } catch (e) { steps.push('player_queues/resume FEHLER ' + e.message); }
         st = await waitPlay(tq, 6); steps.push('Ziel-Zustand: ' + (st || '?'));

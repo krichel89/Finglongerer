@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.8
+- Umziehen mit Music Assistant: `player_queues/transfer` wartet bis zu 30 s (vorher 8 s). Laut Diagnose lief der Umzug trotz „timeout"-Meldung durch; die App brach ab und schaltete die Quell-Box nicht aus. Ein Timeout gilt jetzt nicht mehr als Fehler, die App prüft danach, ob es auf der Ziel-Box läuft.
+- Nach dem Aufwecken wartet die App bis zu 15 s, bis Music Assistant die Ziel-Box wieder als Player sieht (vorher 8 s).
+
 ## 0.16.7
 - Diagnose beim Umziehen: zeigt, ob der Umzug über Music Assistant oder als Box-Kopie lief (die Kopie hängt am Stream der Quell-Box), und die Zonengröße von Quelle und Ziel vorher/nachher.
 
