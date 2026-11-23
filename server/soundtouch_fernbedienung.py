@@ -326,8 +326,14 @@ def do_aux_on(sp):
         if not wait_awake(ip):
             raise RuntimeError("Box ist nicht aufgewacht")
         time.sleep(1.0)
-    press_key(ip, "AUX_INPUT")
-    return "AUX an"
+    if now_playing(ip)[0] == "AUX":
+        return "AUX an"
+    st_post(ip, "/select", '<ContentItem source="AUX" sourceAccount="AUX"></ContentItem>')
+    for _ in range(4):
+        time.sleep(0.7)
+        if now_playing(ip)[0] == "AUX":
+            return "AUX an"
+    raise RuntimeError("AUX nicht aktiv (Quelle: %s)" % now_playing(ip)[0])
 
 
 def do_off(sp):

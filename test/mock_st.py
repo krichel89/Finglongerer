@@ -63,10 +63,13 @@ class H(BaseHTTPRequestHandler):
                     else:
                         S["source"] = "STANDBY"
                 elif ">AUX_INPUT<" in body:
-                    S["source"] = "AUX"
+                    S["source"] = "BLUETOOTH" if S["source"] == "AUX" else "AUX"
             self.send("<status>/key</status>")
         elif self.path == "/volume":
             S["vol"] = int(body.split(">")[1].split("<")[0]); self.send("<status>/volume</status>")
+        elif self.path == "/select":
+            if 'source="AUX"' in body: S["source"] = "AUX"
+            self.send("<status>/select</status>")
         elif self.path == "/addGroup":
             S["group"] = body; self.send("<group/>")
         else:

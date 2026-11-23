@@ -180,14 +180,20 @@
     }
 
     // ---- Aktionen
+    // AUX direkt wählen (/select). Die Taste AUX_INPUT schaltet je nach Box zwischen AUX und Bluetooth um.
     async function doAuxOn(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
         if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
         await sleep(1000);
       }
-      await pressKey(sp.ip, 'AUX_INPUT');
-      return 'AUX an';
+      if ((await nowPlaying(sp.ip))[0] === 'AUX') return 'AUX an';
+      await stPost(sp.ip, '/select', '<ContentItem source="AUX" sourceAccount="AUX"></ContentItem>');
+      for (let i = 0; i < 4; i++) {
+        await sleep(700);
+        if ((await nowPlaying(sp.ip))[0] === 'AUX') return 'AUX an';
+      }
+      throw new Error('AUX nicht aktiv (Quelle: ' + (await nowPlaying(sp.ip))[0] + ')');
     }
     async function doOff(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') return 'war schon aus';
