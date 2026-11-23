@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 const root = new URL('..', import.meta.url).pathname;
-const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(f => f && !/\.(png|jar|keystore)$/.test(f) && f !== 'package-lock.json');
+const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(f => f && !/\.(png|jar|keystore)$/.test(f) && f !== 'package-lock.json' && f !== 'test/hygiene.test.mjs');
 const rules = [
   [/Musikzimmer|Harald/i, 'persönliche Namen'],
   [/\b192\.168\.178\.\d/, 'konkrete Adresse im eigenen Heimnetz'],
