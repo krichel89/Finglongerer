@@ -1,6 +1,6 @@
 {
   "appId": "de.krichel.steasyremote",
-  "appName": "STEasy",
+  "appName": "Finglongerer",
   "webDir": "www",
   "server": {
     "androidScheme": "http",

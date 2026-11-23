@@ -1,6 +1,6 @@
 # STeasyremote
 
-**STEasy** – schlanke Android-Fernbedienung für Bose SoundTouch mit ST Reborn – **ohne Server**, die App spricht die Boxen direkt im WLAN an.
+**Finglongerer** – schlanke Android-Fernbedienung für Bose SoundTouch mit ST Reborn – **ohne Server**, die App spricht die Boxen direkt im WLAN an.
 
 - Pro Box: **AUX an**, **Aus** (Standby wird erkannt, POWER ist nur ein Umschalter), Lautstärke mit Obergrenze
 - Oben: „Alle: AUX an" / „Alle: Aus"
@@ -18,7 +18,7 @@ Steht unter ⚙ Einstellungen. Neue Version: `node scripts/set-version.mjs 0.3.0
 
 ## APK bauen
 GitHub → **Actions** → „APK bauen" → *Run workflow* (läuft auch bei jedem Push auf `main`).
-Danach unter dem Lauf das Artefakt **STEasy-<Version>-apk** herunterladen (bei Tags zusätzlich unter *Releases*), auf dem Handy installieren
+Danach unter dem Lauf das Artefakt **Finglongerer-<Version>-apk** herunterladen (bei Tags zusätzlich unter *Releases*), auf dem Handy installieren
 („Installation aus unbekannten Quellen" erlauben). Handy und Boxen müssen im selben WLAN sein.
 
 Lokal: `npm ci && npx cap sync android`, dann `android/` in Android Studio öffnen.

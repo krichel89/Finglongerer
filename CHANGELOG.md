@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.15.0
+- App heißt jetzt **Finglongerer** (Name unter dem Icon, Titel, Kopfzeile, APK-Dateiname `Finglongerer-<Version>.apk`). Die App-ID bleibt, Updates laufen weiter über die alte Installation.
+
 ## 0.14.1
 - Music Assistant streamt zu den Boxen per AirPlay (Diagnose: Quelle `AIRPLAY`, Cover von der Box). Bisher galt AirPlay nie als MA, daher gingen Weiter/Zurück/Pause trotzdem an die Box. Jetzt gilt MA bei AirPlay als aktiv, wenn der Titel der Box zum Titel der MA-Warteschlange passt; AirPlay vom Handy mit anderem Titel bleibt bei den Box-Tasten.
 
