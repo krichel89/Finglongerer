@@ -74,7 +74,8 @@
       if (raw && !ip) throw new Error(T('err.cfgIp', name, raw.slice(0, 40)));
       let mx = parseInt(sp.max, 10);
       if (!Number.isFinite(mx)) mx = 70;
-      speakers.push({id: uniqueId(sp.id, used), name, ip, max: Math.max(10, Math.min(100, mx))});
+      const off = v => { const o = parseInt(v, 10); return Number.isFinite(o) ? Math.max(-50, Math.min(50, o)) : 0; };
+      speakers.push({id: uniqueId(sp.id, used), name, ip, max: Math.max(10, Math.min(100, mx)), offAux: off(sp.offAux), offBt: off(sp.offBt)});
     }
     const groups = Array.isArray(cfg.groups) ? cfg.groups : [];
     const ids = new Set(speakers.map(sp => sp.id)), gused = new Set(), outG = [];
@@ -219,6 +220,10 @@
       return false;
     }
 
+    // Lautstärke-Ausgleich je Eingang: Box-Lautstärke = App-Lautstärke + Ausgleich (AUX, Bluetooth); Streaming = 0
+    const srcOff = (sp, source) => source === 'AUX' ? (sp.offAux || 0) : source === 'BLUETOOTH' ? (sp.offBt || 0) : 0;
+    const clamp100 = v => Math.max(0, Math.min(100, v));
+
     async function speakerState(sp) {
       const out = {name: sp.name, ip: sp.ip, max: sp.max, online: false};
       if (!sp.ip) { out.error = T('err.noIp'); return out; }
@@ -228,7 +233,7 @@
       Object.defineProperty(out, '_f', {value: f});          // für die MA-Zuordnung wiederverwenden (nicht in der Antwort): spart pro Box eine Anfrage je Aktualisierung
       Object.assign(out, {online: true, source: f.source, standby: f.source === 'STANDBY', deviceID: f.deviceID,
         item: f.ci.location ? f.ci.source + '|' + f.ci.location : '', title: f.track, artist: f.artist, album: f.album, station: f.station, play: f.play, art: f.art});
-      try { const [v, m] = await getVolume(sp.ip); out.volume = v; out.mute = m; } catch (e) { /* egal */ }
+      try { const [v, m] = await getVolume(sp.ip); out.volume = clamp100(v - srcOff(sp, f.source)); out.mute = m; } catch (e) { /* egal */ }
       try {
         const g = await getGroup(sp.ip);
         out.group = {paired: g.paired, name: g.name, role: g.roles[f.deviceID] || ''};
@@ -394,10 +399,11 @@
       return T('act.off');
     }
     async function doVolume(sp, delta, value) {
-      const [cur] = await getVolume(sp.ip);
-      let nv = value !== undefined && value !== null ? parseInt(value, 10) : cur + parseInt(delta, 10);
+      const [[cur], np] = await Promise.all([getVolume(sp.ip), nowPlaying(sp.ip)]);
+      const off = srcOff(sp, np[0]);
+      let nv = value !== undefined && value !== null ? parseInt(value, 10) : clamp100(cur - off) + parseInt(delta, 10);
       nv = Math.max(0, Math.min(sp.max, nv));
-      await setVolume(sp.ip, nv);
+      await setVolume(sp.ip, clamp100(nv + off));
       return T('act.volume', nv);
     }
     // Multiroom-Zone: Master-Box spielt, die anderen folgen synchron (/setZone). Stereopaare sind keine Zone.
@@ -691,7 +697,7 @@
         const [rdev] = await getInfo(right.ip);
         const useRight = g.master && g.master === rdev;
         const box = useRight ? right : left, dev = useRight ? rdev : ldev;
-        await setVolume(box.ip, master);
+        await setVolume(box.ip, clamp100(master + srcOff(box, (await nowPlaying(box.ip))[0])));
         const rng = (await getBalanceRange(box.ip)) || [-7, 7, null];
         const target = balance >= 0 ? Math.round(balance / 100 * rng[1]) : Math.round(balance / 100 * -rng[0]);
         await wsSetBalance(box.ip, dev, target);
@@ -701,7 +707,7 @@
       const rv = Math.round(master * (1 - Math.max(0, -balance) / 100));
       const errs = [];
       await Promise.all([[left, lv], [right, rv]].map(async ([sp, v]) => {
-        try { await setVolume(sp.ip, v); } catch (e) { errs.push(sp.name + ': ' + e.message); }
+        try { await setVolume(sp.ip, clamp100(v + srcOff(sp, (await nowPlaying(sp.ip))[0]))); } catch (e) { errs.push(sp.name + ': ' + e.message); }
       }));
       if (errs.length) throw new Error(errs.join('; '));
       return T('act.lrVol', lv, rv);

@@ -213,6 +213,11 @@ try {
   r = await call('/api/reboot', { idx: 0 }); assert.match(r.message, /Alpha startet neu/); assert.deepEqual(tcpLog, ['127.0.0.2:17000 sys reboot']); ok('Neustart: "sys reboot" an Port 17000 der gewählten Box');
   r = await call('/api/diag'); assert.match(r.text, /== Letzte Player-Tasten/); assert.match(r.text, /"via":"MA".*player_queues\/play_pause ok/); assert.match(r.text, /"via":"Box"/); assert.match(r.text, /player_queues\/resume ok/);
   assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
+  const cfgOff = o => ({ speakers: [{ id: 'a1', name: 'Alpha', ip: '127.0.0.2', max: 100, offAux: o }, { id: 'b1', name: 'Bravo', ip: '127.0.0.3', max: 60 }], groups: [{ id: 'gg', name: 'Beide Boxen', members: ['a1', 'b1'] }] });
+  await call('/api/config', cfgOff(10)); await call('/api/aux', { idx: 0 });
+  r = await call('/api/volume', { idx: 0, value: 30 }); assert.match(r.message, /Lautstärke 30/);
+  assert.match(await nodeHttp('GET', '127.0.0.2', 8090, '/volume', null, 2000), /<actualvolume>40</);
+  st = await call('/api/state'); assert.equal(st.speakers[0].volume, 30); await call('/api/config', cfgOff(0)); ok('Ausgleich AUX: Box 40 bei Reglerstand 30, Anzeige bleibt 30');
   maSrv.closeAllConnections(); maSrv.close();
   // Englisch: Meldungen der Kernlogik folgen der Spracheinstellung
   LANG = 'en';
