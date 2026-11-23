@@ -28,7 +28,8 @@ function nodeHttp(method, ip, port, path, body, timeout, extra) {
 const mem = {};
 const storage = { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } };
 let LANG = 'de', maStuck = false;   // maStuck: play_pause setzt eine pausierte Warteschlange nicht fort (wie bei AirPlay beobachtet)
-const core = STCore.createCore({ http: nodeHttp, WebSocket, storage, scanTimeout: 400, lang: () => LANG }); // wsPorts Standard: 8080 (verweigert) -> 8090
+const tcpLog = [];
+const core = STCore.createCore({ tcp: async (ip, port, line) => { tcpLog.push(ip + ':' + port + ' ' + line); return 'ok'; }, http: nodeHttp, WebSocket, storage, scanTimeout: 400, lang: () => LANG }); // wsPorts Standard: 8080 (verweigert) -> 8090
 
 let n = 0;
 const ok = (name) => console.log('ok', ++n, name);
@@ -209,6 +210,7 @@ try {
   maQ['ma-a'] = 'playing'; maQ['ma-b'] = 'idle'; maLog.length = 0;
   r = await call('/api/move', { from: { idx: 0 }, to: { idx: 1 }, mode: 'move' }); assert.match(r.message, /umgezogen auf Bravo/);
   assert.ok(maLog.includes('player_queues/transfer:{"source_queue_id":"ma-a","target_queue_id":"ma-b","auto_play":true}')); ok('Umziehen mit MA: player_queues/transfer an die Ziel-Box');
+  r = await call('/api/reboot', { idx: 0 }); assert.match(r.message, /Alpha startet neu/); assert.deepEqual(tcpLog, ['127.0.0.2:17000 sys reboot']); ok('Neustart: "sys reboot" an Port 17000 der gewählten Box');
   r = await call('/api/diag'); assert.match(r.text, /== Letzte Player-Tasten/); assert.match(r.text, /"via":"MA".*player_queues\/play_pause ok/); assert.match(r.text, /"via":"Box"/); assert.match(r.text, /player_queues\/resume ok/);
   assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();

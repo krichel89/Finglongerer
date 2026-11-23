@@ -244,9 +244,7 @@ function groupBody(g, ekey) {
         el('input', {type: 'range', min: -100, max: 100, step: 5, value: b, 'data-role': 'gbal'}),
         el('span', {class: 'side', text: 'R'}),
         el('span', {class: 'v', text: balText(b)})),
-      el('div', {class: 'row2'},
-        el('button', {text: t('grp.pair'), 'data-act': 'gpair', 'data-key': 'g:' + g.id + ':pair'}),
-        el('button', {text: t('grp.unpair'), 'data-act': 'gunpair'})));
+      el('button', {class: 'pairbtn', text: t('grp.pair'), 'data-act': 'gpairtoggle', 'data-key': 'g:' + g.id + ':pair'}));   // ein Knopf: orange = Paar besteht, Druck löst es, sonst bildet er es
     if (paired && !balRead[g.id]) {
       balRead[g.id] = true;
       api('/api/group', {gid: g.id, action: 'read'}).then(j => {
@@ -398,7 +396,7 @@ document.addEventListener('click', async ev => {
     const v = card.querySelector('[data-role=gvol]');
     gSend(card, Math.max(0, Math.min(+v.max, +v.value + (a === 'gup' ? 3 : -3))));
   } else if (a === 'gpair') { balRead[gid] = false; act('/api/group', {gid, action: 'pair'}, null, ['g:' + gid + ':pair']); }
-  else if (a === 'gunpair') { balRead[gid] = false; act('/api/group', {gid, action: 'unpair'}, b); }
+  else if (a === 'gpairtoggle') { balRead[gid] = false; const on = pred('g:' + gid + ':pair'); act('/api/group', {gid, action: on ? 'unpair' : 'pair'}, null, on ? [] : ['g:' + gid + ':pair']); }
 });
 document.addEventListener('pointerdown', ev => { if (ev.target.type === 'range') dragging = true; });
 window.addEventListener('pointerup', () => { setTimeout(() => dragging = false, 50); });
@@ -477,7 +475,18 @@ $('#btn-settings').onclick = () => {
   renderGroupEditor();
   $('#scan-res').textContent = ''; $('#dlg-err').textContent = ''; $('#ma-url').value = cfg.ma || ''; $('#ma-token').value = cfg.maToken || ''; $('#ma-res').textContent = ''; $('#diag-out').hidden = true;
   $('#version').textContent = t('set.version', window.APP_VERSION || '?'); $('#lang-sel').value = STNative.langPref();
+  const rs = $('#reboot-sel'); rs.textContent = '';
+  cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
+  $('#reboot-go').disabled = !rs.options.length;
   $('#dlg').showModal();
+};
+$('#reboot-go').onclick = async e => {
+  const b = e.currentTarget, rs = $('#reboot-sel'), i = +rs.value, sp = cfg.speakers[i];
+  if (!sp || !confirm(t('set.rebootAsk', sp.name))) return;
+  b.disabled = true; b.classList.add('wait');
+  try { const j = await api('/api/reboot', {idx: i}); toast(j.message); }
+  catch (ex) { $('#dlg-err').textContent = ex.message; }
+  finally { b.disabled = false; b.classList.remove('wait'); }
 };
 $('#set-add').onclick = () => { addRow({max: 70}); renderGroupEditor(); };
 $('#grp-add').onclick = () => { editGroups.push({name: t('grp.defaultName', editGroups.length + 1), members: []}); renderGroupEditor(); };

@@ -21,6 +21,13 @@
     if (res.status >= 400) throw new Error('HTTP ' + res.status);
     return typeof res.data === 'string' ? res.data : String(res.data == null ? '' : JSON.stringify(res.data));
   }
+  // Rohe TCP-Zeile (nur Box-Neustart, Port 17000): läuft in einem Android-Thread, der Aufruf blockiert kurz
+  async function tcp(ip, port, line, timeout) {
+    if (!window.STTcp) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
+    const r = String(window.STTcp.send(ip, port, line, timeout || 3000));
+    if (r !== 'ok') throw new Error(r.replace(/^ERR:\s*/, ''));
+    return r;
+  }
   let storage;
   try { window.localStorage.getItem('x'); storage = window.localStorage; }
   catch (e) { const mem = {}; storage = {getItem: k => mem[k] || null, setItem: (k, v) => { mem[k] = v; }}; }
@@ -29,5 +36,5 @@
   const langPref = () => { try { const v = storage.getItem(LANG_KEY); return v === 'de' || v === 'en' ? v : 'auto'; } catch (e) { return 'auto'; } };
   const lang = () => window.STI18n.resolve(langPref(), (navigator.languages && navigator.languages[0]) || navigator.language);
   const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
-  window.STNative = {http, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
+  window.STNative = {http, tcp, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();

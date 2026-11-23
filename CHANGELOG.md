@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.17.0
+- Einstellungen: Box neu starten. Schickt `sys reboot` an die Diagnose-Shell der Box (Port 17000), mit Rückfrage. Dafür gibt es im Android-Teil eine kleine TCP-Brücke, die nur diesen einen Befehl und nur Heimnetz-Adressen zulässt.
+- Stereopaar bilden und auflösen sind ein Knopf: orange = Paar besteht (Druck löst es auf), grau = kein Paar (Druck bildet es).
+
 ## 0.16.10
 - AUX bei Gruppen: Die Auswahl von AUX wird auf jeder Box erzwungen. Eine Folge-Box in einer Zone meldet die Quelle des Masters (AUX), ohne selbst auf AUX zu stehen; die App hatte das Wählen dann übersprungen.
 - Folge-Boxen, deren Zone nur den Master meldet, entlassen sich jetzt selbst. Nach dem Auflösen wird geprüft, ob noch eine Zone besteht; sonst kommt eine Fehlermeldung.

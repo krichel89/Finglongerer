@@ -97,3 +97,4 @@ a.btnlink[hidden]{display:none}
 .pwrrow{display:flex;justify-content:center}
 button.pwr{display:flex;align-items:center;justify-content:center;width:100%;min-height:56px;color:var(--dim)}
 button.pwr.lit{color:var(--orange)}
+button.pairbtn{width:100%;margin-top:8px}

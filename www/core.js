@@ -870,6 +870,13 @@
           return {ok: true, message: T('key.' + key)};
         } catch (e) { log.schritte.push('FEHLER ' + e.message); throw e; }
       }
+      if (path === '/api/reboot') {        // Neustart der Box über die Diagnose-Shell (Port 17000, "sys reboot"); nur Boxen der Konfiguration
+        const sp = targets(data)[0];
+        if (!env.tcp) throw new Error(T('err.nativeOnly'));
+        try { await env.tcp(sp.ip, 17000, 'sys reboot', 3000); }
+        catch (e) { throw new Error(T('err.rebootFail', sp.name, e.message)); }
+        return {ok: true, message: T('act.rebooting', sp.name)};
+      }
       if (path === '/api/wake') {          // Ziel-Box vorab wecken, damit Umziehen ohne Wartezeit klappt (nur wenn die Quelle spielt)
         const from = refBoxes(data.from), to = refBoxes(data.to), fromIds = new Set(from.map(b => b.id));
         if ((await nowPlaying(from[0].ip))[0] === 'STANDBY') return {ok: true, message: ''};
