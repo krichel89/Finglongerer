@@ -1,4 +1,4 @@
-package de.krichel.steasyremote;
+package de.krichel.finglongerer;
 
 import android.content.Intent;
 import android.os.Bundle;

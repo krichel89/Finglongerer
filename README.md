@@ -1,4 +1,4 @@
-# STeasyremote
+# Finglongerer
 
 **Finglongerer** – schlanke Android-Fernbedienung für Bose SoundTouch mit ST Reborn – **ohne Server**, die App spricht die Boxen direkt im WLAN an.
 

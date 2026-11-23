@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.15.1
+- App-ID geändert auf `de.krichel.finglongerer` (Android-Paket, Namespace, Capacitor). Das ist eine neue App neben der alten: die alte Installation (`de.krichel.steasyremote`) deinstallieren und neu einrichten, Boxen und Einstellungen neu eintragen. Repository heißt jetzt `Finglongerer`.
+
 ## 0.15.0
 - App heißt jetzt **Finglongerer** (Name unter dem Icon, Titel, Kopfzeile, APK-Dateiname `Finglongerer-<Version>.apk`). Die App-ID bleibt, Updates laufen weiter über die alte Installation.
 
