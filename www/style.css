@@ -92,3 +92,8 @@ a.btnlink{display:flex;align-items:center;justify-content:center;min-height:50px
 a.btnlink[hidden]{display:none}
 #ma-res{display:grid;gap:8px}
 #diag-out{width:100%;background:#12151a;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px;font:12px/1.35 ui-monospace,monospace}
+
+.gnote{color:var(--orange);font-weight:600}
+.pwrrow{display:flex;justify-content:center}
+button.pwr{display:flex;align-items:center;justify-content:center;width:100%;min-height:56px;color:var(--dim)}
+button.pwr.lit{color:var(--orange)}

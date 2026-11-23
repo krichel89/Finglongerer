@@ -70,6 +70,7 @@ function pred(key) {
   if (what === 'aux') return S.length > 0 && S.every(s => s.online && s.source === 'AUX');
   if (what === 'bt') return S.length > 0 && S.every(s => s.online && s.source === 'BLUETOOTH');
   if (what === 'off') return S.length > 0 && S.every(s => s.online && s.standby);
+  if (what === 'on') return S.length > 0 && S.every(s => s.online && !s.standby);
   if (what === 'pair') return S.length === 2 && !!(S[0].group && S[0].group.paired);
   return false;
 }
@@ -122,8 +123,15 @@ function nowInfo(s) {
   return lines.length || art ? {lines, art} : null;
 }
 const ICON = {
+  power: '<path d="M11 3h2v10h-2zM7.05 6.05l1.41 1.41A6 6 0 1 0 15.54 7.46l1.41-1.41A8 8 0 1 1 7.05 6.05z"/>',
   prev: '<path d="M6 6h2v12H6zM20 6v12L9.5 12z"/>', next: '<path d="M16 6h2v12h-2zM4 6l10.5 6L4 18z"/>',
   play: '<path d="M8 5v14l11-7z"/>', pause: '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>'};
+// Stereopaar: ein einziger Ein/Aus-Knopf (Symbol), grau = aus, orange = an
+function pwrRow(g) {
+  const b = el('button', {class: 'pwr', 'data-act': 'gpwr', 'data-key': 'g:' + g.id + ':on', title: t('ui.on')}); b.setAttribute('aria-label', t('ui.on'));
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true">' + ICON.power + '</svg>';
+  return el('div', {class: 'pwrrow'}, b);
+}
 function playerRow(s) {
   if (!s || !s.online || s.standby || s.source === 'AUX' || s.source === 'PRODUCT') return null;
   const mk = (a, icon, label) => {
@@ -143,10 +151,15 @@ function moveBlock(ekey) {
   const sel = el('select', {'data-role': 'mvto'}), others = entries().filter(e => e.key !== ekey);
   others.forEach(e => sel.append(el('option', {value: e.key, text: e.g ? e.g.name : (cfg.speakers[e.i] || {}).name || '?'})));
   if (mvTo[ekey] && others.some(e => e.key === mvTo[ekey])) sel.value = mvTo[ekey];
-  sel.addEventListener('change', () => { mvTo[ekey] = sel.value; sel.blur(); });
+  const ref = k => k.startsWith('g:') ? {gid: k.slice(2)} : {idx: cfg.speakers.findIndex(x => 'b:' + x.id === k)};
+  const preWake = () => {      // Ziel-Box schon wecken, damit Umziehen nahtloser wird
+    const cur = entries().find(e => e.key === ekey); if (!cur || !sel.value) return;
+    api('/api/wake', {from: cur.g ? {gid: cur.g.id} : {idx: cur.i}, to: ref(sel.value)}).catch(() => { /* egal */ });
+  };
+  sel.addEventListener('change', () => { mvTo[ekey] = sel.value; sel.blur(); preWake(); });
   d.append(sel, el('div', {class: 'row2'}, el('button', {text: t('move.go'), 'data-act': 'mvgo'}), el('button', {text: t('move.add'), 'data-act': 'mvadd'})));
   d.open = !!ui.open['m:' + ekey];
-  d.addEventListener('toggle', () => { if (!!ui.open['m:' + ekey] !== d.open) { ui.open['m:' + ekey] = d.open; saveUi(); } });
+  d.addEventListener('toggle', () => { if (!!ui.open['m:' + ekey] !== d.open) { ui.open['m:' + ekey] = d.open; saveUi(); if (d.open) preWake(); } });
   return others.length ? d : null;
 }
 
@@ -213,7 +226,7 @@ function groupBody(g, ekey) {
   const kids = [
     el('div', {class: 'head'}, el('div', {class: 'sub', text: sub})),
     playerRow(S[0]),
-    srcRow('g', w => 'g:' + g.id + ':' + w),
+    paired ? pwrRow(g) : srcRow('g', w => 'g:' + g.id + ':' + w),
     el('div', {class: 'vol'},
       el('button', {text: '−', 'data-act': 'gdown'}),
       el('input', {type: 'range', min: 0, max: cap, value: Math.min(m, cap), 'data-role': 'gvol'}),
@@ -263,6 +276,15 @@ function boxBody(s, i, ekey) {
       el('span', {class: 'v', text: typeof s.volume === 'number' ? String(s.volume) : '-'})),
     presetBlock(ekey), moveBlock(ekey)];
 }
+// Spielt eine Gruppe (mind. zwei Boxen, alle an, gleicher Inhalt), liegt Titel/Cover bei der Gruppe, nicht bei den Einzelboxen
+function inPlayingGroup(i) {
+  return cfg.groups.some(g => {
+    const idx = gIdx(g); if (idx.length < 2 || !idx.includes(i)) return false;
+    const S = idx.map(k => state[k]);
+    if (!S.every(x => x && x.online && !x.standby && x.source !== 'AUX' && x.source !== 'BLUETOOTH')) return false;
+    return !!S[0].item && S.every(x => x.item === S[0].item) || S.every(x => x.ma && x.ma.active) && new Set(S.map(x => x.ma.title)).size === 1;
+  });
+}
 function entryCard(e, pos, total) {
   const open = !!ui.open[e.key];
   const S = e.g ? gState(e.g) : [state[e.i]].filter(Boolean);
@@ -277,7 +299,9 @@ function entryCard(e, pos, total) {
   const props = {class: 'card entry' + (ui.sort ? ' sorting' : ''), 'data-ekey': e.key};
   if (e.g) props['data-gid'] = e.g.id; else props['data-i'] = e.i;
   if (ui.sort) return el('div', props, el('div', {class: 'ehead'}, el('span', {class: 'ename', text: name}), el('span', {class: 'badge ' + bcls, text: btxt}), right));
-  const card = el('div', props, head), np = nowInfo(S[0]);
+  const note = !e.g && inPlayingGroup(e.i);       // Box ist Teil einer spielenden Gruppe: Titel und Cover zeigt die Gruppe
+  if (note) head.querySelector('.ename').append(el('span', {class: 'gnote', text: ' ♪', title: t('ui.groupPlays')}));
+  const card = el('div', props, head), np = note ? null : nowInfo(S[0]);
   if (np) {
     const box = el('div', {class: 'enp'});
     if (np.art) { const im = el('img', {src: np.art, alt: '', loading: 'lazy'}); im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); box.append(im); }
@@ -369,6 +393,7 @@ document.addEventListener('click', async ev => {
   else if (a === 'down') act('/api/volume', {idx, delta: -3}, b);
   else if (a === 'gaux') act('/api/group', {gid, action: 'aux'}, null, ['g:' + gid + ':aux']);
   else if (a === 'goff') act('/api/group', {gid, action: 'off'}, null, ['g:' + gid + ':off']);
+  else if (a === 'gpwr') { const on = pred('g:' + gid + ':on'); act('/api/group', {gid, action: on ? 'off' : 'on'}, null, on ? ['g:' + gid + ':off'] : ['g:' + gid + ':on']); }
   else if (a === 'gup' || a === 'gdown') {
     const v = card.querySelector('[data-role=gvol]');
     gSend(card, Math.max(0, Math.min(+v.max, +v.value + (a === 'gup' ? 3 : -3))));

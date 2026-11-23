@@ -113,6 +113,8 @@ class H(BaseHTTPRequestHandler):
             self.send("<status>/select</status>")
         elif self.path == "/setZone":
             S["zone"] = body; self.send("<status>/setZone</status>")
+        elif self.path == "/removeZoneSlave":
+            S["zone"] = None; self.send("<status>/removeZoneSlave</status>")
         elif self.path == "/addGroup":
             S["group"] = body; self.send("<group/>")
         else:

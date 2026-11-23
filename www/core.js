@@ -252,6 +252,36 @@
       }
       throw new Error(T('err.auxFail', (await nowPlaying(sp.ip))[0]));
     }
+    // Gruppierung lösen: AUX ist je Box der analoge Eingang, eine Zone oder ein Stereopaar würde dort asynchron laufen
+    async function dissolveZone(sp, all) {
+      let xml; try { xml = await stGet(sp.ip, '/getZone', 2500); } catch (e) { return false; }
+      const mem = [...xml.matchAll(/<member\b([^>]*)>([^<]+)<\/member>/g)].map(m => ({ip: ((/ipaddress="([^"]*)"/.exec(m[1])) || [])[1] || '', id: m[2].trim()}));
+      const master = attr(xml, 'zone', 'master');
+      if (!mem.length && !master) return false;
+      const masterIp = attr(xml, 'zone', 'senderIPAddress') || sp.ip;
+      let mine = null; try { mine = (await getInfo(sp.ip))[0]; } catch (e) { /* egal */ }
+      const isMaster = !master || master === mine;
+      const out = (all || isMaster) ? mem : mem.filter(m => m.id === mine);
+      if (!out.length) return false;
+      let body = '<zone master="' + esc(master || mine || '') + '">';
+      for (const m of out) body += '<member ipaddress="' + esc(m.ip) + '">' + esc(m.id) + '</member>';
+      await stPost(masterIp, '/removeZoneSlave', body + '</zone>');
+      for (let i = 0; i < 5; i++) {
+        await sleep(700);
+        let z = []; try { z = await getZoneIds(sp.ip); } catch (e) { z = []; }
+        if (!out.some(m => z.includes(m.id)) || z.length <= 1) return true;
+      }
+      throw new Error(T('err.unzoneFail'));
+    }
+    async function releaseBox(sp, all) {
+      const done = [];
+      try { if ((await getGroup(sp.ip)).paired) { await stGet(sp.ip, '/removeGroup'); await sleep(1500); done.push(T('act.unpaired')); } }
+      catch (e) { /* kein Paar abfragbar: weiter */ }
+      if (await dissolveZone(sp, all)) done.push(T('act.unzoned'));
+      return done;
+    }
+    async function doAuxFree(sp) { const d = await releaseBox(sp, false); return (await doAuxOn(sp)) + (d.length ? ' (' + d.join(', ') + ')' : ''); }
+
     // Bluetooth: direkt wählen (/select); Ersatzweg: AUX_INPUT schaltete bei der Box von AUX auf Bluetooth um
     async function doBluetoothOn(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
@@ -793,7 +823,7 @@
         return {ok: true, config: cfg, speakers};
       }
       if (path === '/api/config') return {ok: true, config: saveConfig(data)};
-      if (path === '/api/aux') return summarize(await runMany(targets(data), doAuxOn));
+      if (path === '/api/aux') return summarize(await runMany(targets(data), doAuxFree));
       if (path === '/api/off') return summarize(await runMany(targets(data), doOff));
       if (path === '/api/bt') return summarize(await runMany(targets(data), doBluetoothOn));
       if (path === '/api/preset') {
@@ -839,6 +869,12 @@
           return {ok: true, message: T('key.' + key)};
         } catch (e) { log.schritte.push('FEHLER ' + e.message); throw e; }
       }
+      if (path === '/api/wake') {          // Ziel-Box vorab wecken, damit Umziehen ohne Wartezeit klappt (nur wenn die Quelle spielt)
+        const from = refBoxes(data.from), to = refBoxes(data.to), fromIds = new Set(from.map(b => b.id));
+        if ((await nowPlaying(from[0].ip))[0] === 'STANDBY') return {ok: true, message: ''};
+        await Promise.all(to.filter(b => !fromIds.has(b.id)).map(wake));
+        return {ok: true, message: ''};
+      }
       if (path === '/api/move') {
         const mode = data.mode === 'add' ? 'add' : 'move';
         return {ok: true, message: await doMove(refBoxes(data.from), refBoxes(data.to), mode)};
@@ -852,7 +888,14 @@
       }
       if (path === '/api/group') {
         const m = groupMembers(data), n = m.length, action = data.action;
-        if (action === 'aux') return summarize(await zoneRun(m, doAuxOn));
+        if (action === 'aux') {       // jede Box nimmt ihren eigenen AUX-Eingang: Zone und Stereopaar vorher auflösen
+          const freed = [];
+          for (const b of m) { try { freed.push(...(await releaseBox(b, true))); } catch (e) { return summarize({oks: [], errs: [b.name + ': ' + e.message]}); } }
+          const r = await runMany(m, doAuxOn);
+          if (freed.length && !r.errs.length) r.oks.push(T('act.groupFreed'));
+          return summarize(r);
+        }
+        if (action === 'on') return summarize(await runMany(m, async sp => { await wake(sp); return T('act.on'); }));
         if (action === 'bt') return summarize(await zoneRun(m, doBluetoothOn));
         if (action === 'off') {   // nacheinander: Master zuerst, sonst weckt ein zweiter POWER-Toggle die Folge-Box wieder
           const oks = [], errs = [];
