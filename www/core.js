@@ -515,13 +515,15 @@
       // Spielt Music Assistant (Box-Quelle meist AirPlay), zieht MA die Warteschlange selbst um; die Box-Quelle lässt sich dort nicht kopieren
       const log = {move: names(src) + ' -> ' + names(dst), mode, box: [now.source, now.ci.source, now.play || '-', now.track || '-'].join(' | '), via: '', schritte: []};
       keyLog.push(log); if (keyLog.length > 20) keyLog.shift();
+      const zn = async k => { const o = {}; for (const b of [src[0], dst[0]]) { try { o[b.name] = (await getZoneIds(b.ip)).length; } catch (e) { o[b.name] = '?'; } } log[k] = o; };   // Zonen-Größe je Box, für die Diagnose
+      await zn('zoneVorher');
       if (mode === 'move') {
         const snap = await maSnapshot(), sq = snap && maLiveQueue(snap, src[0]);
         log.ma = snap ? (sq ? {queue: sq.queue_id, state: sq.state} : 'keine laufende Warteschlange') : 'nicht erreichbar/nicht eingerichtet';
         const info = snap && now.source !== 'STANDBY' ? maInfo(snap.conf, snap.players, snap.queues, src[0], now) : null;
         if (sq && ((info && info.active) || now.source === 'STANDBY')) {
           log.via = 'MA';
-          try { return await moveViaMa(snap, sq, src, dst, log); } catch (e) { log.schritte.push('FEHLER ' + e.message); throw e; }
+          try { const r = await moveViaMa(snap, sq, src, dst, log); await zn('zoneNachher'); return r; } catch (e) { log.schritte.push('FEHLER ' + e.message); throw e; }
         }
       }
       if (now.source === 'STANDBY') throw new Error(T('err.moveOff', src[0].name));
@@ -532,6 +534,8 @@
         await makeZone(src.concat(extra));
         return T('act.added', names(extra));
       }
+      log.via = 'Box-Kopie';
+      log.schritte.push('MA-Übertragung nicht genutzt: ' + String(log.ma && log.ma.queue ? 'Quell-Box nicht als MA-Quelle erkannt' : log.ma));
       const ci = now.ci;
       if (!ci.source || !ci.location || NO_MOVE.has(ci.source))
         throw new Error(T('err.moveSource', ci.source || now.source));
@@ -557,6 +561,7 @@
         try { await doOff(leaving[i]); } catch (e) { warn.push(leaving[i].name + ': ' + e.message); }
         if (i === 0 && leaving.length > 1) await sleep(1500);
       }
+      await zn('zoneNachher');
       return T('act.moved', names(dst), warn.length ? ' (' + warn.join('; ') + ')' : '');
     }
     // laufende (spielende/pausierte) MA-Warteschlange einer Box, sonst null
