@@ -642,8 +642,7 @@ function buildTv() {
   const k = (label, key, title, cls) => el('button', {type: 'button', text: label, title: title || '', class: cls || '', 'data-tvkey': key});
   const gap = () => el('span');
   body.append(
-    el('div', {class: 'row2'}, el('button', {type: 'button', text: '⏻ ' + t('tv.on'), 'data-tvpower': 'on'}), el('button', {type: 'button', text: '⏻ ' + t('tv.off'), class: 'tvoff', 'data-tvpower': 'off'})),
-    el('div', {class: 'row3'}, k('🔇', 91, t('tv.mute')), k('－', 25, t('tv.volDown')), k('＋', 24, t('tv.volUp'))),
+    el('div', {class: 'row2'}, el('button', {type: 'button', text: t('tv.on'), 'data-tvpower': 'on'}), el('button', {type: 'button', text: t('tv.off'), class: 'tvoff', 'data-tvpower': 'off'})),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), k('⏯', 85, t('tv.play'))),
     el('div', {class: 'row3'}, k(t('tv.back'), 4), k(t('tv.home'), 3), k(t('tv.menu'), 82)),
     el('div', {class: 'row2'}, ...TV_APPS.map(a => el('button', {type: 'button', text: a[0], 'data-tvapp': a[1]}))),

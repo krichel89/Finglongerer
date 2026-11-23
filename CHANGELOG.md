@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.20.3
+- Lauter, Leiser und Stumm entfernt; ⏻-Symbole an Ein/Aus entfernt.
+- Ein/Aus und Funktionsmaske wieder wie in 0.20.1 (Aus funktionierte dort).
+- Tastenbeschriftung wird bei langem Druck nicht mehr markiert.
+
 ## 0.20.2
 - Funktionsmeldung wie die Referenzbibliothek (622): Lautstärke, Stumm und Power werden so zuverlässiger angenommen.
 - Ein = WAKEUP, Aus = SLEEP (statt Umschalten nach Zustandsabfrage); wirkt auch, wenn der Stick wach, der Fernseher aber aus ist.

@@ -27,7 +27,7 @@ import javax.net.ssl.SSLSocketFactory;
  */
 final class TvRemote {
     // Funktionen, die wir beim Fernseher anmelden: Ping, Tasten, Ein/Aus, Lautstärke, App-Links
-    static final int FEATURES = 2 | 4 | 8 | 32 | 64 | 512;   // 622 wie die Referenzbibliothek (androidtvremote2)
+    static final int FEATURES = 1 | 2 | 32 | 64 | 512;
     static final int DIRECTION_SHORT = 3;
 
     private final SSLSocketFactory factory;
@@ -320,7 +320,7 @@ final class TvRemote {
                         if (p.bytes.containsKey(1)) {                       // remote_configure: unsere Funktionen melden
                             P cfg = P.parse(p.bytes.get(1));
                             Long code1 = cfg.ints.get(1);
-                            int features = FEATURES;
+                            int features = code1 == null ? FEATURES : (int) (code1 & FEATURES);
                             writeFrame(out, configureReply(features));
                         } else if (p.bytes.containsKey(2)) {                // remote_set_active
                             writeFrame(out, setActive(FEATURES));
@@ -396,8 +396,14 @@ final class TvRemote {
 
     /** Ein oder Aus ohne Umschalten: nur wenn der Zustand nicht schon stimmt, wird die Power-Taste gedrückt. */
     synchronized void power(String ip, boolean on) throws IOException {
-        // WAKEUP/SLEEP statt Umschalten: wirken immer, auch wenn Stick wach, aber der Fernseher aus ist (HDMI-CEC)
-        sendTo(ip, keyInject(on ? 224 : 223, DIRECTION_SHORT));
+        Conn c = ensure(ip);
+        long end = System.currentTimeMillis() + 1500;
+        while (c.started < 0 && !c.closed && System.currentTimeMillis() < end) {
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        int st = c.started;
+        if (st < 0) sendTo(ip, keyInject(on ? 224 : 223, DIRECTION_SHORT));        // Zustand unbekannt: WAKEUP bzw. SLEEP
+        else if ((st == 1) != on) sendTo(ip, keyInject(26, DIRECTION_SHORT));
     }
 
     void key(String ip, int code) throws IOException {
