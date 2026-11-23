@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.8.0
+- Zweite Sender-Reihe heißt jetzt 7 bis 12, ist extra ausklappbar („Weitere Sender (7–12)") und zeigt nur belegte Slots mit Namen; ist sie leer, entfällt sie. Kann die App die Belegung nicht lesen, zeigt sie alle sechs.
+- Hinweis „Lang drücken = Laufendes speichern" steht unter den Tasten 1–6.
+- Erläuterungen zu Balance und Lautstärke entfallen (nur noch Zahl bzw. Regler); Ausklapp-Pfeile größer und heller.
+
 ## 0.7.0
 - Langer Druck auf eine Sendertaste (1–6 und 1–6 · 2×) speichert, was gerade läuft (Radio, Spotify, Bibliothek/Jellyfin-Ordner über STR), nach Rückfrage auf diese Taste: `POST :8888/api/box/save-playing {"slot":N}`. Bei einer Gruppe zählt die Master-Box.
 

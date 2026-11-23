@@ -11,7 +11,7 @@ const UI_KEY = 'steasyremote.ui';
 const ui = {order: [], open: {}, sort: false};
 try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; } } catch (e) { /* neu anfangen */ }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open})); } catch (e) { /* egal */ } };
-const presetNames = {}, presetLoc = {}, presetRows = {};
+const presetNames = {}, presetLoc = {}, presetRows = {}, presetRow2 = {};
 
 async function api(path, body) {
   // Direkt an die Boxen (kein Server): Kernlogik aus core.js, Transport aus native.js
@@ -93,8 +93,8 @@ function sourceBadge(S) {
   if (S.every(s => s.source === S[0].source)) return [srcName(S[0].source), 'on'];
   return ['gemischt', ''];
 }
-function balText(b) { return b === 0 ? 'Balance: Mitte' : 'Balance: ' + (b < 0 ? 'links ' + (-b) : 'rechts ' + b) + ' %'; }
-function volText(m, cap) { return 'Gesamtlautstärke ' + m + ' / max ' + cap; }
+function balText(b) { return ''; }
+function volText(m, cap) { return String(m); }
 
 function entries() {
   const all = cfg.groups.map(g => ({key: 'g:' + g.id, g})).concat(cfg.speakers.map((s, i) => ({key: 'b:' + s.id, i})));
@@ -116,7 +116,7 @@ async function loadPresetNames(ekey) {
   try {
     const j = await api(card.dataset.gid ? '/api/group' : '/api/presets', body);
     const names = {}, locs = {}; (j.presets || []).forEach(p => { if (p.name) names[p.n] = p.name; if (p.item) locs[p.n] = p.item; });
-    presetNames[ekey] = names; presetLoc[ekey] = locs; presetRows[ekey] = j.rows || 1; paint();
+    presetNames[ekey] = names; presetLoc[ekey] = locs; presetRows[ekey] = j.rows || 1; presetRow2[ekey] = j.row2 || null; paint();
     document.querySelectorAll('[data-ekey="' + ekey + '"] details.presets').forEach(d => addRow2(d, ekey));
     document.querySelectorAll('[data-ekey="' + ekey + '"] [data-act=preset]').forEach(b => {
       b.textContent = b.dataset.n + (names[b.dataset.n] ? ' · ' + names[b.dataset.n] : ''); });
@@ -124,16 +124,22 @@ async function loadPresetNames(ekey) {
 }
 // zweite Reihe (Taste doppelt gedrückt, Slots 7-12): nur wenn der STR-Agent sie meldet
 function addRow2(d, ekey) {
-  if (presetRows[ekey] !== 2 || d.querySelector('.pgrid2')) return;
-  const g2 = el('div', {class: 'pgrid pgrid2'});
-  for (let n = 1; n <= 6; n++) g2.append(el('button', {text: n + ' · 2×', 'data-act': 'preset', 'data-n': n + 6}));
-  d.append(g2);
+  if (presetRows[ekey] !== 2 || d.querySelector('.row2box')) return;
+  const r2 = presetRow2[ekey], used = r2 ? Object.keys(r2).map(Number).sort((a, b) => a - b) : [7, 8, 9, 10, 11, 12];
+  if (!used.length) return;            // zweite Reihe ist leer: gar nicht anzeigen
+  const box = el('details', {class: 'row2box'}, el('summary', {text: 'Weitere Sender (7–12)'}));
+  const g2 = el('div', {class: 'pgrid'});
+  used.forEach(n => g2.append(el('button', {text: n + (r2 && r2[n] ? ' · ' + r2[n] : ''), 'data-act': 'preset', 'data-n': n})));
+  box.append(g2);
+  box.open = !!ui.open['q:' + ekey];
+  box.addEventListener('toggle', () => { if (!!ui.open['q:' + ekey] !== box.open) { ui.open['q:' + ekey] = box.open; saveUi(); } });
+  d.append(box);
 }
 function presetBlock(ekey) {
-  const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6) · lang drücken = speichern'}));
+  const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6)'}));
   const names = presetNames[ekey] || {}, grid = el('div', {class: 'pgrid'});
   for (let n = 1; n <= 6; n++) grid.append(el('button', {text: n + (names[n] ? ' · ' + names[n] : ''), 'data-act': 'preset', 'data-n': n, 'data-key': 'p:' + ekey + ':' + n}));
-  d.append(grid); addRow2(d, ekey);
+  d.append(grid, el('p', {class: 'hint', text: 'Lang drücken = Laufendes speichern'})); addRow2(d, ekey);
   d.open = !!ui.open['p:' + ekey];
   d.addEventListener('toggle', () => {
     if (!!ui.open['p:' + ekey] === d.open) return;
@@ -198,7 +204,7 @@ function boxBody(s, i, ekey) {
       el('button', {text: '−', 'data-act': 'down', 'data-i': i}),
       el('input', {type: 'range', min: 0, max: s.max, value: Math.min(vol, s.max), 'data-i': i, 'data-role': 'slider'}),
       el('button', {text: '+', 'data-act': 'up', 'data-i': i}),
-      el('span', {class: 'v', text: 'Lautstärke ' + (typeof s.volume === 'number' ? s.volume : '-') + ' / max ' + s.max})),
+      el('span', {class: 'v', text: typeof s.volume === 'number' ? String(s.volume) : '-'})),
     presetBlock(ekey)];
 }
 function entryCard(e, pos, total) {
@@ -253,7 +259,7 @@ document.addEventListener('pointerdown', ev => {
   holdTimer = setTimeout(() => {
     held = true; holdTimer = null;
     const ecard = b.closest('[data-ekey]'), n = +b.dataset.n, ekey = ecard.dataset.ekey;
-    const label = n > 6 ? (n - 6) + ' · 2×' : String(n), old = (presetNames[ekey] || {})[n];
+    const label = String(n), old = (presetNames[ekey] || {})[n];
     if (!confirm('Taste ' + label + (old ? ' (' + old + ')' : '') + ' mit dem aktuell Laufenden belegen?')) return;
     act('/api/save', ecard.dataset.gid ? {gid: ecard.dataset.gid, n} : {idx: +ecard.dataset.i, n}, b)
       .then(() => { delete presetNames[ekey]; if (ui.open['p:' + ekey]) loadPresetNames(ekey); });
@@ -296,7 +302,7 @@ window.addEventListener('pointerup', () => { setTimeout(() => dragging = false, 
 document.addEventListener('input', ev => {
   const t = ev.target, role = t.dataset && t.dataset.role; if (!role) return;
   const v = t.parentElement.querySelector('.v');
-  if (role === 'slider') v.textContent = 'Lautstärke ' + t.value + ' / max ' + t.max;
+  if (role === 'slider') v.textContent = t.value;
   else if (role === 'gvol') v.textContent = volText(t.value, t.max);
   else if (role === 'gbal') v.textContent = balText(+t.value);
 });

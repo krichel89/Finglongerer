@@ -99,9 +99,10 @@ try {
   r = await call('/api/group', { gid: 'g1', action: 'preset', n: 2 }); assert.deepEqual([await dbg('127.0.0.2'), await dbg('127.0.0.3'), await dbg('127.0.0.4')], ['2', '4', '0']); ok('Gruppe: Taste 2 nur am Master, Folge-Boxen per Zone');
   await assert.rejects(call('/api/preset', { idx: 0, n: 13 }), /Taste 1 bis 12/); ok('Taste 13 abgelehnt');
   await call('/api/preset', { idx: 1, n: 9 }); assert.equal(await dbg('127.0.0.3'), '9'); r = await call('/api/presets', { idx: 1 }); assert.equal(r.rows, 2); ok('zweite Reihe (Slot 9) über STR-Agent :8888');
+  assert.deepEqual(r.row2, { 9: 'Jazz' }); ok('zweite Reihe: nur belegte Slots (9 = Jazz, leerer Slot 10 fehlt)');
   await call('/api/preset', { idx: 1, n: 2 }); r = await call('/api/save', { idx: 1, n: 5 }); assert.match(r.message, /Taste 5 gespeichert/);
   assert.equal(await nodeHttp('GET', '127.0.0.3', 8090, '/_saved', null, 2000), '{"slot":5}'); ok('langer Druck: save-playing mit Slot 5');
-  r = await call('/api/save', { idx: 1, n: 8 }); assert.match(r.message, /Taste 2 \(2×\) gespeichert/);
+  r = await call('/api/save', { idx: 1, n: 8 }); assert.match(r.message, /Taste 8 gespeichert/);
   await assert.rejects(call('/api/save', { idx: 1, n: 0 }), /Taste 1 bis 12/); ok('Speichern auf Slot 8 (2. Reihe), Slot 0 abgelehnt');
   r = await call('/api/presets', { idx: 0 }); assert.deepEqual(r.presets.map(p => [p.n, p.name]), [[1, 'Radio Eins'], [3, 'Klassik']]); ok('Sendernamen aus /presets');
   await call('/api/preset', { idx: 0, n: 1 }); st = await call('/api/state'); r = await call('/api/presets', { idx: 0 });

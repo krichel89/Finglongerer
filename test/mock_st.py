@@ -34,6 +34,8 @@ class H(BaseHTTPRequestHandler):
             return self.ws()
         if p == "/api/agent/version":
             return self.send('{"version":"mock","presetRows":"2"}')
+        if p == "/api/presets":
+            return self.send('{"presets":[{"slot":1,"name":"Radio Eins","url":"x"},{"slot":9,"name":"Jazz","url":"y"},{"slot":10}]}')
         if p == "/_saved":
             return self.send(S.get("saved", ""))
         if p == "/_dbg":

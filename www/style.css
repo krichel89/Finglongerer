@@ -64,15 +64,17 @@ details.card[open] summary::after{content:'\25B4'}
 button.etoggle{display:flex;justify-content:space-between;align-items:center;gap:8px;background:none;border:none;padding:0;min-height:40px;text-align:left}
 button.etoggle:active{background:none}
 .ename{font-size:1.1rem;font-weight:600;flex:1}
-.chev{color:var(--dim)}
+.chev{color:var(--fg);font-size:1.5rem;line-height:1;font-weight:700}
 .sortbtns{display:flex;gap:8px}
 .sortbtns button{width:48px;min-height:44px;padding:4px}
 .ebody{display:grid;gap:12px}
 .entry.sorting .ehead{display:flex;justify-content:space-between;align-items:center;gap:8px}
 details.presets summary{cursor:pointer;color:var(--dim);list-style:none;min-height:36px;display:flex;align-items:center;justify-content:space-between}
 details.presets summary::-webkit-details-marker{display:none}
-details.presets summary::after{content:'\25BE'}
-details.presets[open] summary::after{content:'\25B4'}
+details.presets summary::after,details.row2box summary::after{content:'\25BE';font-size:1.4rem;font-weight:700;color:var(--fg)}
+details.presets[open]>summary::after,details.row2box[open]>summary::after{content:'\25B4'}
+details.row2box{margin-top:8px}details.row2box summary{cursor:pointer;color:var(--dim);list-style:none;min-height:36px;display:flex;align-items:center;justify-content:space-between}details.row2box summary::-webkit-details-marker{display:none}
+.v:empty{display:none}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
 .pgrid button{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:46px}
 

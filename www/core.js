@@ -265,6 +265,31 @@
         return /"presetRows"\s*:\s*"?2"?/.test(x) ? 2 : 1;
       } catch (e) { return 1; }
     }
+    // /api/presets des Agenten: Form nicht dokumentiert -> tolerant lesen; null = nicht erkannt
+    function parseStrSlots(text) {
+      let j; try { j = JSON.parse(text); } catch (e) { return null; }
+      if (j && !Array.isArray(j) && typeof j === 'object' && (j.presets || j.slots)) j = j.presets || j.slots;
+      const ent = Array.isArray(j) ? j.map((v, i) => [null, v, i]) : (j && typeof j === 'object' ? Object.entries(j).map(([k, v]) => [k, v, null]) : []);
+      const out = {}; let any = false;
+      for (const [k, v, i] of ent) {
+        if (!v || typeof v !== 'object') continue;
+        let n = [v.slot, v.id, v.n, k].map(x => parseInt(x, 10)).find(x => x >= 1 && x <= 12);
+        if (!n && i !== null && ent.length <= 12) n = i + 1;
+        if (!n) continue;
+        any = true;
+        const name = String(v.name || v.title || v.stationName || v.label || '').slice(0, 60);
+        if (name || v.url || v.stream || v.streamUrl || v.source || v.type || Object.keys(v).length > 2) out[n] = name;
+      }
+      return any ? out : null;
+    }
+    async function agentRow2(ip) {
+      if ((await agentRows(ip)) < 2) return {rows: 1, row2: null};
+      let slots = null;
+      try { slots = parseStrSlots(await env.http('GET', ip, AGENT_PORT, '/api/presets', null, 2500)); } catch (e) { /* unbekannt */ }
+      if (!slots) return {rows: 2, row2: null};
+      const row2 = {}; for (const k of Object.keys(slots)) if (+k > 6) row2[k] = slots[k];
+      return {rows: 2, row2};
+    }
     async function doPreset(sp, n) {
       if (!(n >= 1 && n <= 12)) throw new Error('Taste 1 bis 12');
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
@@ -275,7 +300,7 @@
       if (n > 6) {
         if ((await agentRows(sp.ip)) < 2) throw new Error('zweite Reihe nicht verfügbar (STR-Agent zu alt oder nicht erreichbar)');
         await env.http('POST', sp.ip, AGENT_PORT, '/api/play/' + n, null, 5000);
-        return 'Taste ' + (n - 6) + ' (2×)';
+        return 'Taste ' + n;
       }
       await pressKey(sp.ip, 'PRESET_' + n);
       return 'Taste ' + n;
@@ -289,7 +314,7 @@
         if (/409/.test(e.message)) throw new Error('liegt schon auf einer anderen Taste');
         throw new Error('Speichern fehlgeschlagen (' + e.message + ') - läuft auf der Box ein Sender/Titel über STR?');
       }
-      return (n > 6 ? 'Taste ' + (n - 6) + ' (2×)' : 'Taste ' + n) + ' gespeichert';
+      return 'Taste ' + n + ' gespeichert';
     }
     async function doOff(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') return 'war schon aus';
@@ -495,7 +520,7 @@
         const n = parseInt(data.n, 10), t = data.gid ? groupMembers(data) : targets(data);
         return summarize(await runMany([t[0]], sp => doSave(sp, n)));   // Gruppe: speichert, was auf der Master-Box läuft
       }
-      if (path === '/api/presets') { const ip = targets(data)[0].ip; return {ok: true, presets: await getPresets(ip), rows: await agentRows(ip)}; }
+      if (path === '/api/presets') { const ip = targets(data)[0].ip; return Object.assign({ok: true, presets: await getPresets(ip)}, await agentRow2(ip)); }
       if (path === '/api/volume') {
         const t = targets(data);
         if ('value' in data) return summarize(await runMany(t, sp => doVolume(sp, null, data.value)));
@@ -515,7 +540,7 @@
           }
           return summarize({oks, errs});
         }
-        if (action === 'presets') return {ok: true, presets: await getPresets(m[0].ip), rows: await agentRows(m[0].ip)};
+        if (action === 'presets') return Object.assign({ok: true, presets: await getPresets(m[0].ip)}, await agentRow2(m[0].ip));
         if (action === 'preset') {
           const n = parseInt(data.n, 10);
           // Stereopaar: Taste nur an der ersten (linken/Master-)Box; sonst Zone mit der ersten Box als Master
