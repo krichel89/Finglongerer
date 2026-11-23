@@ -619,7 +619,7 @@ document.addEventListener('keydown', ev => {
 
 // ---- Fernseher (Google TV), direkt angesprochen
 const TV_KEY = 'finglongerer.tv';
-const TV_APPS = [['Jellyfin', 'market://launch?id=org.jellyfin.androidtv'], ['YouTube', 'https://www.youtube.com'], ['Netflix', 'netflix://'], ['Prime Video', 'https://app.primevideo.com']];
+const TV_APPS = [['Jellyfin', 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LEANBACK_LAUNCHER;package=org.jellyfin.androidtv;end'], ['YouTube', 'https://www.youtube.com'], ['Netflix', 'netflix://'], ['Prime Video', 'https://app.primevideo.com']];
 // Suche je Anbieter: Link, der direkt die Suchergebnisse in der App öffnet (Jellyfin hat keinen Such-Link)
 const TV_SEARCH = [['YouTube', q => 'https://www.youtube.com/results?search_query=' + q], ['Netflix', q => 'https://www.netflix.com/search?q=' + q], ['Prime Video', q => 'https://app.primevideo.com/search?phrase=' + q]];
 // Android-Tastencodes für Text: a-z 29-54, 0-9 7-16, Leerzeichen 62
