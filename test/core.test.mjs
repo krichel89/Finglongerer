@@ -187,6 +187,10 @@ try {
   r = await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
   await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="UPNP" location="http://127.0.0.9:8096/dlna/x.flac"/>', 2000);   // Jellyfin direkt, nicht über MA
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('Jellyfin-DLNA direkt auf derselben IP wie MA (Port 8096): MA gilt nicht als aktiv');
+  await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName>Sinnerman</itemName></ContentItem>', 2000);   // MA streamt per AirPlay
+  st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, true); ok('AirPlay von MA (Titel der Box = Titel der MA-Warteschlange): MA aktiv');
+  await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName>Anderes Lied</itemName></ContentItem>', 2000);   // AirPlay vom Handy
+  st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('AirPlay mit anderem Titel (z. B. vom Handy): MA nicht aktiv');
   r = await call('/api/diag'); assert.match(r.text, /== Musikzimmer \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Musikzimmer Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();
   console.log('\nalle', n, 'Tests bestanden');

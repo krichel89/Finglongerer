@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.14.1
+- Music Assistant streamt zu den Boxen per AirPlay (Diagnose: Quelle `AIRPLAY`, Cover von der Box). Bisher galt AirPlay nie als MA, daher gingen Weiter/Zurück/Pause trotzdem an die Box. Jetzt gilt MA bei AirPlay als aktiv, wenn der Titel der Box zum Titel der MA-Warteschlange passt; AirPlay vom Handy mit anderem Titel bleibt bei den Box-Tasten.
+
 ## 0.14.0
 - Alle Angaben zum laufenden Titel stehen mehrzeilig untereinander (Titel, Interpret(en), Album, Sender), nichts wird mehr abgeschnitten. Bei Music Assistant werden alle Interpreten gezeigt.
 - Cover: links neben dem Text, aus dem `<art>`-Feld der Box (kam im Test von der Jellyfin-DLNA-Wiedergabe) bzw. bei MA aus dem Bild des Titels. Fehlt oder scheitert das Bild, entfällt es still.

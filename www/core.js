@@ -415,7 +415,7 @@
       return master;
     }
     // ---- Music Assistant (HTTP-API: POST /api mit Bearer-Token; Befehle laut MA-Doku/Clients, Antwortformen tolerant gelesen)
-    const MA_NOT_MA = new Set(['AUX', 'BLUETOOTH', 'PRODUCT', 'STANDBY', 'LOCAL_INTERNET_RADIO', 'INTERNET_RADIO', 'TUNEIN', 'SPOTIFY', 'DEEZER', 'AIRPLAY']);
+    const MA_NOT_MA = new Set(['AUX', 'BLUETOOTH', 'PRODUCT', 'STANDBY', 'LOCAL_INTERNET_RADIO', 'INTERNET_RADIO', 'TUNEIN', 'SPOTIFY', 'DEEZER']);
     const MA_CMD = {PLAY_PAUSE: 'player_queues/play_pause', NEXT_TRACK: 'player_queues/next', PREV_TRACK: 'player_queues/previous'};
     let maCache = {key: '', at: 0, players: null}, maDownUntil = 0;
     function maConf() {
@@ -467,7 +467,11 @@
       out.art = cleanUrl((ci.image && ci.image.path) || img(mi) || img(mi.album));
       // Stream-Adresse der Box: zeigt sie auf den MA-Server (Port 8095/8097), spielt MA; zeigt sie woandershin (z. B. Jellyfin-DLNA, Radio), nicht
       const loc = (f && f.ci && f.ci.location) || '', u = /^https?:\/\/([\d.]+):(\d+)/.exec(loc);
-      const sure = u ? (u[1] === conf.ip && (u[2] === '8095' || u[2] === '8097')) : (f ? !(MA_NOT_MA.has(f.ci.source) || MA_NOT_MA.has(f.source)) : false);   // ohne IP-Adresse in der URL: nach Quelle entscheiden
+      const norm = v => String(v || '').trim().toLowerCase(), air = !!f && (f.ci.source === 'AIRPLAY' || f.source === 'AIRPLAY');
+      // AirPlay (so streamt MA zu diesen Boxen) kann auch vom Handy kommen: MA gilt nur, wenn der Titel der Box zum Titel der MA-Warteschlange passt
+      const sure = u ? (u[1] === conf.ip && (u[2] === '8095' || u[2] === '8097'))
+        : air ? (!!f.track && norm(f.track) === norm(out.title))
+        : (f ? !(MA_NOT_MA.has(f.ci.source) || MA_NOT_MA.has(f.source)) : false);   // ohne IP-Adresse in der URL: nach Quelle entscheiden
       out.active = live(q) && !!f && f.source !== 'STANDBY' && !!sure;
       return out;
     }
