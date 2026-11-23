@@ -160,7 +160,7 @@ try {
         { player_id: 'ma-a', name: 'Musikzimmer', available: true, device_info: { address: '127.0.0.2' } },
         { player_id: 'ma-b', name: 'Bibliothek', available: true, device_info: { address: '127.0.0.3' } }]));
       if (m.command === 'player_queues/all') return res.end(JSON.stringify([
-        { queue_id: 'ma-a', active: true, state: maQ['ma-a'], current_item: { name: 'Nina Simone - Sinnerman', media_item: { name: 'Sinnerman', artists: [{ name: 'Nina Simone' }] } } },
+        { queue_id: 'ma-a', active: true, state: maQ['ma-a'], current_item: { name: 'Nina Simone/Band - Sinnerman', media_item: { name: 'Sinnerman', artists: [{ name: 'Nina Simone' }, { name: 'Band' }], album: { name: 'Sinnerman LP' }, metadata: { images: [{ type: 'thumb', path: 'http://127.0.0.9:8096/Items/1/Images/Primary?api_key=GEHEIMSCHLUESSEL1' }] } } } },
         { queue_id: 'ma-b', active: false, state: maQ['ma-b'], current_item: null }]));
       if (m.command === 'player_queues/play_pause') maQ[m.args.queue_id] = maQ[m.args.queue_id] === 'playing' ? 'paused' : 'playing';
       res.end('null');
@@ -173,7 +173,8 @@ try {
     groups: [{ id: 'g1', name: 'Beide', members: ['a', 'b'] }], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
   await call('/api/aux', { idx: 0 }); await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="UPNP" location="http://127.0.0.9:8097/x"/>', 2000);
   r = await call('/api/ma/test'); assert.match(r.message, /2 Player/); assert.match(r.lines[0], /Musikzimmer: Player ma-a, Warteschlange playing, MA spielt hier/); assert.match(r.lines[1], /Bibliothek: Player ma-b/); assert.ok(!/MA spielt hier/.test(r.lines[1])); ok('MA-Test: Boxen den MA-Playern zugeordnet (Adresse)');
-  st = await call('/api/state'); assert.deepEqual([st.speakers[0].ma.active, st.speakers[0].ma.state, st.speakers[0].ma.title, st.speakers[0].ma.artist], [true, 'playing', 'Sinnerman', 'Nina Simone']); assert.equal(st.speakers[1].ma.active, false); ok('Stand: MA-Titel und -Status der Box, zweite Box nicht aktiv');
+  st = await call('/api/state'); assert.deepEqual([st.speakers[0].ma.active, st.speakers[0].ma.state, st.speakers[0].ma.title, st.speakers[0].ma.artist], [true, 'playing', 'Sinnerman', 'Nina Simone, Band']);
+  assert.equal(st.speakers[0].ma.album, 'Sinnerman LP'); assert.match(st.speakers[0].ma.art, /Images\/Primary/); assert.equal(st.speakers[0].art, 'http://127.0.0.1/cover.jpg'); assert.equal(st.speakers[1].ma.active, false); ok('Stand: MA-Titel und -Status der Box, zweite Box nicht aktiv');
   maLog.length = 0; const tBox = st.speakers[0].title;
   r = await call('/api/key', { idx: 0, key: 'NEXT_TRACK' }); assert.match(r.message, /Weiter \(Music Assistant\)/); assert.ok(maLog.includes('player_queues/next:{"queue_id":"ma-a"}')); ok('Weiter geht an MA (player_queues/next), nicht an die Box');
   await call('/api/key', { idx: 0, key: 'PREV_TRACK' }); assert.ok(maLog.includes('player_queues/previous:{"queue_id":"ma-a"}'));
@@ -184,7 +185,9 @@ try {
   await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'falscher-token-1' });
   st = await call('/api/state'); assert.equal(st.speakers[0].ma, undefined); await assert.rejects(call('/api/ma/test'), /lehnt den Token ab/); ok('Falscher Token: Anzeige läuft ohne MA weiter, Test meldet es');
   r = await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
-  r = await call('/api/diag'); assert.match(r.text, /== Musikzimmer \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Musikzimmer Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
+  await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="UPNP" location="http://127.0.0.9:8096/dlna/x.flac"/>', 2000);   // Jellyfin direkt, nicht über MA
+  st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('Jellyfin-DLNA direkt auf derselben IP wie MA (Port 8096): MA gilt nicht als aktiv');
+  r = await call('/api/diag'); assert.match(r.text, /== Musikzimmer \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Musikzimmer Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();
   console.log('\nalle', n, 'Tests bestanden');
 } catch (e) { console.error('FEHLER nach Test', n, '\n', e); process.exitCode = 1; }

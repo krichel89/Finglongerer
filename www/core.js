@@ -128,6 +128,7 @@
       for (const state of ['press', 'release'])
         await stPost(ip, '/key', '<key state="' + state + '" sender="Gabbo">' + name + '</key>');
     }
+    const cleanUrl = v => { const u = String(v || '').trim(); return /^https?:\/\/[^\s<>"']{1,600}$/i.test(u) ? u : ''; };
     // /now_playing einmal lesen: Quelle, Inhalt (ContentItem) und – soweit die Box sie meldet – Titel, Interpret, Sender, Status
     async function nowFull(ip) {
       const xml = await stGet(ip, '/now_playing'), cut = (v, n) => String(v || '').slice(0, n || 120);
@@ -136,7 +137,7 @@
         ci: {source: attr(xml, 'ContentItem', 'source'), type: attr(xml, 'ContentItem', 'type'),
           location: attr(xml, 'ContentItem', 'location'), account: attr(xml, 'ContentItem', 'sourceAccount'), name: cut(tag(xml, 'itemName'))},
         track: cut(tag(xml, 'track')), artist: cut(tag(xml, 'artist')), album: cut(tag(xml, 'album')),
-        station: cut(tag(xml, 'stationName')), play: cut(tag(xml, 'playStatus'), 30)};
+        station: cut(tag(xml, 'stationName')), play: cut(tag(xml, 'playStatus'), 30), art: cleanUrl(tag(xml, 'art'))};
     }
     async function nowPlaying(ip) {
       const f = await nowFull(ip);
@@ -229,7 +230,7 @@
       try { f = await nowFull(sp.ip); }
       catch (e) { out.error = 'nicht erreichbar'; return out; }
       Object.assign(out, {online: true, source: f.source, standby: f.source === 'STANDBY', deviceID: f.deviceID,
-        item: f.ci.location ? f.ci.source + '|' + f.ci.location : '', title: f.track, artist: f.artist, album: f.album, station: f.station, play: f.play});
+        item: f.ci.location ? f.ci.source + '|' + f.ci.location : '', title: f.track, artist: f.artist, album: f.album, station: f.station, play: f.play, art: f.art});
       try { const [v, m] = await getVolume(sp.ip); out.volume = v; out.mute = m; } catch (e) { /* egal */ }
       try {
         const g = await getGroup(sp.ip);
@@ -456,13 +457,18 @@
       const qs = cands.map(p => queues.find(q => q && (q.queue_id === p.player_id))).filter(Boolean);
       const live = q => (q.state === 'playing' || q.state === 'paused') && q.active !== false && !!q.current_item;
       const q = qs.find(live) || qs[0], p = cands.find(c => q && c.player_id === q.queue_id) || cands[0];
-      const out = {playerId: p.player_id, queueId: (q && q.queue_id) || p.player_id, state: (q && q.state) || '', active: false, title: '', artist: ''};
+      const out = {playerId: p.player_id, queueId: (q && q.queue_id) || p.player_id, state: (q && q.state) || '', active: false, title: '', artist: '', album: '', art: ''};
       if (!q) return out;
-      const ci = q.current_item || {}, mi = ci.media_item || {};
-      out.title = String(mi.name || ci.name || '').slice(0, 120);
-      out.artist = String((Array.isArray(mi.artists) && mi.artists[0] && mi.artists[0].name) || mi.artist_str || '').slice(0, 120);
-      const loc = (f && f.ci && f.ci.location) || '', fromMa = !!loc && loc.includes(conf.ip);
-      out.active = live(q) && !!f && f.source !== 'STANDBY' && (fromMa || !(MA_NOT_MA.has(f.ci.source) || MA_NOT_MA.has(f.source)));
+      const ci = q.current_item || {}, mi = ci.media_item || {}, nm = a => String((a && a.name) || '').trim();
+      out.title = String(mi.name || ci.name || '').slice(0, 160);
+      out.artist = (Array.isArray(mi.artists) ? mi.artists.map(nm).filter(Boolean).join(', ') : String(mi.artist_str || '')).slice(0, 200);
+      out.album = nm(mi.album).slice(0, 160);
+      const img = o => { const im = o && o.metadata && Array.isArray(o.metadata.images) ? o.metadata.images.find(x => x && /^https?:\/\//i.test(String(x.path || ''))) : null; return im ? String(im.path) : ''; };
+      out.art = cleanUrl((ci.image && ci.image.path) || img(mi) || img(mi.album));
+      // Stream-Adresse der Box: zeigt sie auf den MA-Server (Port 8095/8097), spielt MA; zeigt sie woandershin (z. B. Jellyfin-DLNA, Radio), nicht
+      const loc = (f && f.ci && f.ci.location) || '', u = /^https?:\/\/([\d.]+):(\d+)/.exec(loc);
+      const sure = u ? (u[1] === conf.ip && (u[2] === '8095' || u[2] === '8097')) : (f ? !(MA_NOT_MA.has(f.ci.source) || MA_NOT_MA.has(f.source)) : false);   // ohne IP-Adresse in der URL: nach Quelle entscheiden
+      out.active = live(q) && !!f && f.source !== 'STANDBY' && !!sure;
       return out;
     }
     async function maSnapshot() {
@@ -785,7 +791,8 @@
             }
           } catch (e) { parts.push('== Music Assistant: ' + e.message); }
         }
-        return {ok: true, text: parts.join('\n\n') || 'Keine Box mit IP eingetragen'};
+        const redact = t => t.replace(/(api_key|apikey|access_token|token)=([^&"\s<]+)/gi, '$1=***');
+        return {ok: true, text: redact(parts.join('\n\n')) || 'Keine Box mit IP eingetragen'};
       }
       if (path === '/api/ma/test') {        // Verbindung prüfen und Boxen den MA-Playern zuordnen (zugleich Diagnose)
         const conf = maConf(); if (!conf) throw new Error('Adresse und Token eintragen und speichern');

@@ -4,6 +4,12 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.14.0
+- Alle Angaben zum laufenden Titel stehen mehrzeilig untereinander (Titel, Interpret(en), Album, Sender), nichts wird mehr abgeschnitten. Bei Music Assistant werden alle Interpreten gezeigt.
+- Cover: links neben dem Text, aus dem `<art>`-Feld der Box (kam im Test von der Jellyfin-DLNA-Wiedergabe) bzw. bei MA aus dem Bild des Titels. Fehlt oder scheitert das Bild, entfällt es still.
+- Music Assistant gilt nur noch als „aktiv", wenn die Stream-Adresse der Box auf den MA-Server (Port 8095/8097) zeigt. Spielt die Box direkt von Jellyfin-DLNA (Port 8096, gleiche IP wie MA), gehen die Tasten wieder an die Box, auch wenn eine alte MA-Warteschlange noch „pausiert" zeigt. Ohne IP in der Adresse entscheidet weiter die Quelle.
+- Diagnose schwärzt `api_key=`/`token=` in den Texten (die MA-Antworten enthielten Jellyfin-Schlüssel).
+
 ## 0.13.1
 - Einstellungen → Diagnose: „Antworten der Boxen zeigen" listet je Box die Rohantwort von `/now_playing` (Titel, Cover-Feld, Quelle) und, wenn Music Assistant verbunden ist, den Warteschlangen-Eintrag des zugeordneten Players; „Kopieren" legt den Text in die Zwischenablage. Der MA-Token steht nie darin.
 

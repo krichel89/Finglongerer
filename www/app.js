@@ -100,11 +100,13 @@ function volText(m, cap) { return String(m); }
 
 // ---- Laufender Titel und Player-Tasten (Daten der Master-Box)
 const RADIO_SRC = new Set(['LOCAL_INTERNET_RADIO', 'INTERNET_RADIO', 'TUNEIN', 'RADIO_BROWSER']);
-function nowText(s) {
-  if (!s || !s.online || s.standby || s.source === 'AUX') return '';
+// Alles, was die Quelle meldet, in Zeilen (nichts abschneiden): Titel, Interpret, Album, Sender; dazu das Cover
+function nowInfo(s) {
+  if (!s || !s.online || s.standby || s.source === 'AUX') return null;
   const m = s.ma && s.ma.active && s.ma.title ? s.ma : s;       // spielt Music Assistant, gilt dessen Titel
-  const t = m.title || '', a = m.artist || '';
-  return t && a ? a + ' – ' + t : (t || s.station || '');
+  const lines = [m.title, m.artist, m.album, s.station].filter((v, i, a) => v && a.indexOf(v) === i);
+  const art = m.art || s.art || '';
+  return lines.length || art ? {lines, art} : null;
 }
 const ICON = {
   prev: '<path d="M6 6h2v12H6zM20 6v12L9.5 12z"/>', next: '<path d="M16 6h2v12h-2zM4 6l10.5 6L4 18z"/>',
@@ -262,8 +264,13 @@ function entryCard(e, pos, total) {
   const props = {class: 'card entry' + (ui.sort ? ' sorting' : ''), 'data-ekey': e.key};
   if (e.g) props['data-gid'] = e.g.id; else props['data-i'] = e.i;
   if (ui.sort) return el('div', props, el('div', {class: 'ehead'}, el('span', {class: 'ename', text: name}), el('span', {class: 'badge ' + bcls, text: btxt}), right));
-  const card = el('div', props, head), np = nowText(S[0]);
-  if (np) card.append(el('div', {class: 'enp', text: np}));
+  const card = el('div', props, head), np = nowInfo(S[0]);
+  if (np) {
+    const box = el('div', {class: 'enp'});
+    if (np.art) { const im = el('img', {src: np.art, alt: '', loading: 'lazy'}); im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); box.append(im); }
+    box.append(el('div', {class: 'enl'}, ...np.lines.map((t, i) => el('div', {class: i ? 'l2' : 'l1', text: t}))));
+    card.append(box);
+  }
   if (open) card.append(el('div', {class: 'ebody'}, ...(e.g ? groupBody(e.g, e.key) : boxBody(state[e.i] || {name: '?', max: 70}, e.i, e.key))));
   return card;
 }

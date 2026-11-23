@@ -53,9 +53,11 @@ class H(BaseHTTPRequestHandler):
             if S["wake_at"] and time.time() < S["wake_at"]:
                 src = "STANDBY"
             ci = '<ContentItem source="LOCAL_INTERNET_RADIO" location="x"/>' if S["preset"] == 1 and src not in ("STANDBY",) else '<ContentItem source="%s"/>' % src
+            if src == "UPNP" and S.get("loc"):
+                ci = '<ContentItem source="UPNP" location="%s"/>' % S["loc"]
             meta = ""
             if src not in ("STANDBY", "AUX", "BLUETOOTH"):
-                meta = "<track>Titel %d</track><artist>Interpret</artist><album>Album</album><stationName>Radio Eins</stationName><playStatus>%s</playStatus>" % (S["track"], "PAUSE_STATE" if S["paused"] else "PLAY_STATE")
+                meta = "<track>Titel %d</track><artist>Interpret</artist><album>Album</album><stationName>Radio Eins</stationName><art artImageStatus=\"IMAGE_PRESENT\">http://127.0.0.1/cover.jpg</art><playStatus>%s</playStatus>" % (S["track"], "PAUSE_STATE" if S["paused"] else "PLAY_STATE")
             self.send('<nowPlaying deviceID="%s" source="%s">%s%s</nowPlaying>' % (DEVID, src, ci, meta))
         elif p == "/volume":
             self.send('<volume deviceID="%s"><targetvolume>%d</targetvolume><actualvolume>%d</actualvolume><muteenabled>false</muteenabled></volume>' % (DEVID, S["vol"], S["vol"]))
@@ -102,7 +104,8 @@ class H(BaseHTTPRequestHandler):
         elif self.path == "/select":
             if 'source="AUX"' in body: S["source"] = "AUX"; S["preset"] = 0
             if 'source="BLUETOOTH"' in body and not os.environ.get("MOCK_NO_BT_SELECT"): S["source"] = "BLUETOOTH"
-            if 'source="UPNP"' in body: S["source"] = "UPNP"
+            if 'source="UPNP"' in body:
+                S["source"] = "UPNP"; mm = re.search(r'location="([^"]*)"', body); S["loc"] = mm.group(1) if mm else ""
             if 'source="LOCAL_INTERNET_RADIO"' in body and not os.environ.get("MOCK_NO_RADIO_SELECT"):
                 S["source"] = "LOCAL_INTERNET_RADIO"; S["preset"] = 1 if 'location="x"' in body else 0
             self.send("<status>/select</status>")
