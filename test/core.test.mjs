@@ -201,7 +201,8 @@ try {
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('AirPlay mit anderem Titel (z. B. vom Handy): MA nicht aktiv');
   await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName></itemName></ContentItem>', 2000);   // pausiert: Box meldet keinen Titel
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, true); ok('AirPlay ohne Titel (pausiert): MA-Warteschlange gilt');
-  r = await call('/api/diag'); assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
+  r = await call('/api/diag'); assert.match(r.text, /== Letzte Player-Tasten/); assert.match(r.text, /"via":"MA".*player_queues\/play_pause ok/); assert.match(r.text, /"via":"Box"/); assert.match(r.text, /player_queues\/play ok/);
+  assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();
   // Englisch: Meldungen der Kernlogik folgen der Spracheinstellung
   LANG = 'en';

@@ -95,6 +95,7 @@
     const WS_PORTS = env.wsPorts || [8080, 8090];
     const TIMEOUT = 3000;
     let ridCounter = 1;
+    const keyLog = [];                       // letzte Player-Tasten mit Entscheidung (Box oder MA) und Ergebnis, für die Diagnose
 
     function loadConfig() {
       try {
@@ -478,16 +479,19 @@
     }
 
     // Weiterspielen nach Pause: play_pause allein setzt bei manchen Playern (z. B. AirPlay) nicht fort -> prüfen und mit play/resume nachhelfen
-    async function maResume(conf, queueId) {
+    async function maResume(conf, queueId, steps) {
+      const note = (cmd, e) => { if (steps) steps.push(cmd + (e ? ' FEHLER ' + e.message : ' ok')); };
       const state = async () => {
         await sleep(900);
         try { const q = asList(await maCall(conf, 'player_queues/all', {}, 2500)).find(x => x && x.queue_id === queueId); return q ? q.state : ''; }
         catch (e) { return ''; }
       };
-      let st = await state(); if (st === 'playing' || st === '') return;
+      let st = await state(); if (steps) steps.push('nach play_pause: ' + (st || '?'));
+      if (st === 'playing' || st === '') return;
       for (const cmd of ['player_queues/play', 'player_queues/resume']) {
-        try { await maCall(conf, cmd, {queue_id: queueId}, 4000); } catch (e) { continue; }
-        if ((await state()) === 'playing') return;
+        try { await maCall(conf, cmd, {queue_id: queueId}, 4000); note(cmd); } catch (e) { note(cmd, e); continue; }
+        st = await state(); if (steps) steps.push('danach: ' + (st || '?'));
+        if (st === 'playing') return;
       }
     }
 
@@ -738,13 +742,19 @@
         const f = await nowFull(sp.ip);
         if (f.source === 'STANDBY') throw new Error(T('err.speakerOff', sp.name));
         const snap = await maSnapshot(), info = snap && maInfo(snap.conf, snap.players, snap.queues, sp, f);
-        if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
-          await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 4000);
-          if (key === 'PLAY_PAUSE' && info.state === 'paused') await maResume(snap.conf, info.queueId);
-          return {ok: true, message: T('act.viaMa', T('key.' + key))};
-        }
-        await pressKey(sp.ip, key);
-        return {ok: true, message: T('key.' + key)};
+        const log = {key, box: [f.source, f.ci.source, f.play || '-', f.track || '-'].join(' | '), ma: snap ? (info ? {aktiv: info.active, state: info.state, titel: info.title} : 'kein Player') : 'nicht erreichbar/nicht eingerichtet', via: '', schritte: []};
+        keyLog.push(log); if (keyLog.length > 8) keyLog.shift();
+        try {
+          if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
+            log.via = 'MA';
+            await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 4000); log.schritte.push(MA_CMD[key] + ' ok');
+            if (key === 'PLAY_PAUSE' && info.state === 'paused') await maResume(snap.conf, info.queueId, log.schritte);
+            return {ok: true, message: T('act.viaMa', T('key.' + key))};
+          }
+          log.via = 'Box';
+          await pressKey(sp.ip, key); log.schritte.push('Box-Taste ok');
+          return {ok: true, message: T('key.' + key)};
+        } catch (e) { log.schritte.push('FEHLER ' + e.message); throw e; }
       }
       if (path === '/api/move') {
         const mode = data.mode === 'add' ? 'add' : 'move';
@@ -805,6 +815,7 @@
             }
           } catch (e) { parts.push('== ' + T('diag.maErr', e.message)); }
         }
+        if (keyLog.length) parts.push('== ' + T('diag.keys') + '\n' + keyLog.map(l => JSON.stringify(l)).join('\n'));
         const redact = t => t.replace(/(api_key|apikey|access_token|token)=([^&"\s<]+)/gi, '$1=***');
         return {ok: true, text: redact(parts.join('\n\n')) || T('err.noBoxIp')};
       }

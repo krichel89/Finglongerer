@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.2
+- Diagnose zeigt jetzt die letzten Player-Tasten: ob die Taste an Music Assistant oder an die Box ging, warum (Quelle, Titel, Zustand der MA-Warteschlange) und was MA geantwortet hat. Für die Suche, warum Weiterspielen/Weiter/Zurück bei Music Assistant nicht sauber laufen.
+
 ## 0.16.1
 - **Weiterspielen nach Pause über Music Assistant:** Pause ging, Weiterspielen nicht. Zwei mögliche Ursachen sind behoben: (1) Über AirPlay meldet die Box im Pausenzustand oft keinen Titel; dann galt Music Assistant nicht mehr als Quelle und die Taste ging an die Box. Jetzt gilt die MA-Warteschlange, solange sie läuft oder pausiert und kein anderer Titel gemeldet wird. (2) `play_pause` setzt bei manchen Playern nicht fort: die App prüft nach und schickt dann `play`, danach `resume`. Nicht an echter Hardware geprüft.
 - MIT-Lizenz (`LICENSE`).
