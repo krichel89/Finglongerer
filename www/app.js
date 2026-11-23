@@ -141,10 +141,9 @@ function groupBody(g, ekey) {
   const vols = S.map(s => (typeof s.volume === 'number' ? s.volume : 0));
   const paired = n === 2 && !!(S[0].group && S[0].group.paired);
   const m = paired ? vols[0] : Math.max(...vols);
-  const sub = n === 2 ? 'Links: ' + S[0].name + ' · Rechts: ' + S[1].name : S.map(s => s.name).join(' · ');
+  const sub = S.map(s => s.name).join(' · ');
   const kids = [
-    el('div', {class: 'head'}, el('div', {class: 'sub', text: sub}),
-      n === 2 ? el('button', {class: 'swap', text: '⇆', title: 'Links/Rechts tauschen', 'data-act': 'gswap'}) : null),
+    el('div', {class: 'head'}, el('div', {class: 'sub', text: sub})),
     srcRow('g', w => 'g:' + g.id + ':' + w),
     el('div', {class: 'vol'},
       el('button', {text: '−', 'data-act': 'gdown'}),
@@ -162,21 +161,17 @@ function groupBody(g, ekey) {
       el('div', {class: 'vol bal'}, el('span', {class: 'side', text: 'L'}),
         el('input', {type: 'range', min: -100, max: 100, step: 5, value: b, 'data-role': 'gbal'}),
         el('span', {class: 'side', text: 'R'}),
-        el('span', {class: 'v', text: balText(b) + (paired ? ' (echt)' : ' (virtuell)')}),
-        el('button', {class: 'small', text: 'Mitte', 'data-act': 'gcenter'})),
+        el('span', {class: 'v', text: balText(b)})),
       el('div', {class: 'row2'},
         el('button', {text: 'Stereopaar bilden', 'data-act': 'gpair', 'data-key': 'g:' + g.id + ':pair'}),
-        el('button', {text: 'Auflösen', 'data-act': 'gunpair'})),
-      el('p', {class: 'hint', text: paired
-        ? 'Die Balance wird in den Boxen verstellt. Laut Bose entfällt im Stereopaar der AUX-Eingang – zum Umschalten auf AUX das Paar vorher auflösen.'
-        : 'Ohne Stereopaar regelt die Balance die Lautstärke der beiden Boxen gegeneinander (die abgewandte Box wird leiser).'}));
+        el('button', {text: 'Auflösen', 'data-act': 'gunpair'})));
     if (paired && !balRead[g.id]) {
       balRead[g.id] = true;
       api('/api/group', {gid: g.id, action: 'read'}).then(j => {
         if (typeof j.balance !== 'number') return;
         balCache[g.id] = j.balance;
         const r = $('[data-gid="' + g.id + '"] [data-role=gbal]');
-        if (r && !dragging) { r.value = j.balance; r.parentElement.querySelector('.v').textContent = balText(j.balance) + ' (echt)'; }
+        if (r && !dragging) { r.value = j.balance; r.parentElement.querySelector('.v').textContent = balText(j.balance); }
       }).catch(() => { /* Balance bleibt wie sie ist */ });
     }
   }
@@ -267,15 +262,8 @@ document.addEventListener('click', async ev => {
   else if (a === 'gup' || a === 'gdown') {
     const v = card.querySelector('[data-role=gvol]');
     gSend(card, Math.max(0, Math.min(+v.max, +v.value + (a === 'gup' ? 3 : -3))));
-  } else if (a === 'gcenter') {
-    const r = card.querySelector('[data-role=gbal]'); r.value = 0; r.parentElement.querySelector('.v').textContent = balText(0); gSend(card);
   } else if (a === 'gpair') { balRead[gid] = false; act('/api/group', {gid, action: 'pair'}, null, ['g:' + gid + ':pair']); }
   else if (a === 'gunpair') { balRead[gid] = false; act('/api/group', {gid, action: 'unpair'}, b); }
-  else if (a === 'gswap') {
-    const groups = cfg.groups.map(g => g.id === gid ? Object.assign({}, g, {members: g.members.slice().reverse()}) : g);
-    try { await api('/api/config', {speakers: cfg.speakers, groups}); balRead[gid] = false; } catch (e) { toast(e.message, true); }
-    refresh(true);
-  }
 });
 document.addEventListener('pointerdown', ev => { if (ev.target.type === 'range') dragging = true; });
 window.addEventListener('pointerup', () => { setTimeout(() => dragging = false, 50); });
@@ -317,11 +305,15 @@ function renderGroupEditor() {
       el('input', {type: 'checkbox', checked: g.members.includes(r.id), onchange: e => {
         g.members = e.target.checked ? g.members.concat(r.id) : g.members.filter(id => id !== r.id); }}),
       el('span', {text: r.name}))));
+    const mem = g.members.filter(id => rows.some(r => r.id === id)), nm = id => (rows.find(r => r.id === id) || {}).name;
+    const lr = mem.length === 2 ? el('div', {class: 'lr'},
+      el('span', {text: 'Links: ' + nm(mem[0]) + ' · Rechts: ' + nm(mem[1])}),
+      el('button', {type: 'button', text: '⇆ tauschen', onclick: () => { g.members = mem.slice().reverse(); renderGroupEditor(); }})) : null;
     box.append(el('div', {class: 'gedit'},
       el('div', {class: 'ghead'},
         el('input', {value: g.name, maxLength: 30, placeholder: 'Name der Gruppe', oninput: e => { g.name = e.target.value; }}),
         el('button', {type: 'button', text: '✕', title: 'Gruppe löschen', onclick: () => { editGroups.splice(gi, 1); renderGroupEditor(); }})),
-      members));
+      members, lr));
   });
 }
 function takeFound(f) {
