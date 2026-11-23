@@ -8,8 +8,9 @@
   'use strict';
 
   const KEYS = new Set(['POWER', 'AUX_INPUT', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE']);
-  const DEFAULT_CONFIG = {groupName: 'Gruppe', speakers: [
-    {name: 'Musikzimmer', ip: '', max: 70, group: true}, {name: 'Bibliothek', ip: '', max: 70, group: true}]};
+  const DEFAULT_CONFIG = {
+    speakers: [{id: 'b1', name: 'Musikzimmer', ip: '', max: 70}, {id: 'b2', name: 'Bibliothek', ip: '', max: 70}],
+    groups: [{id: 'g1', name: 'Beide Boxen', members: ['b1', 'b2']}]};
   const CFG_KEY = 'steasyremote.config';
 
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -37,19 +38,42 @@
     return ok ? o.join('.') : null;
   }
 
+  const cleanId = v => String(v || '').replace(/[^a-z0-9]/gi, '').slice(0, 12);
+  const newId = () => Math.random().toString(36).slice(2, 8);
+  function uniqueId(v, used) {
+    let id = cleanId(v);
+    while (!id || used.has(id)) id = newId();
+    used.add(id);
+    return id;
+  }
+
   function sanitize(cfg) {
-    const out = [];
-    for (const sp of ((cfg && cfg.speakers) || []).slice(0, 8)) {
+    cfg = cfg || {};
+    const speakers = [], used = new Set();
+    for (const sp of (cfg.speakers || []).slice(0, 8)) {
       const name = String(sp.name || '').trim().slice(0, 40) || 'Box';
       const raw = String(sp.ip || '').trim();
       const ip = raw ? validIp(raw) : '';
       if (raw && !ip) throw new Error('Ungültige IP bei ' + name + ': ' + raw.slice(0, 40) + ' (nur Heimnetz-Adressen)');
       let mx = parseInt(sp.max, 10);
       if (!Number.isFinite(mx)) mx = 70;
-      out.push({name, ip, max: Math.max(10, Math.min(100, mx)), group: !!sp.group});
+      speakers.push({id: uniqueId(sp.id, used), name, ip, max: Math.max(10, Math.min(100, mx)), _flag: !!sp.group});
     }
-    const gn = String((cfg && cfg.groupName) || '').trim().slice(0, 30) || 'Gruppe';
-    return {speakers: out, groupName: gn};
+    let groups = cfg.groups;
+    if (!Array.isArray(groups)) { // Übernahme der Version 0.2 (eine Gruppe über Markierungen an den Boxen)
+      const flagged = speakers.filter(sp => sp._flag), m = (flagged.length ? flagged : speakers).map(sp => sp.id);
+      const gn = String(cfg.groupName || '').trim();
+      groups = m.length ? [{name: (!gn || gn === 'Gruppe') && m.length === 2 ? 'Beide Boxen' : (gn || 'Gruppe'), members: m}] : [];
+    }
+    const ids = new Set(speakers.map(sp => sp.id)), gused = new Set(), outG = [];
+    for (const g of groups.slice(0, 8)) {
+      const members = [];
+      for (const id of (g.members || [])) if (ids.has(id) && !members.includes(id)) members.push(id);
+      if (!members.length) continue;
+      outG.push({id: uniqueId(g.id, gused), name: String(g.name || '').trim().slice(0, 30) || 'Gruppe', members});
+    }
+    speakers.forEach(sp => { delete sp._flag; });
+    return {speakers, groups: outG};
   }
 
   /* env: {http(method, ip, port, path, body, timeoutMs) -> Promise<string>,
@@ -63,9 +87,15 @@
     function loadConfig() {
       try {
         const raw = env.storage.getItem(CFG_KEY);
-        if (raw) return sanitize(JSON.parse(raw));
+        if (raw) {
+          const parsed = JSON.parse(raw), clean = sanitize(parsed);
+          if (JSON.stringify(parsed) !== JSON.stringify(clean)) env.storage.setItem(CFG_KEY, JSON.stringify(clean)); // Übernahme/IDs festhalten
+          return clean;
+        }
       } catch (e) { /* defekte Config -> Standard */ }
-      return sanitize(DEFAULT_CONFIG);
+      const def = sanitize(DEFAULT_CONFIG);
+      try { env.storage.setItem(CFG_KEY, JSON.stringify(def)); } catch (e) { /* egal */ }
+      return def;
     }
     function saveConfig(cfg) {
       const clean = sanitize(cfg);
@@ -331,13 +361,13 @@
       if (!sp.ip) throw new Error('Keine IP eingetragen');
       return [sp];
     }
-    function pair(data) {
-      const cfg = loadConfig().speakers;
-      const li = data.left, ri = data.right;
-      if (!(Number.isInteger(li) && Number.isInteger(ri) && li >= 0 && ri >= 0 && li < cfg.length && ri < cfg.length) || li === ri)
-        throw new Error('Links/Rechts ungültig');
-      if (!cfg[li].ip || !cfg[ri].ip) throw new Error('Beide Boxen brauchen eine IP');
-      return [cfg[li], cfg[ri]];
+    function groupMembers(data) {
+      const cfg = loadConfig(), g = cfg.groups.find(x => x.id === data.gid);
+      if (!g) throw new Error('Unbekannte Gruppe');
+      const m = g.members.map(id => cfg.speakers.find(sp => sp.id === id)).filter(Boolean);
+      const miss = m.filter(sp => !sp.ip);
+      if (miss.length) throw new Error('Keine IP eingetragen: ' + miss.map(sp => sp.name).join(', '));
+      return m;
     }
 
     async function route(path, data) {
@@ -355,25 +385,25 @@
         const d = Math.max(-20, Math.min(20, parseInt(data.delta, 10) || 0));
         return summarize(await runMany(t, sp => doVolume(sp, d, null)));
       }
-      if (path === '/api/duo') {
-        const [left, right] = pair(data);
-        if (data.action === 'read') return Object.assign({ok: true}, await duoRead(left));
-        return {ok: true, message: await doDuo(left, right, data.master, data.balance)};
-      }
       if (path === '/api/group') {
-        const t = loadConfig().speakers.filter(sp => sp.group && sp.ip);
-        if (!t.length) throw new Error('Keine Box mit IP in der Gruppe (Einstellungen ⚙)');
-        return summarize(await runMany(t, doAuxOn));
+        const m = groupMembers(data), n = m.length, action = data.action;
+        if (action === 'aux') return summarize(await runMany(m, doAuxOn));
+        if (action === 'off') return summarize(await runMany(m, doOff));
+        if (action === 'read') return Object.assign({ok: true}, n === 2 ? await duoRead(m[0]) : {mode: 'none', balance: null});
+        if (action === 'volume') {
+          if (n === 2) return {ok: true, message: await doDuo(m[0], m[1], data.master, data.balance)};
+          const master = Math.max(0, parseInt(data.master, 10) || 0);
+          return summarize(await runMany(m, sp => doVolume(sp, null, Math.min(master, sp.max))));
+        }
+        if (action === 'pair' || action === 'unpair') {
+          if (n !== 2) throw new Error('Stereopaar geht nur mit genau zwei Boxen');
+          return {ok: true, message: action === 'pair' ? await pairSpeakers(m[0], m[1]) : await unpairSpeakers(m[0], m[1])};
+        }
+        throw new Error('Unbekannte Aktion');
       }
       if (path === '/api/scan') {
         const prefixes = (data.prefixes && data.prefixes.length ? data.prefixes : guessPrefixes()).slice(0, 4).map(netPrefix);
         return {ok: true, prefixes, found: await scanNet(prefixes)};
-      }
-      if (path === '/api/stereo') {
-        const [left, right] = pair(data);
-        if (data.action === 'pair') return {ok: true, message: await pairSpeakers(left, right)};
-        if (data.action === 'unpair') return {ok: true, message: await unpairSpeakers(left, right)};
-        throw new Error('Unbekannte Aktion');
       }
       throw new Error('Unbekannter Pfad');
     }

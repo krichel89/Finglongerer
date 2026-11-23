@@ -10,65 +10,34 @@
 </head><body>
 <header><h1>Boxen</h1><button id="btn-settings" class="icon" aria-label="Einstellungen">&#9881;</button></header>
 <main>
-  <section class="row2">
-    <button id="all-aux" data-key="all-aux">Alle: AUX an</button>
-    <button id="all-off" data-key="all-off">Alle: Aus</button>
-  </section>
-  <button id="btn-group" data-key="group" hidden></button>
-  <section id="cards"></section>
-  <section class="card" id="stereo">
-    <div class="head"><h2>Beide Boxen</h2><span id="duo-mode" class="badge"></span></div>
-    <div class="pairsel">
-      <label>Links <select id="sel-left"></select></label>
-      <button id="btn-swap" class="icon" aria-label="Tauschen">&#8646;</button>
-      <label>Rechts <select id="sel-right"></select></label>
-    </div>
-    <div class="vol">
-      <button id="duo-down">&minus;</button>
-      <input type="range" id="duo-vol" min="0" max="70" value="0">
-      <button id="duo-up">+</button>
-      <span class="v" id="duo-vol-txt">Gesamtlautst&auml;rke</span>
-    </div>
-    <div class="vol bal">
-      <span class="side">L</span>
-      <input type="range" id="duo-bal" min="-100" max="100" step="5" value="0">
-      <span class="side">R</span>
-      <span class="v" id="duo-bal-txt">Balance: Mitte</span>
-      <button id="duo-center" class="small">Mitte</button>
-    </div>
-    <div class="row2">
-      <button id="btn-pair" data-key="pair">Stereopaar bilden</button>
-      <button id="btn-unpair">Aufl&ouml;sen</button>
-    </div>
-    <p class="hint" id="duo-hint"></p>
-  </section>
+  <section id="groups"></section>
   <details id="adv" class="card">
     <summary>Erweitert</summary>
-    <div class="adv-body">
-      <h3>Boxen</h3>
-      <div id="adv-rows"></div>
-      <button type="button" id="adv-add">+ Box hinzuf&uuml;gen</button>
-      <h3>Automatische Suche</h3>
-      <label class="lbl">Suchbereich (leer = Heimnetz erraten)
-        <input id="scan-net" placeholder="z. B. 192.168.178" inputmode="decimal"></label>
-      <button type="button" id="scan-go">Boxen suchen</button>
-      <div id="scan-res"></div>
-      <p class="hint">Die IP der Box steht auch in der SoundTouch-App unter Einstellungen &rarr; Lautsprecher &rarr; Info. &bdquo;Max&ldquo; ist die h&ouml;chste Lautst&auml;rke, die diese Fernbedienung einstellt.</p>
-      <button type="button" id="adv-save" data-key="">Boxen speichern</button>
-    </div>
+    <p class="hint">Einzelne Boxen: Ein/Aus und Lautst&auml;rke.</p>
+    <div id="cards" class="adv-body"></div>
   </details>
 </main>
 <div id="toast" role="status"></div>
 <dialog id="dlg">
   <form method="dialog" id="dlg-form">
     <h2>Einstellungen</h2>
-    <h3>Gruppe</h3>
-    <label class="lbl">Name der Gruppe <input id="grp-name" maxlength="30"></label>
-    <div id="grp-members" class="members"></div>
-    <p class="hint">Der Knopf &bdquo;Gruppe&ldquo; schaltet diese Boxen ein und w&auml;hlt AUX.</p>
+    <h3>Boxen</h3>
+    <div id="set-rows"></div>
+    <button type="button" id="set-add">+ Box hinzuf&uuml;gen</button>
+    <h3>Automatische Suche</h3>
+    <label class="lbl">Suchbereich (leer = Heimnetz erraten)
+      <input id="scan-net" placeholder="z. B. 192.168.178" inputmode="decimal"></label>
+    <button type="button" id="scan-go">Boxen suchen</button>
+    <div id="scan-res"></div>
+    <p class="hint">Die IP einer Box steht auch in der SoundTouch-App unter Einstellungen &rarr; Lautsprecher &rarr; Info. &bdquo;Max&ldquo; ist die h&ouml;chste Lautst&auml;rke, die diese Fernbedienung einstellt.</p>
+    <h3>Gruppen</h3>
+    <div id="grp-edit"></div>
+    <button type="button" id="grp-add">+ Gruppe hinzuf&uuml;gen</button>
+    <p class="hint">Eine Gruppe kann aus beliebig vielen Boxen bestehen. Bei genau zwei Boxen gibt es zus&auml;tzlich Balance und Stereopaar.</p>
+    <p class="err" id="dlg-err"></p>
     <p class="version" id="version"></p>
     <div class="row2">
-      <button value="cancel">Abbrechen</button>
+      <button value="cancel" formnovalidate>Abbrechen</button>
       <button id="dlg-save" value="ok">Speichern</button>
     </div>
   </form>

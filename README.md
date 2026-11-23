@@ -8,9 +8,9 @@ Schlanke Android-Fernbedienung für Bose SoundTouch mit ST Reborn – **ohne Ser
   - ohne Stereopaar: *virtuelle* Balance (die abgewandte Box wird leiser)
   - im Stereopaar: *echte* Balance der Boxen (−7 … +7, per WebSocket)
 - Stereopaar bilden und auflösen
-- **Gruppe:** in ⚙ festgelegte Boxen mit einem Knopf auf AUX schalten
-- Anzeige: Knöpfe dunkelgrau, eingeschaltet = orange leuchtende Schrift, wartet auf die Box = blinkend
-- **Erweitert** (unten, eingeklappt): Boxen bearbeiten und **automatische Suche** im WLAN
+- **Gruppen:** beliebig viele, mit beliebig vielen Boxen (⚙ Einstellungen); Startseite zeigt nur Gruppen. Bei genau zwei Boxen zusätzlich Balance und Stereopaar
+- Anzeige: Knöpfe dunkelgrau, eingeschaltet = orange Schrift, wartet auf die Box = blinkend
+- **Erweitert** (unten, eingeklappt): Ein/Aus und Lautstärke der einzelnen Boxen. **Boxen verwalten und automatisch suchen:** ⚙ Einstellungen
 - Boxen (Name, IP, max. Lautstärke) unter ⚙ einstellbar, bleiben gespeichert
 
 ## Version
