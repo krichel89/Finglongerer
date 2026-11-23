@@ -4,6 +4,13 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.20.0
+- Reiter: Die Fernbedienungen liegen in runden Symbolen unter dem Titel. Bose = schwarzer Kreis mit weißem B, Google TV = schwarzes g im vierfarbigen Kreis. Der gewählte Reiter wird gemerkt.
+- Fernseher automatisch finden: Einstellungen → „Fernseher suchen" (oder „Koppeln"/„Verbindung testen" ohne IP) durchsucht das Heimnetz nach Google-TV-Geräten und liest Name und MAC-Adresse.
+- Ein und Aus sind getrennte Tasten. Die App fragt den Zustand des Fernsehers ab und drückt die Power-Taste nur, wenn er noch nicht im gewünschten Zustand ist. Antwortet der Stick im Standby gar nicht, schickt „Ein" einen Weckruf (Wake-on-LAN) an die gemerkte MAC-Adresse.
+- Stumm sendet jetzt KEYCODE_MUTE (91, wie die Referenz-Bibliothek) statt VOLUME_MUTE (164).
+- Apps: Jellyfin steht an erster Stelle, Disney+ entfällt.
+
 ## 0.19.0
 - Google TV direkt steuern, ohne etwas auf dem Fernseher zu installieren: Die App spricht den Fernseher wie die Google-TV-App auf dem Handy an (Android-TV-Fernbedienungsprotokoll, Port 6467/6466). Einstellungen → „Fernseher (Google TV)": IP eintragen, „Koppeln", den Code vom Fernseher eingeben. Danach erscheint in der Hauptansicht die Karte „Fernseher" mit Ein/Aus, Lautstärke, Stumm, Play/Pause, Steuerkreuz, Zurück/Home/Menü und Apps (YouTube, Netflix, Disney+, Prime Video).
 - Die Handy-Identität (selbst signiertes Zertifikat) wird beim ersten Koppeln im privaten App-Ordner angelegt. Nur Heimnetz-Adressen sind erlaubt.

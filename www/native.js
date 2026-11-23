@@ -32,7 +32,7 @@
   function tvCall(fn, ...args) {
     if (!window.STTv) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
     const r = String(window.STTv[fn](...args));
-    if (r === 'ok') return;
+    if (r === 'ok' || (fn === 'scan' && !r.startsWith('ERR:'))) return r;
     const m = /^ERR:(\w+)(?::([\s\S]*))?$/.exec(r) || [], T = (k, a) => window.STI18n.t(lang(), k, a);
     if (m[1] === 'net') throw new Error(T('err.tvNet'));
     if (m[1] === 'auth') throw new Error(T('err.tvAuth'));
@@ -42,7 +42,10 @@
   }
   const tv = {
     pairStart: async ip => tvCall('pairStart', ip), pairFinish: async code => tvCall('pairFinish', code),
-    connect: async ip => tvCall('connect', ip), key: async (ip, code) => tvCall('key', ip, code), launch: async (ip, link) => tvCall('launch', ip, link)
+    connect: async ip => tvCall('connect', ip), power: async (ip, on) => tvCall('power', ip, !!on), wake: async mac => tvCall('wake', mac),
+    // Zeilen "ip TAB name TAB mac" -> [{ip, name, mac}]
+    scan: async prefix => tvCall('scan', prefix || '').split('\n').filter(Boolean).map(l => { const f = l.split('\t'); return {ip: f[0], name: f[1] || 'Google TV', mac: f[2] || ''}; }),
+    info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), launch: async (ip, link) => tvCall('launch', ip, link)
   };
   let storage;
   try { window.localStorage.getItem('x'); storage = window.localStorage; }

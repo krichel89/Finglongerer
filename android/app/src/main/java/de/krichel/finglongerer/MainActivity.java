@@ -115,6 +115,35 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public String power(String ip, boolean on) {
+            if (!lan(ip)) return "ERR:ip";
+            try { remote().power(ip, on); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        /** Name und MAC-Adresse des zuletzt gekoppelten Fernsehers ("name TAB mac"). */
+        @JavascriptInterface
+        public String lastInfo() {
+            try { return remote().lastName() + "\t" + remote().lastMac(); } catch (Exception e) { return "\t"; }
+        }
+
+        @JavascriptInterface
+        public String wake(String mac) {
+            try { TvRemote.wakeOnLan(mac); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        /** Sucht Fernseher im Heimnetz. prefix = "192.168.1" oder leer (dann das Netz des Handys). Antwort: Zeilen "ip TAB name TAB mac" oder ERR. */
+        @JavascriptInterface
+        public String scan(String prefix) {
+            try {
+                String p = prefix == null ? "" : prefix.trim();
+                if (p.isEmpty()) p = TvScan.localPrefix();
+                if (!p.matches("^(10|192\\.168|172\\.(1[6-9]|2\\d|3[01]))\\.\\d{1,3}(\\.\\d{1,3})?$") || p.split("\\.").length != 3) return "ERR:ip";
+                TvIdentity id = TvIdentity.load(getFilesDir());
+                return String.join("\n", TvScan.scan(id.factory, p, 6467));
+            } catch (Exception e) { return fail(e); }
+        }
+
+        @JavascriptInterface
         public String launch(String ip, String link) {
             if (!lan(ip)) return "ERR:ip";
             if (link == null || !link.matches("^[A-Za-z][A-Za-z0-9+.-]*://[^\\s<>\"']{0,300}$")) return "ERR:other:Link";

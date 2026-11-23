@@ -9,9 +9,13 @@
 <link rel="stylesheet" href="style.css">
 </head><body>
 <header><h1>Finglongerer</h1><div class="hbtns"><button id="btn-sort" class="icon" data-i18n-aria="ui.sort" data-i18n-title="ui.sortTitle">&#8693;</button><button id="btn-settings" class="icon" data-i18n-aria="ui.settings">&#9881;</button></div></header>
+<nav id="tabs" role="tablist">
+  <button type="button" class="tab on" role="tab" data-tab="bose" aria-label="Bose" title="Bose"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#000" stroke="#8a8f98" stroke-width="2"/><text x="24" y="34" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="28" fill="#fff">B</text></svg></button>
+  <button type="button" class="tab" role="tab" data-tab="tv" aria-label="Google TV" title="Google TV"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="23" fill="#fff"/><g fill="none" stroke-width="5"><path d="M24 4.5A19.5 19.5 0 0 1 43.5 24" stroke="#34a853"/><path d="M43.5 24A19.5 19.5 0 0 1 24 43.5" stroke="#4285f4"/><path d="M24 43.5A19.5 19.5 0 0 1 4.5 24" stroke="#fbbc05"/><path d="M4.5 24A19.5 19.5 0 0 1 24 4.5" stroke="#ea4335"/></g><text x="24" y="33" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="26" fill="#000">g</text></svg></button>
+</nav>
 <main>
+  <div id="boseview">
   <section id="groups"></section>
-  <details id="tvcard" class="card" hidden><summary data-i18n="tv.title"></summary><div id="tvbody"></div></details>
   <details id="urlbox" class="card">
     <summary data-i18n="ui.urlSummary"></summary>
     <input id="url-in" data-i18n-ph="ph.url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -19,6 +23,8 @@
     <button id="url-go" data-i18n="ui.play"></button>
   </details>
   <a id="ma-open" class="btnlink" target="_blank" rel="noopener" hidden data-i18n="ui.maOpen"></a>
+  </div>
+  <section id="tvview" hidden><div id="tvbody" class="card"></div></section>
 </main>
 <div id="toast" role="status"></div>
 <dialog id="dlg">
@@ -42,6 +48,8 @@
     <div id="ma-res"></div>
     <h3 data-i18n="set.tv"></h3>
     <input id="tv-ip" data-i18n-ph="ph.tvip" inputmode="decimal" autocomplete="off" spellcheck="false">
+    <button type="button" id="tv-find" data-i18n="set.tvFind"></button>
+    <div id="tv-found"></div>
     <div class="row2"><button type="button" id="tv-pair" data-i18n="set.tvPair"></button><button type="button" id="tv-test" data-i18n="set.tvTest"></button></div>
     <div class="row2" id="tv-code-row" hidden><input id="tv-code" data-i18n-ph="ph.tvCode" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" id="tv-code-go" data-i18n="set.tvCodeGo"></button></div>
     <p class="hint" id="tv-res"></p>

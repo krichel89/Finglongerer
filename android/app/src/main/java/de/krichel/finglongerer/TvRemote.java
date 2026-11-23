@@ -36,6 +36,7 @@ final class TvRemote {
 
     private SSLSocket pairSocket;
     private RSAPublicKey pairServerKey;
+    private String pairName = "", pairMac = "";
     private Conn conn;
     private String connIp;
 
@@ -171,7 +172,11 @@ final class TvRemote {
         pairClose();
         SSLSocket s = open(ip, pairPort, 8000);
         try {
-            pairServerKey = (RSAPublicKey) s.getSession().getPeerCertificates()[0].getPublicKey();
+            java.security.cert.X509Certificate sc = (java.security.cert.X509Certificate) s.getSession().getPeerCertificates()[0];
+            pairServerKey = (RSAPublicKey) sc.getPublicKey();
+            String[] nm = nameAndMac(sc);
+            pairName = nm[0];
+            pairMac = nm[1];
             InputStream in = s.getInputStream();
             OutputStream out = s.getOutputStream();
             writeFrame(out, pairingRequest(clientName));
@@ -188,6 +193,37 @@ final class TvRemote {
             pairServerKey = null;
             if (e instanceof IOException) throw (IOException) e;
             throw new IOException(e.getMessage(), e);
+        }
+    }
+
+    /** Name und MAC-Adresse stehen im Zertifikat des Fernsehers, z. B. CN=atvremote/Name/AA:BB:CC:DD:EE:FF. */
+    static String[] nameAndMac(java.security.cert.X509Certificate c) {
+        String dn = c.getSubjectX500Principal().getName(javax.security.auth.x500.X500Principal.RFC2253);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)([0-9a-f]{2}(?::[0-9a-f]{2}){5})").matcher(dn);
+        String mac = m.find() ? m.group(1).toUpperCase(java.util.Locale.ROOT) : "";
+        String cn = "";
+        java.util.regex.Matcher n = java.util.regex.Pattern.compile("(?:^|,)CN=([^,]*)").matcher(dn);
+        if (n.find()) cn = n.group(1);
+        String[] parts = cn.split("/");
+        String name = parts.length > 1 ? parts[parts.length - 2] : cn;
+        if (name.equals("atvremote") || name.isEmpty()) name = parts.length > 2 ? parts[1] : "Google TV";
+        return new String[]{name.replaceAll("[\\t\\r\\n]", " "), mac};
+    }
+
+    synchronized String lastName() { return pairName; }
+    synchronized String lastMac() { return pairMac; }
+
+    /** Weckpaket (Wake-on-LAN) an alle im Heimnetz; weckt nur Geräte, die das im Standby unterstützen. */
+    static void wakeOnLan(String mac) throws IOException {
+        if (mac == null || !mac.matches("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")) throw new IOException("MAC ungültig");
+        byte[] m = hex(mac.replaceAll("[:-]", ""));
+        byte[] pkt = new byte[6 + 16 * 6];
+        for (int i = 0; i < 6; i++) pkt[i] = (byte) 0xFF;
+        for (int i = 0; i < 16; i++) System.arraycopy(m, 0, pkt, 6 + i * 6, 6);
+        try (java.net.DatagramSocket ds = new java.net.DatagramSocket()) {
+            ds.setBroadcast(true);
+            for (int port : new int[]{9, 7})
+                ds.send(new java.net.DatagramPacket(pkt, pkt.length, java.net.InetAddress.getByName("255.255.255.255"), port));
         }
     }
 
@@ -269,6 +305,7 @@ final class TvRemote {
         final OutputStream out;
         final CountDownLatch ready = new CountDownLatch(1);
         volatile boolean closed;
+        volatile int started = -1;      // remote_start: 1 = Fernseher an, 0 = Standby, -1 = noch unbekannt
         volatile String error = "";
 
         Conn(SSLSocket s) throws IOException {
@@ -292,7 +329,9 @@ final class TvRemote {
                             P ping = P.parse(p.bytes.get(8));
                             Long v = ping.ints.get(1);
                             writeFrame(out, pong(v == null ? 0 : v));
-                        } else if (p.bytes.containsKey(40)) {               // remote_start: bereit
+                        } else if (p.bytes.containsKey(40)) {               // remote_start: bereit, meldet auch ob der Fernseher an ist
+                            Long st = P.parse(p.bytes.get(40)).ints.get(1);
+                            started = st != null && st != 0 ? 1 : 0;
                             ready.countDown();
                         } else if (p.bytes.containsKey(3)) {
                             error = "Fernseher meldet Fehler";
@@ -353,6 +392,18 @@ final class TvRemote {
             disconnect();
             ensure(ip).send(msg);
         }
+    }
+
+    /** Ein oder Aus ohne Umschalten: nur wenn der Zustand nicht schon stimmt, wird die Power-Taste gedrückt. */
+    synchronized void power(String ip, boolean on) throws IOException {
+        Conn c = ensure(ip);
+        long end = System.currentTimeMillis() + 1500;
+        while (c.started < 0 && !c.closed && System.currentTimeMillis() < end) {
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        int st = c.started;
+        if (st < 0) sendTo(ip, keyInject(on ? 224 : 223, DIRECTION_SHORT));        // Zustand unbekannt: WAKEUP bzw. SLEEP
+        else if ((st == 1) != on) sendTo(ip, keyInject(26, DIRECTION_SHORT));
     }
 
     void key(String ip, int code) throws IOException {

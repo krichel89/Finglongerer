@@ -21,11 +21,11 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
 const UI_KEY = 'finglongerer.ui';
-const ui = {order: [], open: {}, sort: false};
-try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; } } catch (e) { /* neu anfangen */ }
+const ui = {order: [], open: {}, sort: false, tab: 'bose'};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' ? 'tv' : 'bose'; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
   Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
-const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open})); } catch (e) { /* egal */ } };
+const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab})); } catch (e) { /* egal */ } };
 const presetNames = {}, presetLoc = {}, presetRows = {}, presetRow2 = {};
 
 async function api(path, body) {
@@ -497,7 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
-  $('#tv-ip').value = tvLoad().ip; $('#tv-code-row').hidden = true; $('#tv-res').textContent = '';
+  $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   $('#dlg').showModal();
 };
 $('#reboot-go').onclick = async e => {
@@ -619,59 +619,106 @@ document.addEventListener('keydown', ev => {
 
 // ---- Fernseher (Google TV), direkt angesprochen
 const TV_KEY = 'finglongerer.tv';
-const TV_APPS = [['YouTube', 'https://www.youtube.com'], ['Netflix', 'netflix://'], ['Disney+', 'https://www.disneyplus.com'], ['Prime Video', 'https://app.primevideo.com']];
-const tvLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(TV_KEY) || '{}'); return {ip: /^\d{1,3}(\.\d{1,3}){3}$/.test(o.ip || '') ? o.ip : '', paired: !!o.paired}; } catch (e) { return {ip: '', paired: false}; } };
+const TV_APPS = [['Jellyfin', 'market://launch?id=org.jellyfin.androidtv'], ['YouTube', 'https://www.youtube.com'], ['Netflix', 'netflix://'], ['Prime Video', 'https://app.primevideo.com']];
+const IP_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+const tvLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(TV_KEY) || '{}'); return {ip: IP_RE.test(o.ip || '') ? o.ip : '', paired: !!o.paired, mac: /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(o.mac || '') ? o.mac : ''}; } catch (e) { return {ip: '', paired: false, mac: ''}; } };
 const tvSave = o => { try { STNative.storage.setItem(TV_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
+let tvMac = '';       // MAC des gerade gesuchten/gekoppelten Fernsehers
 const tvBusy = async (b, fn) => {
   b.disabled = true; b.classList.add('wait');
   try { await new Promise(r => setTimeout(r, 30)); await fn(); } finally { b.disabled = false; b.classList.remove('wait'); }
 };
 function buildTv() {
-  const c = tvLoad(), card = $('#tvcard'), body = $('#tvbody');
-  card.hidden = !(c.ip && c.paired); body.textContent = '';
-  if (card.hidden) return;
+  const c = tvLoad(), body = $('#tvbody'); body.textContent = '';
+  if (!(c.ip && c.paired)) {
+    body.append(el('p', {class: 'hint', text: t('tv.notPaired')}), el('button', {type: 'button', text: t('tv.openSettings'), 'data-tvsettings': '1'}));
+    return;
+  }
   const k = (label, key, title, cls) => el('button', {type: 'button', text: label, title: title || '', class: cls || '', 'data-tvkey': key});
   const gap = () => el('span');
   body.append(
-    el('div', {class: 'row3'}, k('⏻', 26, t('tv.power'), 'tvp'), k('🔇', 164, t('tv.mute')), k('⏯', 85, t('tv.play'))),
-    el('div', {class: 'row2'}, k('－', 25, t('tv.volDown')), k('＋', 24, t('tv.volUp'))),
-    el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
+    el('div', {class: 'row2'}, el('button', {type: 'button', text: '⏻ ' + t('tv.on'), 'data-tvpower': 'on'}), el('button', {type: 'button', text: '⏻ ' + t('tv.off'), class: 'tvoff', 'data-tvpower': 'off'})),
+    el('div', {class: 'row3'}, k('🔇', 91, t('tv.mute')), k('－', 25, t('tv.volDown')), k('＋', 24, t('tv.volUp'))),
+    el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), k('⏯', 85, t('tv.play'))),
     el('div', {class: 'row3'}, k(t('tv.back'), 4), k(t('tv.home'), 3), k(t('tv.menu'), 82)),
     el('div', {class: 'row2'}, ...TV_APPS.map(a => el('button', {type: 'button', text: a[0], 'data-tvapp': a[1]}))));
 }
+function setTab(name) {
+  ui.tab = name === 'tv' ? 'tv' : 'bose'; saveUi();
+  $('#boseview').hidden = ui.tab === 'tv'; $('#tvview').hidden = ui.tab !== 'tv';
+  $('#btn-sort').hidden = ui.tab === 'tv';
+  document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+}
+$('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
 $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
-  const ip = tvLoad().ip;
+  if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
+  const c = tvLoad();
   tvBusy(b, async () => {
-    if (b.dataset.tvkey) await STNative.tv.key(ip, +b.dataset.tvkey);
-    else if (b.dataset.tvapp) await STNative.tv.launch(ip, b.dataset.tvapp);
+    if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);
+    else if (b.dataset.tvapp) await STNative.tv.launch(c.ip, b.dataset.tvapp);
+    else if (b.dataset.tvpower) {
+      try { await STNative.tv.power(c.ip, b.dataset.tvpower === 'on'); }
+      catch (e) {
+        // Standby ohne offenen Port: Weckruf (Wake-on-LAN) an die MAC-Adresse schicken
+        if (b.dataset.tvpower === 'on' && c.mac) { await STNative.tv.wake(c.mac); toast(t('tv.woke')); return; }
+        throw e;
+      }
+    }
   }).catch(e => toast(e.message, true));
 });
-$('#tv-pair').onclick = e => {
-  const ip = $('#tv-ip').value.trim(), err = $('#dlg-err'), res = $('#tv-res'); err.textContent = ''; res.textContent = '';
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { err.textContent = t('tv.needIp'); return; }
-  tvBusy(e.currentTarget, async () => {
-    await STNative.tv.pairStart(ip);
-    tvSave({ip, paired: false}); buildTv();
-    $('#tv-code-row').hidden = false; res.textContent = t('tv.codeShown'); $('#tv-code').value = ''; $('#tv-code').focus();
-  }).catch(ex => { err.textContent = ex.message; });
+// Fernseher im Heimnetz suchen; Treffer zum Auswählen anzeigen. Gibt die Treffer zurück.
+async function tvFind(b) {
+  const err = $('#dlg-err'), box = $('#tv-found'); err.textContent = ''; box.textContent = '';
+  let list = [];
+  await tvBusy(b, async () => { list = await STNative.tv.scan($('#scan-net').value.trim()); });
+  if (!list.length) { err.textContent = t('tv.none'); return list; }
+  const take = f => { $('#tv-ip').value = f.ip; tvMac = f.mac; box.textContent = ''; };
+  if (list.length === 1) { take(list[0]); return list; }
+  box.append(el('p', {class: 'hint', text: t('tv.pick')}), ...list.map(f => el('button', {type: 'button', text: f.name + ' (' + f.ip + ')', onclick: () => take(f)})));
+  return list;
+}
+$('#tv-find').onclick = e => { tvFind(e.currentTarget).catch(ex => { $('#dlg-err').textContent = ex.message; }); };
+// Ist keine IP eingetragen, wird automatisch gesucht (genau ein Treffer wird übernommen)
+async function tvIpOrFind(b) {
+  let ip = $('#tv-ip').value.trim();
+  if (!ip) { await tvFind(b); ip = $('#tv-ip').value.trim(); }
+  return ip;
+}
+$('#tv-pair').onclick = async e => {
+  const b = e.currentTarget, err = $('#dlg-err'), res = $('#tv-res'); err.textContent = ''; res.textContent = '';
+  try {
+    const ip = await tvIpOrFind(b);
+    if (!ip) return;
+    if (!IP_RE.test(ip)) { err.textContent = t('tv.needIp'); return; }
+    await tvBusy(b, async () => {
+      await STNative.tv.pairStart(ip);
+      const info = STNative.tv.info(); if (info.mac) tvMac = info.mac;
+      tvSave({ip, paired: false, mac: tvMac}); buildTv();
+      $('#tv-code-row').hidden = false; res.textContent = t('tv.codeShown'); $('#tv-code').value = ''; $('#tv-code').focus();
+    });
+  } catch (ex) { err.textContent = ex.message; }
 };
 $('#tv-code-go').onclick = e => {
   const code = $('#tv-code').value.trim().toLowerCase(), err = $('#dlg-err'), res = $('#tv-res'); err.textContent = '';
   if (!/^[0-9a-f]{6}$/.test(code)) { err.textContent = t('tv.needCode'); return; }
   tvBusy(e.currentTarget, async () => {
     await STNative.tv.pairFinish(code);
-    tvSave({ip: tvLoad().ip, paired: true}); buildTv();
+    tvSave({ip: tvLoad().ip, paired: true, mac: tvLoad().mac || tvMac}); buildTv();
     $('#tv-code-row').hidden = true; res.textContent = t('tv.paired');
   }).catch(ex => { err.textContent = ex.message; });
 };
 $('#tv-code').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); $('#tv-code-go').click(); } });
-$('#tv-test').onclick = e => {
-  const ip = $('#tv-ip').value.trim(), err = $('#dlg-err'), res = $('#tv-res'); err.textContent = ''; res.textContent = '';
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { err.textContent = t('tv.needIp'); return; }
-  tvBusy(e.currentTarget, async () => {
-    await STNative.tv.connect(ip);
-    tvSave({ip, paired: true}); buildTv(); res.textContent = t('tv.connected');
-  }).catch(ex => { err.textContent = ex.message; });
+$('#tv-test').onclick = async e => {
+  const b = e.currentTarget, err = $('#dlg-err'), res = $('#tv-res'); err.textContent = ''; res.textContent = '';
+  try {
+    const ip = await tvIpOrFind(b);
+    if (!ip) return;
+    if (!IP_RE.test(ip)) { err.textContent = t('tv.needIp'); return; }
+    await tvBusy(b, async () => {
+      await STNative.tv.connect(ip);
+      tvSave({ip, paired: true, mac: tvLoad().mac || tvMac}); buildTv(); res.textContent = t('tv.connected');
+    });
+  } catch (ex) { err.textContent = ex.message; }
 };
-buildTv();
+buildTv(); setTab(ui.tab);
