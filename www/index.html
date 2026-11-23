@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="de"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: http:">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Boxen</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+<header><h1>Boxen</h1><button id="btn-settings" class="icon" aria-label="Einstellungen">&#9881;</button></header>
+<main>
+  <section class="row2">
+    <button id="all-aux" class="primary">Alle: AUX an</button>
+    <button id="all-off">Alle: Aus</button>
+  </section>
+  <section id="cards"></section>
+  <section class="card" id="stereo">
+    <div class="head"><h2>Beide Boxen</h2><span id="duo-mode" class="badge"></span></div>
+    <div class="pairsel">
+      <label>Links <select id="sel-left"></select></label>
+      <button id="btn-swap" class="icon" aria-label="Tauschen">&#8646;</button>
+      <label>Rechts <select id="sel-right"></select></label>
+    </div>
+    <div class="vol">
+      <button id="duo-down">&minus;</button>
+      <input type="range" id="duo-vol" min="0" max="70" value="0">
+      <button id="duo-up">+</button>
+      <span class="v" id="duo-vol-txt">Gesamtlautst&auml;rke</span>
+    </div>
+    <div class="vol bal">
+      <span class="side">L</span>
+      <input type="range" id="duo-bal" min="-100" max="100" step="5" value="0">
+      <span class="side">R</span>
+      <span class="v" id="duo-bal-txt">Balance: Mitte</span>
+      <button id="duo-center" class="small">Mitte</button>
+    </div>
+    <div class="row2">
+      <button id="btn-pair" class="primary">Stereopaar bilden</button>
+      <button id="btn-unpair">Aufl&ouml;sen</button>
+    </div>
+    <p class="hint" id="duo-hint"></p>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+<dialog id="dlg">
+  <form method="dialog" id="dlg-form">
+    <h2>Einstellungen</h2>
+    <div id="dlg-rows"></div>
+    <button type="button" id="dlg-add">+ Box hinzuf&uuml;gen</button>
+    <p class="hint">IP der Box steht in der SoundTouch-App unter Einstellungen &rarr; Lautsprecher &rarr; Info. &bdquo;Max&ldquo; ist die h&ouml;chste Lautst&auml;rke, die diese Fernbedienung einstellt.</p>
+    <div class="row2">
+      <button value="cancel">Abbrechen</button>
+      <button id="dlg-save" class="primary" value="ok">Speichern</button>
+    </div>
+  </form>
+</dialog>
+<script src="core.js"></script>
+<script src="native.js"></script>
+<script src="app.js"></script>
+</body></html>

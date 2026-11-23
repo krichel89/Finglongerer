@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Boxen</string>
+    <string name="title_activity_main">Boxen</string>
+    <string name="package_name">de.krichel.steasyremote</string>
+    <string name="custom_url_scheme">de.krichel.steasyremote</string>
+</resources>

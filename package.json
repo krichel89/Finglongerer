@@ -1,0 +1,17 @@
+{
+  "name": "steasyremote",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fernbedienung für Bose SoundTouch (ST Reborn): AUX, Lautstärke, Balance, Stereopaar",
+  "scripts": {
+    "sync": "cap sync android",
+    "test": "node test/core.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}
