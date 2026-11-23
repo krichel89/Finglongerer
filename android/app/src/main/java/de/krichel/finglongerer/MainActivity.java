@@ -65,12 +65,70 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    /** Brücke zum Google TV (Android-TV-Fernbedienungsprotokoll): koppeln, Tasten senden, Apps starten. Antwort "ok" oder "ERR:art[:text]". Nur Adressen des Heimnetzes. */
+    public class TvBridge {
+        private TvRemote remote;
+
+        private synchronized TvRemote remote() throws Exception {
+            if (remote == null) {
+                TvIdentity id = TvIdentity.load(getFilesDir());
+                remote = new TvRemote(id.factory, id.publicKey, 6467, 6466);
+            }
+            return remote;
+        }
+
+        private String fail(Exception e) {
+            String m = String.valueOf(e.getMessage());
+            if (m.startsWith("AUTH:")) return "ERR:auth";
+            if (m.startsWith("CODE:")) return "ERR:code:" + m.substring(5);
+            if (e instanceof javax.net.ssl.SSLException || e instanceof java.io.EOFException) return "ERR:auth";
+            if (e instanceof java.net.SocketException || e instanceof java.net.SocketTimeoutException || e instanceof java.net.UnknownHostException) return "ERR:net";
+            return "ERR:other:" + m;
+        }
+
+        private boolean lan(String ip) {
+            return ip != null && ip.matches("^(10\\.\\d+\\.\\d+\\.\\d+|192\\.168\\.\\d+\\.\\d+|172\\.(1[6-9]|2\\d|3[01])\\.\\d+\\.\\d+)$");
+        }
+
+        @JavascriptInterface
+        public String pairStart(String ip) {
+            if (!lan(ip)) return "ERR:ip";
+            try { remote().pairStart(ip, "Finglongerer"); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        @JavascriptInterface
+        public String pairFinish(String code) {
+            try { remote().pairFinish(code); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        @JavascriptInterface
+        public String connect(String ip) {
+            if (!lan(ip)) return "ERR:ip";
+            try { remote().connect(ip); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        @JavascriptInterface
+        public String key(String ip, int code) {
+            if (!lan(ip)) return "ERR:ip";
+            if (code < 1 || code > 400) return "ERR:other:Taste";
+            try { remote().key(ip, code); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        @JavascriptInterface
+        public String launch(String ip, String link) {
+            if (!lan(ip)) return "ERR:ip";
+            if (link == null || !link.matches("^[A-Za-z][A-Za-z0-9+.-]*://[^\\s<>\"']{0,300}$")) return "ERR:other:Link";
+            try { remote().launch(ip, link); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getBridge().getWebView().addJavascriptInterface(new ShareBridge(), "STShare");
         getBridge().getWebView().addJavascriptInterface(new TcpBridge(), "STTcp");
         getBridge().getWebView().addJavascriptInterface(new DeviceBridge(), "STDevice");
+        getBridge().getWebView().addJavascriptInterface(new TvBridge(), "STTv");
         remember(getIntent());
         // Zurück schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche); erst ohne offenes Fenster verlässt es die App
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {

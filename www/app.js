@@ -497,6 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
+  $('#tv-ip').value = tvLoad().ip; $('#tv-code-row').hidden = true; $('#tv-res').textContent = '';
   $('#dlg').showModal();
 };
 $('#reboot-go').onclick = async e => {
@@ -594,7 +595,7 @@ window.addEventListener('focus', () => window.STShareCheck());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) window.STShareCheck(); });
 setTimeout(() => window.STShareCheck(), 800);
 $('#lang-sel').onchange = e => {       // Sprache sofort umschalten (auto = Systemsprache)
-  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render();
+  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render(); buildTv();
 };
 $('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render(); };
 document.addEventListener('visibilitychange', () => refresh());
@@ -615,3 +616,62 @@ document.addEventListener('keydown', ev => {
   ev.preventDefault(); el.focus();
   try { window.STDevice.showKeyboard(); } catch (e) { /* kein Fernseher */ }
 });
+
+// ---- Fernseher (Google TV), direkt angesprochen
+const TV_KEY = 'finglongerer.tv';
+const TV_APPS = [['YouTube', 'https://www.youtube.com'], ['Netflix', 'netflix://'], ['Disney+', 'https://www.disneyplus.com'], ['Prime Video', 'https://app.primevideo.com']];
+const tvLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(TV_KEY) || '{}'); return {ip: /^\d{1,3}(\.\d{1,3}){3}$/.test(o.ip || '') ? o.ip : '', paired: !!o.paired}; } catch (e) { return {ip: '', paired: false}; } };
+const tvSave = o => { try { STNative.storage.setItem(TV_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
+const tvBusy = async (b, fn) => {
+  b.disabled = true; b.classList.add('wait');
+  try { await new Promise(r => setTimeout(r, 30)); await fn(); } finally { b.disabled = false; b.classList.remove('wait'); }
+};
+function buildTv() {
+  const c = tvLoad(), card = $('#tvcard'), body = $('#tvbody');
+  card.hidden = !(c.ip && c.paired); body.textContent = '';
+  if (card.hidden) return;
+  const k = (label, key, title, cls) => el('button', {type: 'button', text: label, title: title || '', class: cls || '', 'data-tvkey': key});
+  const gap = () => el('span');
+  body.append(
+    el('div', {class: 'row3'}, k('⏻', 26, t('tv.power'), 'tvp'), k('🔇', 164, t('tv.mute')), k('⏯', 85, t('tv.play'))),
+    el('div', {class: 'row2'}, k('－', 25, t('tv.volDown')), k('＋', 24, t('tv.volUp'))),
+    el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
+    el('div', {class: 'row3'}, k(t('tv.back'), 4), k(t('tv.home'), 3), k(t('tv.menu'), 82)),
+    el('div', {class: 'row2'}, ...TV_APPS.map(a => el('button', {type: 'button', text: a[0], 'data-tvapp': a[1]}))));
+}
+$('#tvbody').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  const ip = tvLoad().ip;
+  tvBusy(b, async () => {
+    if (b.dataset.tvkey) await STNative.tv.key(ip, +b.dataset.tvkey);
+    else if (b.dataset.tvapp) await STNative.tv.launch(ip, b.dataset.tvapp);
+  }).catch(e => toast(e.message, true));
+});
+$('#tv-pair').onclick = e => {
+  const ip = $('#tv-ip').value.trim(), err = $('#dlg-err'), res = $('#tv-res'); err.textContent = ''; res.textContent = '';
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { err.textContent = t('tv.needIp'); return; }
+  tvBusy(e.currentTarget, async () => {
+    await STNative.tv.pairStart(ip);
+    tvSave({ip, paired: false}); buildTv();
+    $('#tv-code-row').hidden = false; res.textContent = t('tv.codeShown'); $('#tv-code').value = ''; $('#tv-code').focus();
+  }).catch(ex => { err.textContent = ex.message; });
+};
+$('#tv-code-go').onclick = e => {
+  const code = $('#tv-code').value.trim().toLowerCase(), err = $('#dlg-err'), res = $('#tv-res'); err.textContent = '';
+  if (!/^[0-9a-f]{6}$/.test(code)) { err.textContent = t('tv.needCode'); return; }
+  tvBusy(e.currentTarget, async () => {
+    await STNative.tv.pairFinish(code);
+    tvSave({ip: tvLoad().ip, paired: true}); buildTv();
+    $('#tv-code-row').hidden = true; res.textContent = t('tv.paired');
+  }).catch(ex => { err.textContent = ex.message; });
+};
+$('#tv-code').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); $('#tv-code-go').click(); } });
+$('#tv-test').onclick = e => {
+  const ip = $('#tv-ip').value.trim(), err = $('#dlg-err'), res = $('#tv-res'); err.textContent = ''; res.textContent = '';
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { err.textContent = t('tv.needIp'); return; }
+  tvBusy(e.currentTarget, async () => {
+    await STNative.tv.connect(ip);
+    tvSave({ip, paired: true}); buildTv(); res.textContent = t('tv.connected');
+  }).catch(ex => { err.textContent = ex.message; });
+};
+buildTv();

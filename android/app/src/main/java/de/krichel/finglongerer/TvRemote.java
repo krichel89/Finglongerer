@@ -1,0 +1,371 @@
+package de.krichel.finglongerer;
+
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.math.BigInteger;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.interfaces.RSAPublicKey;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+
+/**
+ * Fernbedienung für Google TV / Android TV über das Android-TV-Fernbedienungsprotokoll (v2), wie es auch die Google-TV-App
+ * auf dem Handy benutzt. Port 6467: einmalige Kopplung per 6-stelligem Code, Port 6466: Tasten und App-Start.
+ * Nachrichten sind Protobuf mit vorangestellter Länge; sie werden hier von Hand kodiert (keine Bibliothek nötig).
+ * Reines Java (ohne Android-Klassen), damit es sich am Rechner testen lässt.
+ */
+final class TvRemote {
+    // Funktionen, die wir beim Fernseher anmelden: Ping, Tasten, Ein/Aus, Lautstärke, App-Links
+    static final int FEATURES = 1 | 2 | 32 | 64 | 512;
+    static final int DIRECTION_SHORT = 3;
+
+    private final SSLSocketFactory factory;
+    private final RSAPublicKey clientKey;
+    private final int pairPort, remotePort;
+
+    private SSLSocket pairSocket;
+    private RSAPublicKey pairServerKey;
+    private Conn conn;
+    private String connIp;
+
+    TvRemote(SSLSocketFactory factory, RSAPublicKey clientKey, int pairPort, int remotePort) {
+        this.factory = factory;
+        this.clientKey = clientKey;
+        this.pairPort = pairPort;
+        this.remotePort = remotePort;
+    }
+
+    // ---- Protobuf von Hand
+
+    static final class W {
+        private final ByteArrayOutputStream o = new ByteArrayOutputStream();
+        W v(int field, long x) { varint(((long) field << 3)); varint(x); return this; }
+        W s(int field, String x) { return b(field, x.getBytes(StandardCharsets.UTF_8)); }
+        W b(int field, byte[] x) { varint(((long) field << 3) | 2); varint(x.length); o.write(x, 0, x.length); return this; }
+        W m(int field, W sub) { return b(field, sub.bytes()); }
+        byte[] bytes() { return o.toByteArray(); }
+        void varint(long x) {
+            while ((x & ~0x7FL) != 0) { o.write((int) ((x & 0x7F) | 0x80)); x >>>= 7; }
+            o.write((int) x);
+        }
+    }
+
+    /** Oberste Ebene einer Nachricht: Zahlenfelder und verschachtelte/Byte-Felder nach Feldnummer. */
+    static final class P {
+        final Map<Integer, Long> ints = new HashMap<>();
+        final Map<Integer, byte[]> bytes = new HashMap<>();
+        static P parse(byte[] d) throws IOException {
+            P p = new P();
+            int[] pos = {0};
+            while (pos[0] < d.length) {
+                long tag = readVarint(d, pos);
+                int field = (int) (tag >>> 3), wire = (int) (tag & 7);
+                if (wire == 0) p.ints.put(field, readVarint(d, pos));
+                else if (wire == 2) {
+                    long n = readVarint(d, pos);
+                    if (n < 0 || pos[0] + n > d.length) throw new IOException("Nachricht abgeschnitten");
+                    byte[] b = new byte[(int) n];
+                    System.arraycopy(d, pos[0], b, 0, (int) n);
+                    pos[0] += (int) n;
+                    p.bytes.put(field, b);
+                } else if (wire == 1) pos[0] += 8;
+                else if (wire == 5) pos[0] += 4;
+                else throw new IOException("Unbekannter Feldtyp " + wire);
+            }
+            return p;
+        }
+        private static long readVarint(byte[] d, int[] pos) throws IOException {
+            long r = 0;
+            for (int shift = 0; shift < 64; shift += 7) {
+                if (pos[0] >= d.length) throw new IOException("Nachricht abgeschnitten");
+                int b = d[pos[0]++] & 0xFF;
+                r |= (long) (b & 0x7F) << shift;
+                if ((b & 0x80) == 0) return r;
+            }
+            throw new IOException("Zahl zu lang");
+        }
+    }
+
+    static void writeFrame(OutputStream out, byte[] msg) throws IOException {
+        W w = new W();
+        w.varint(msg.length);
+        synchronized (out) {
+            out.write(w.bytes());
+            out.write(msg);
+            out.flush();
+        }
+    }
+
+    static byte[] readFrame(InputStream in) throws IOException {
+        long len = 0;
+        for (int shift = 0; ; shift += 7) {
+            int b = in.read();
+            if (b < 0) throw new EOFException("Verbindung geschlossen");
+            len |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) break;
+            if (shift > 28) throw new IOException("Länge ungültig");
+        }
+        if (len > (1 << 20)) throw new IOException("Nachricht zu groß");
+        byte[] buf = new byte[(int) len];
+        new DataInputStream(in).readFully(buf);
+        return buf;
+    }
+
+    // ---- Kopplung (Port 6467)
+
+    static byte[] outer(int field, W body) {
+        return new W().v(1, 2).v(2, 200).m(field, body).bytes();
+    }
+
+    static byte[] pairingRequest(String clientName) {
+        return outer(10, new W().s(1, "atvremote").s(2, clientName));
+    }
+
+    static byte[] pairingOptions() {
+        // input_encodings: HEXADECIMAL (3), 6 Zeichen; bevorzugte Rolle INPUT (1)
+        return outer(20, new W().m(1, new W().v(1, 3).v(2, 6)).v(3, 1));
+    }
+
+    static byte[] pairingConfiguration() {
+        return outer(30, new W().m(1, new W().v(1, 3).v(2, 6)).v(2, 1));
+    }
+
+    static byte[] pairingSecret(byte[] secret) {
+        return outer(40, new W().b(1, secret));
+    }
+
+    /** Liest eine Kopplungsnachricht und prüft den Status (200 = ok). */
+    private static P readPolo(InputStream in) throws IOException {
+        P p = P.parse(readFrame(in));
+        Long st = p.ints.get(2);
+        if (st == null || st != 200) throw new IOException("AUTH:Kopplung abgelehnt (Status " + st + ")");
+        return p;
+    }
+
+    private SSLSocket open(String ip, int port, int timeoutMs) throws IOException {
+        SSLSocket s = (SSLSocket) factory.createSocket();
+        try {
+            s.connect(new InetSocketAddress(ip, port), timeoutMs);
+            s.setSoTimeout(timeoutMs);
+            s.startHandshake();
+            return s;
+        } catch (IOException e) {
+            try { s.close(); } catch (IOException x) { /* egal */ }
+            throw e;
+        }
+    }
+
+    /** Schritt 1: Verbindung zum Fernseher aufbauen; er zeigt danach den Code an. */
+    synchronized void pairStart(String ip, String clientName) throws IOException {
+        pairClose();
+        SSLSocket s = open(ip, pairPort, 8000);
+        try {
+            pairServerKey = (RSAPublicKey) s.getSession().getPeerCertificates()[0].getPublicKey();
+            InputStream in = s.getInputStream();
+            OutputStream out = s.getOutputStream();
+            writeFrame(out, pairingRequest(clientName));
+            for (int step = 0; step < 6; step++) {
+                P p = readPolo(in);
+                if (p.bytes.containsKey(11)) writeFrame(out, pairingOptions());
+                else if (p.bytes.containsKey(20)) writeFrame(out, pairingConfiguration());
+                else if (p.bytes.containsKey(31)) { pairSocket = s; return; }
+                else throw new IOException("Unerwartete Antwort bei der Kopplung");
+            }
+            throw new IOException("Kopplung kam nicht zustande");
+        } catch (Exception e) {
+            try { s.close(); } catch (IOException x) { /* egal */ }
+            pairServerKey = null;
+            if (e instanceof IOException) throw (IOException) e;
+            throw new IOException(e.getMessage(), e);
+        }
+    }
+
+    private static byte[] unsigned(BigInteger n) {
+        byte[] b = n.toByteArray();
+        if (b.length > 1 && b[0] == 0) { byte[] c = new byte[b.length - 1]; System.arraycopy(b, 1, c, 0, c.length); return c; }
+        return b;
+    }
+
+    /** Das Geheimnis aus beiden Schlüsseln und dem Code (ohne die ersten zwei Zeichen); dessen erstes Byte ist die Prüfziffer des Codes. */
+    static byte[] secret(RSAPublicKey client, RSAPublicKey server, byte[] codeTail) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            md.update(unsigned(client.getModulus()));
+            md.update(unsigned(client.getPublicExponent()));
+            md.update(unsigned(server.getModulus()));
+            md.update(unsigned(server.getPublicExponent()));
+            md.update(codeTail);
+            return md.digest();
+        } catch (java.security.NoSuchAlgorithmException e) { throw new IOException(e); }
+    }
+
+    static byte[] hex(String s) {
+        byte[] r = new byte[s.length() / 2];
+        for (int i = 0; i < r.length; i++) r[i] = (byte) Integer.parseInt(s.substring(2 * i, 2 * i + 2), 16);
+        return r;
+    }
+
+    /** Schritt 2: den auf dem Fernseher angezeigten Code (6 Zeichen, 0-9 a-f) bestätigen. */
+    synchronized void pairFinish(String code) throws IOException {
+        if (code == null || !code.matches("^[0-9a-fA-F]{6}$")) throw new IOException("CODE:Code muss aus 6 Zeichen (0-9, a-f) bestehen");
+        if (pairSocket == null || pairServerKey == null) throw new IOException("CODE:Erst „Koppeln“ drücken");
+        try {
+            byte[] h = secret(clientKey, pairServerKey, hex(code.substring(2)));
+            if ((h[0] & 0xFF) != Integer.parseInt(code.substring(0, 2), 16)) throw new IOException("CODE:Code falsch");
+            writeFrame(pairSocket.getOutputStream(), pairingSecret(h));
+            P p;
+            try { p = readPolo(pairSocket.getInputStream()); }
+            catch (IOException e) { throw new IOException("CODE:Code vom Fernseher abgelehnt"); }
+            if (!p.bytes.containsKey(41)) throw new IOException("CODE:Unerwartete Antwort");
+        } finally {
+            pairClose();
+        }
+    }
+
+    private void pairClose() {
+        if (pairSocket != null) { try { pairSocket.close(); } catch (IOException e) { /* egal */ } }
+        pairSocket = null;
+        pairServerKey = null;
+    }
+
+    // ---- Fernbedienung (Port 6466)
+
+    static byte[] keyInject(int code, int direction) {
+        return new W().m(10, new W().v(1, code).v(2, direction)).bytes();
+    }
+
+    static byte[] appLink(String link) {
+        return new W().m(90, new W().s(1, link)).bytes();
+    }
+
+    static byte[] configureReply(int features) {
+        // device_info: unknown1=1, unknown2="1", package_name, app_version
+        return new W().m(1, new W().v(1, features).m(2, new W().v(3, 1).s(4, "1").s(5, "atvremote").s(6, "1.0.0"))).bytes();
+    }
+
+    static byte[] setActive(int features) {
+        return new W().m(2, new W().v(1, features)).bytes();
+    }
+
+    static byte[] pong(long val) {
+        W w = new W();
+        if (val != 0) w.v(1, val);
+        return new W().m(9, w).bytes();
+    }
+
+    private static final class Conn {
+        final SSLSocket socket;
+        final OutputStream out;
+        final CountDownLatch ready = new CountDownLatch(1);
+        volatile boolean closed;
+        volatile String error = "";
+
+        Conn(SSLSocket s) throws IOException {
+            socket = s;
+            out = s.getOutputStream();
+            InputStream in = s.getInputStream();
+            Thread t = new Thread(() -> {
+                try {
+                    s.setSoTimeout(0);
+                    while (!closed) {
+                        P p = P.parse(readFrame(in));
+                        if (p.bytes.containsKey(1)) {                       // remote_configure: unsere Funktionen melden
+                            P cfg = P.parse(p.bytes.get(1));
+                            Long code1 = cfg.ints.get(1);
+                            int features = code1 == null ? FEATURES : (int) (code1 & FEATURES);
+                            writeFrame(out, configureReply(features));
+                        } else if (p.bytes.containsKey(2)) {                // remote_set_active
+                            writeFrame(out, setActive(FEATURES));
+                            ready.countDown();
+                        } else if (p.bytes.containsKey(8)) {                // Ping -> Pong
+                            P ping = P.parse(p.bytes.get(8));
+                            Long v = ping.ints.get(1);
+                            writeFrame(out, pong(v == null ? 0 : v));
+                        } else if (p.bytes.containsKey(40)) {               // remote_start: bereit
+                            ready.countDown();
+                        } else if (p.bytes.containsKey(3)) {
+                            error = "Fernseher meldet Fehler";
+                        }
+                    }
+                } catch (Exception e) {
+                    error = String.valueOf(e.getMessage());
+                } finally {
+                    closed = true;
+                    ready.countDown();
+                    try { s.close(); } catch (IOException x) { /* egal */ }
+                }
+            }, "tv-remote");
+            t.setDaemon(true);
+            t.start();
+        }
+
+        void send(byte[] msg) throws IOException {
+            if (closed) throw new IOException("Verbindung geschlossen");
+            writeFrame(out, msg);
+        }
+
+        void close() {
+            closed = true;
+            try { socket.close(); } catch (IOException e) { /* egal */ }
+        }
+    }
+
+    private Conn ensure(String ip) throws IOException {
+        if (conn != null && !conn.closed && ip.equals(connIp)) return conn;
+        disconnect();
+        Conn c = new Conn(open(ip, remotePort, 4000));
+        try {
+            if (!c.ready.await(6, TimeUnit.SECONDS) || c.closed) {
+                c.close();
+                throw new IOException("AUTH:Fernseher antwortet nicht - neu koppeln? " + c.error);
+            }
+        } catch (InterruptedException e) {
+            c.close();
+            Thread.currentThread().interrupt();
+            throw new IOException("Unterbrochen");
+        }
+        conn = c;
+        connIp = ip;
+        return c;
+    }
+
+    /** Verbindung herstellen (und prüfen, dass die Kopplung gilt). */
+    synchronized void connect(String ip) throws IOException {
+        ensure(ip);
+    }
+
+    private synchronized void sendTo(String ip, byte[] msg) throws IOException {
+        Conn c = ensure(ip);
+        try {
+            c.send(msg);
+        } catch (IOException e) {            // Verbindung war veraltet: einmal neu aufbauen
+            disconnect();
+            ensure(ip).send(msg);
+        }
+    }
+
+    void key(String ip, int code) throws IOException {
+        sendTo(ip, keyInject(code, DIRECTION_SHORT));
+    }
+
+    void launch(String ip, String link) throws IOException {
+        sendTo(ip, appLink(link));
+    }
+
+    synchronized void disconnect() {
+        if (conn != null) conn.close();
+        conn = null;
+        connIp = null;
+    }
+}

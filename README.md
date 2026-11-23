@@ -11,6 +11,7 @@ Languages: English and German (follows the system language, switchable under ⚙
 - Music Assistant: skip/pause controlled through MA when MA is the source (token needed)
 - Play any stream URL (also via Android "Share")
 - Automatic search for speakers and Music Assistant on your network
+- Google TV / Android TV remote: controls the TV directly from the phone (pairing code, keys, power, volume, apps) - nothing to install on the TV
 - Google TV / Android TV: same APK, appears in the launcher, remote-control navigation (OK held on a preset = save)
 - Nothing is preconfigured: add your speakers and groups under ⚙ Settings
 
@@ -43,6 +44,7 @@ Android-Fernbedienung für **Bose SoundTouch** mit SoundTouch Reborn (STR) und o
 - Music Assistant: Weiter/Pause über MA, wenn MA die Quelle ist (Token nötig)
 - Beliebige Stream-URL abspielen (auch über „Teilen“)
 - Automatische Suche nach Boxen und Music Assistant im Netz
+- Google TV / Android TV als Fernbedienung: steuert den Fernseher direkt vom Handy (Kopplung per Code, Tasten, Ein/Aus, Lautstärke, Apps) - auf dem Fernseher wird nichts installiert
 - Google TV / Android TV: dieselbe APK, erscheint in der Programmübersicht, Bedienung per Fernbedienung (OK gehalten auf einer Sendertaste = speichern)
 - Nichts vorbelegt: Boxen und Gruppen unter ⚙ Einstellungen anlegen
 

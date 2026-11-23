@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.19.0
+- Google TV direkt steuern, ohne etwas auf dem Fernseher zu installieren: Die App spricht den Fernseher wie die Google-TV-App auf dem Handy an (Android-TV-Fernbedienungsprotokoll, Port 6467/6466). Einstellungen → „Fernseher (Google TV)": IP eintragen, „Koppeln", den Code vom Fernseher eingeben. Danach erscheint in der Hauptansicht die Karte „Fernseher" mit Ein/Aus, Lautstärke, Stumm, Play/Pause, Steuerkreuz, Zurück/Home/Menü und Apps (YouTube, Netflix, Disney+, Prime Video).
+- Die Handy-Identität (selbst signiertes Zertifikat) wird beim ersten Koppeln im privaten App-Ordner angelegt. Nur Heimnetz-Adressen sind erlaubt.
+- Die TV-Oberfläche aus 0.18 (App auf dem Fernseher selbst) bleibt erhalten, wird aber nicht gebraucht.
+
 ## 0.18.1
 - Zurück-Taste schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche) und verlässt erst dann die App. Gilt auf Handy und Fernseher.
 - Fernseher: OK in einem Textfeld öffnet die Tastatur (auch die Handy-Tastatur der Google-TV-App) und schickt das Einstellungsformular nicht mehr ab.

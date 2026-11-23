@@ -28,6 +28,22 @@
     if (r !== 'ok') throw new Error(r.replace(/^ERR:\s*/, ''));
     return r;
   }
+  // Google TV: Aufrufe an die Android-Brücke (window.STTv); Antwort "ok" oder "ERR:art[:text]"
+  function tvCall(fn, ...args) {
+    if (!window.STTv) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
+    const r = String(window.STTv[fn](...args));
+    if (r === 'ok') return;
+    const m = /^ERR:(\w+)(?::([\s\S]*))?$/.exec(r) || [], T = (k, a) => window.STI18n.t(lang(), k, a);
+    if (m[1] === 'net') throw new Error(T('err.tvNet'));
+    if (m[1] === 'auth') throw new Error(T('err.tvAuth'));
+    if (m[1] === 'ip') throw new Error(T('err.tvIp'));
+    if (m[1] === 'code') throw new Error(T('err.tvCode', m[2] || ''));
+    throw new Error(T('err.tvOther', m[2] || r));
+  }
+  const tv = {
+    pairStart: async ip => tvCall('pairStart', ip), pairFinish: async code => tvCall('pairFinish', code),
+    connect: async ip => tvCall('connect', ip), key: async (ip, code) => tvCall('key', ip, code), launch: async (ip, link) => tvCall('launch', ip, link)
+  };
   let storage;
   try { window.localStorage.getItem('x'); storage = window.localStorage; }
   catch (e) { const mem = {}; storage = {getItem: k => mem[k] || null, setItem: (k, v) => { mem[k] = v; }}; }
@@ -38,5 +54,5 @@
   const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
   // Fernseher (Google TV): Klasse "tv" für größere Oberfläche und sichtbaren Fokus; ?tv=1 zum Ansehen im Browser
   try { if ((window.STDevice && window.STDevice.isTv()) || /[?&]tv=1\b/.test(location.search)) document.documentElement.classList.add('tv'); } catch (e) { /* kein Fernseher */ }
-  window.STNative = {http, tcp, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
+  window.STNative = {http, tcp, tv, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();
