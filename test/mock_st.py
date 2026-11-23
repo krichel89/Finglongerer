@@ -2,7 +2,7 @@ import sys, os, threading, time, base64, hashlib, re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST, NAME, DEVID = sys.argv[1], sys.argv[2], sys.argv[3]
-S = {"preset": 0, "bal": 0, "source": "STANDBY", "vol": 20, "group": None, "wake_at": 0}
+S = {"preset": 0, "bal": 0, "source": "STANDBY", "vol": 20, "group": None, "wake_at": 0, "zone": None}
 
 
 class H(BaseHTTPRequestHandler):
@@ -51,6 +51,8 @@ class H(BaseHTTPRequestHandler):
             self.send('<info deviceID="%s"><name>%s</name><type>SoundTouch 10</type></info>' % (DEVID, NAME))
         elif p == "/getGroup":
             self.send(S["group"] or "<group/>")
+        elif p == "/getZone":
+            self.send(S["zone"] or "<zone/>")
         elif p == "/removeGroup":
             S["group"] = None; self.send("<status>/removeGroup</status>")
         else:
@@ -77,6 +79,8 @@ class H(BaseHTTPRequestHandler):
             if 'source="AUX"' in body: S["source"] = "AUX"
             if 'source="BLUETOOTH"' in body and not os.environ.get("MOCK_NO_BT_SELECT"): S["source"] = "BLUETOOTH"
             self.send("<status>/select</status>")
+        elif self.path == "/setZone":
+            S["zone"] = body; self.send("<status>/setZone</status>")
         elif self.path == "/addGroup":
             S["group"] = body; self.send("<group/>")
         else:

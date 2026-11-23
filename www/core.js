@@ -276,6 +276,48 @@
       await setVolume(sp.ip, nv);
       return 'Lautstärke ' + nv;
     }
+    // Multiroom-Zone: Master-Box spielt, die anderen folgen synchron (/setZone). Stereopaare sind keine Zone.
+    async function getZoneIds(ip) {
+      const xml = await stGet(ip, '/getZone', 2500);
+      const ids = [];
+      for (const mm of xml.matchAll(/<member\b[^>]*>([^<]+)<\/member>/g)) ids.push(mm[1].trim());
+      const master = attr(xml, 'zone', 'master');
+      if (master && !ids.includes(master)) ids.push(master);
+      return ids;
+    }
+    async function makeZone(m) {
+      const infos = await Promise.all(m.map(sp => getInfo(sp.ip)));
+      const ids = infos.map(i => i[0]);
+      if (ids.some(i => !i) || new Set(ids).size !== ids.length) throw new Error('Geräte-IDs nicht lesbar oder doppelt');
+      for (let i = 1; i < m.length; i++) {            // Folge-Boxen aus dem Standby holen
+        if ((await nowPlaying(m[i].ip))[0] === 'STANDBY') {
+          await pressKey(m[i].ip, 'POWER');
+          if (!(await waitAwake(m[i].ip))) throw new Error(m[i].name + ' ist nicht aufgewacht');
+        }
+      }
+      let body = '<zone master="' + esc(ids[0]) + '" senderIPAddress="' + esc(m[0].ip) + '">';
+      for (let i = 1; i < m.length; i++) body += '<member ipaddress="' + esc(m[i].ip) + '">' + esc(ids[i]) + '</member>';
+      body += '</zone>';
+      await stPost(m[0].ip, '/setZone', body);
+      for (let t = 0; t < 4; t++) {
+        await sleep(700);
+        let z = [];
+        try { z = await getZoneIds(m[0].ip); } catch (e) { /* nochmal */ }
+        if (ids.every(i => z.includes(i))) return true;
+      }
+      throw new Error('Zone nicht zustande gekommen (/getZone zeigt nicht alle Boxen)');
+    }
+    async function isStereoPair(m) { return m.length === 2 && (await getGroup(m[0].ip)).paired; }
+    // Quelle auf der Master-Box setzen, dann alle Boxen als Zone koppeln; einzelne Box / Stereopaar wie bisher
+    async function zoneRun(m, fn, pairMasterOnly) {
+      if (m.length < 2) return runMany(m, fn);
+      if (await isStereoPair(m)) return runMany(pairMasterOnly ? [m[0]] : m, fn);
+      const master = await runMany([m[0]], fn);
+      if (master.errs.length) return master;
+      try { await makeZone(m); master.oks.push('Zone mit ' + (m.length - 1) + ' weiteren Boxen'); }
+      catch (e) { master.errs.push('Zone: ' + e.message); }
+      return master;
+    }
     async function runMany(targets, fn) {
       const res = await Promise.all(targets.map(async sp => {
         try { return [sp.name + ': ' + await fn(sp), null]; }
@@ -431,15 +473,23 @@
       }
       if (path === '/api/group') {
         const m = groupMembers(data), n = m.length, action = data.action;
-        if (action === 'aux') return summarize(await runMany(m, doAuxOn));
-        if (action === 'off') return summarize(await runMany(m, doOff));
-        if (action === 'bt') return summarize(await runMany(m, doBluetoothOn));
+        if (action === 'aux') return summarize(await zoneRun(m, doAuxOn));
+        if (action === 'bt') return summarize(await zoneRun(m, doBluetoothOn));
+        if (action === 'off') {   // nacheinander: Master zuerst, sonst weckt ein zweiter POWER-Toggle die Folge-Box wieder
+          const oks = [], errs = [];
+          for (let i = 0; i < m.length; i++) {
+            const r = await runMany([m[i]], doOff);
+            oks.push(...r.oks); errs.push(...r.errs);
+            if (i === 0 && m.length > 1) await sleep(1500);
+          }
+          return summarize({oks, errs});
+        }
         if (action === 'presets') return {ok: true, presets: await getPresets(m[0].ip)};
         if (action === 'preset') {
           const n = parseInt(data.n, 10);
-          // Stereopaar: die Taste nur an der ersten (linken/Master-)Box drücken
-          const t = n >= 1 && m.length === 2 && (await getGroup(m[0].ip)).paired ? [m[0]] : m;
-          return summarize(await runMany(t, sp => doPreset(sp, n)));
+          // Stereopaar: Taste nur an der ersten (linken/Master-)Box; sonst Zone mit der ersten Box als Master
+          if (!(n >= 1 && n <= 6)) throw new Error('Taste 1 bis 6');
+          return summarize(await zoneRun(m, sp => doPreset(sp, n), true));
         }
         if (action === 'read') return Object.assign({ok: true}, n === 2 ? await duoRead(m[0]) : {mode: 'none', balance: null});
         if (action === 'volume') {

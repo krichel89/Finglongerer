@@ -48,8 +48,10 @@ try {
   assert.equal(st.speakers[0].standby, true); assert.equal(st.speakers[1].group.paired, false); ok('Status: beide im Standby, kein Paar');
   const t0 = Date.now();
   let r = await call('/api/group', { gid: G, action: 'aux' });
-  assert.match(r.message, /Musikzimmer: AUX an/); assert.match(r.message, /Bibliothek: AUX an/);
-  st = await call('/api/state'); assert.equal(st.speakers[0].source, 'AUX'); ok('Gruppe: AUX an (weckt aus Standby, ' + (Date.now() - t0) + ' ms)');
+  assert.match(r.message, /Musikzimmer: AUX an/); assert.match(r.message, /Zone mit 1 weiteren/);
+  st = await call('/api/state'); assert.equal(st.speakers[0].source, 'AUX'); assert.equal(st.speakers[1].standby, false);
+  const zone = await nodeHttp('GET', '127.0.0.2', 8090, '/getZone', null, 2000); assert.match(zone, /master="DEV-A"/); assert.match(zone, /DEV-B/);
+  ok('Gruppe: AUX an auf Master + Zone mit Folge-Box (weckt aus Standby, ' + (Date.now() - t0) + ' ms)');
 
   r = await call('/api/volume', { idx: 0, value: 90 }); assert.match(r.message, /Lautstärke 70/); ok('einzelne Box: Lautstärke begrenzt auf max');
   r = await call('/api/volume', { idx: 1, delta: -9 }); st = await call('/api/state'); assert.equal(st.speakers[1].volume, 11); ok('einzelne Box: Lautstärke relativ (20-9)');
@@ -83,18 +85,18 @@ try {
   r = await call('/api/config', cfg3); assert.equal(r.config.groups.length, 2); ok('Gruppen ohne gültige Mitglieder werden verworfen');
   const m3 = spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, '127.0.0.4', 'Küche', 'DEV-C'], { stdio: 'ignore' }); mocks.push(m3);
   await new Promise(r => setTimeout(r, 800));
-  r = await call('/api/group', { gid: 'g1', action: 'aux' }); assert.match(r.message, /Küche: AUX an/); ok('3er-Gruppe: AUX an');
+  r = await call('/api/group', { gid: 'g1', action: 'aux' }); assert.match(r.message, /Zone mit 2 weiteren/); ok('3er-Gruppe: AUX an, Zone mit 2 weiteren');
   r = await call('/api/group', { gid: 'g1', action: 'volume', master: 65, balance: 0 });
   st = await call('/api/state'); assert.deepEqual(st.speakers.map(x => x.volume), [65, 60, 50]); ok('3er-Gruppe: Lautstärke je Box auf deren max begrenzt');
   await assert.rejects(call('/api/group', { gid: 'g1', action: 'pair' }), /genau zwei/); ok('Stereopaar nur mit zwei Boxen');
   r = await call('/api/group', { gid: 'g2', action: 'off' }); st = await call('/api/state'); assert.equal(st.speakers[0].standby, true); assert.equal(st.speakers[1].standby, false); ok('Gruppe mit einer Box wirkt nur auf diese');
   // Bluetooth direkt, Ersatzweg, Gruppe; Presets
   r = await call('/api/bt', { idx: 0 }); st = await call('/api/state'); assert.equal(st.speakers[0].source, 'BLUETOOTH'); ok('Bluetooth per /select');
-  r = await call('/api/group', { gid: 'g1', action: 'bt' }); st = await call('/api/state'); assert.deepEqual(st.speakers.map(x => x.source), ['BLUETOOTH', 'BLUETOOTH', 'BLUETOOTH']); ok('Gruppe: Bluetooth');
+  r = await call('/api/group', { gid: 'g1', action: 'bt' }); st = await call('/api/state'); assert.equal(st.speakers[0].source, 'BLUETOOTH'); assert.match(r.message, /Zone mit 2/); ok('Gruppe: Bluetooth (Master + Zone)');
   r = await call('/api/group', { gid: 'g1', action: 'aux' }); st = await call('/api/state'); assert.equal(st.speakers[1].source, 'AUX'); ok('zurück auf AUX');
   const dbg = ip => nodeHttp('GET', ip, 8090, '/_dbg', null, 2000);
   r = await call('/api/preset', { idx: 1, n: 4 }); assert.equal(await dbg('127.0.0.3'), '4'); ok('einzelne Box: Taste 4');
-  r = await call('/api/group', { gid: 'g1', action: 'preset', n: 2 }); assert.deepEqual([await dbg('127.0.0.2'), await dbg('127.0.0.3'), await dbg('127.0.0.4')], ['2', '2', '2']); ok('Gruppe: Taste 2 an allen Boxen');
+  r = await call('/api/group', { gid: 'g1', action: 'preset', n: 2 }); assert.deepEqual([await dbg('127.0.0.2'), await dbg('127.0.0.3'), await dbg('127.0.0.4')], ['2', '4', '0']); ok('Gruppe: Taste 2 nur am Master, Folge-Boxen per Zone');
   await assert.rejects(call('/api/preset', { idx: 0, n: 9 }), /Taste 1 bis 6/); ok('Taste 9 abgelehnt');
   r = await call('/api/presets', { idx: 0 }); assert.deepEqual(r.presets, [{ n: 1, name: 'Radio Eins' }, { n: 3, name: 'Klassik' }]); ok('Sendernamen aus /presets');
   const m5 = spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, '127.0.0.5', 'Flur', 'DEV-E'], { stdio: 'ignore', env: { ...process.env, MOCK_NO_BT_SELECT: '1' } }); mocks.push(m5);

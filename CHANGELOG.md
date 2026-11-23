@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.5.0
+- Gruppen spielen jetzt synchron: AUX, Bluetooth und Sendertasten wirken auf die erste Box der Gruppe (Master), die übrigen Boxen werden als Multiroom-Zone (`/setZone`) angekoppelt und per `/getZone` geprüft.
+- Gruppe „Aus": nacheinander (Master zuerst), damit eine Folge-Box nicht wieder geweckt wird.
+- Stereopaare und Gruppen mit einer Box verhalten sich wie bisher.
+
 ## 0.4.0 – 2026-11-23
 - Neu: Startseite zeigt Gruppen und Einzelboxen gleichrangig als zugeklappte Karten; Antippen klappt auf
 - Neu: Sortieren (Knopf ⇅ oben): Reihenfolge ändern; Reihenfolge und aufgeklappte Karten werden gemerkt
