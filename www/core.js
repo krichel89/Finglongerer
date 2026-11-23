@@ -52,6 +52,13 @@
     return id;
   }
 
+  // Music-Assistant-Adresse: http://<Heimnetz-IP>[:Port], leer = keine
+  function cleanMa(v) {
+    const raw = String(v || '').trim(); if (!raw) return '';
+    const m = /^(?:https?:\/\/)?(\d{1,3}(?:\.\d{1,3}){3})(?::(\d{1,5}))?\/?$/.exec(raw), ip = m && validIp(m[1]);
+    if (!ip || (m[2] && +m[2] > 65535)) throw new Error('Ungültige Music-Assistant-Adresse (z. B. http://192.168.178.10:8095)');
+    return 'http://' + ip + ':' + (m[2] || '8095');
+  }
   function sanitize(cfg) {
     cfg = cfg || {};
     const speakers = [], used = new Set();
@@ -78,7 +85,7 @@
       outG.push({id: uniqueId(g.id, gused), name: String(g.name || '').trim().slice(0, 30) || 'Gruppe', members});
     }
     speakers.forEach(sp => { delete sp._flag; });
-    return {speakers, groups: outG};
+    return {speakers, groups: outG, ma: cleanMa(cfg.ma)};
   }
 
   /* env: {http(method, ip, port, path, body, timeoutMs) -> Promise<string>,
@@ -271,7 +278,7 @@
       } catch (e) { return []; }
     }
     // STR-Agent (Port 8888): zweite Reihe (Slots 7-12 = Taste doppelt gedrückt) gibt es nur dort; meldet "presetRows":"2"
-    const AGENT_PORT = 8888;
+    const AGENT_PORT = 8888, MA_PORT = 8095;
     async function agentRows(ip) {
       try {
         const x = await env.http('GET', ip, AGENT_PORT, '/api/agent/version', null, 2000);
@@ -567,6 +574,28 @@
       return found.sort((a, b) => key(a.ip) - key(b.ip));
     }
 
+    // Music Assistant im Netz suchen: Port 8095, /info (Server-Info-JSON) bzw. Startseite
+    async function scanMa(prefixes) {
+      const hosts = [], found = [];
+      for (const p of prefixes) for (let i = 1; i <= 254; i++) hosts.push(p + '.' + i);
+      let next = 0;
+      async function worker() {
+        while (next < hosts.length) {
+          const ip = hosts[next++];
+          try {
+            const t = await env.http('GET', ip, MA_PORT, '/info', null, env.scanTimeout || 800);
+            if (/"server_version"|"schema_version"|Music Assistant/i.test(t)) { found.push({ip, url: 'http://' + ip + ':' + MA_PORT, version: (/"server_version"\s*:\s*"([^"]{1,20})"/.exec(t) || [])[1] || ''}); continue; }
+          } catch (e) { /* weiter */ }
+          try {
+            const t = await env.http('GET', ip, MA_PORT, '/', null, env.scanTimeout || 800);
+            if (/Music Assistant/i.test(t)) found.push({ip, url: 'http://' + ip + ':' + MA_PORT, version: ''});
+          } catch (e) { /* kein MA */ }
+        }
+      }
+      await Promise.all(Array.from({length: 40}, worker));
+      return found;
+    }
+
     // ---- Routing (gleiche Pfade wie die Server-Version)
     function targets(data) {
       const cfg = loadConfig().speakers;
@@ -664,6 +693,10 @@
           return {ok: true, message: action === 'pair' ? await pairSpeakers(m[0], m[1]) : await unpairSpeakers(m[0], m[1])};
         }
         throw new Error('Unbekannte Aktion');
+      }
+      if (path === '/api/ma/scan') {
+        const prefixes = (data.prefixes && data.prefixes.length ? data.prefixes : guessPrefixes()).slice(0, 4).map(netPrefix);
+        return {ok: true, prefixes, found: await scanMa(prefixes)};
       }
       if (path === '/api/scan') {
         const prefixes = (data.prefixes && data.prefixes.length ? data.prefixes : guessPrefixes()).slice(0, 4).map(netPrefix);

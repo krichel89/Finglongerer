@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.12.0
+- Music Assistant: Adresse in den Einstellungen (leer lassen = kein Knopf). „Music Assistant suchen" prüft im Heimnetz Port 8095 (`/info`, sonst Startseite); Handeingabe geht ebenfalls. Auf der Hauptseite öffnet „Music Assistant öffnen" dessen Weboberfläche im Browser (Login dort). Die Autoerkennung stützt sich auf `/info` ohne Anmeldung; ob MA das bei deiner Version so liefert, ist nicht verifiziert (Handeingabe bleibt der Ausweg). Direkte Steuerung über die MA-API ist noch nicht gebaut.
+
 ## 0.11.0
 - Laufender Titel: unter dem Namen jeder Box/Gruppe steht „Interpret – Titel" (bei Radio der Sendername), bei Gruppen die Angabe der Master-Box. Quelle: `/now_playing` (`track`, `artist`, `stationName`).
 - Player-Tasten (Zurück, Play/Pause, Weiter) oben im aufgeklappten Eintrag, gesendet als `PREV_TRACK`/`PLAY_PAUSE`/`NEXT_TRACK` an `/key`; bei Gruppen an die Master-Box. Bei Radio nur Play/Pause, bei AUX/Standby gar nicht. Ob die Box die Tasten bei jeder Quelle (Spotify, STR, MA) annimmt, ist nicht verifiziert.

@@ -145,6 +145,11 @@ try {
   await assert.rejects(call('/api/move', { from: { idx: 0 }, to: { idx: 1 } }), /übernimmt die Quelle nicht.*Flur bleibt an/);
   st = await call('/api/state'); assert.equal(st.speakers[0].standby, false); ok('Umziehen: übernimmt das Ziel nicht, bleibt die Quelle an');
   await assert.rejects(call('/api/group', { gid: 'nix', action: 'aux' }), /Unbekannte Gruppe/); ok('unbekannte Gruppe abgelehnt');
+  await assert.rejects(call('/api/config', { speakers: [], groups: [], ma: 'http://8.8.8.8:8095' }), /Ungültige Music-Assistant/);
+  r = await call('/api/config', { speakers: [], groups: [], ma: '192.168.178.10' }); assert.equal(r.config.ma, 'http://192.168.178.10:8095');
+  r = await call('/api/config', { speakers: [], groups: [], ma: 'http://192.168.178.10:8095/' }); assert.equal(r.config.ma, 'http://192.168.178.10:8095'); ok('Music-Assistant-Adresse: nur Heimnetz, Port 8095 als Standard');
+  const maSrv = http.createServer((q, res) => res.end(q.url === '/info' ? '{"server_version":"2.9.1","schema_version":30}' : 'x')).listen(8095, '127.0.0.9');
+  r = await call('/api/ma/scan', { prefixes: ['127.0.0'] }); assert.deepEqual(r.found.map(f => f.url + '|' + f.version), ['http://127.0.0.9:8095|2.9.1']); maSrv.close(); ok('Music Assistant per Port 8095 gefunden');
   console.log('\nalle', n, 'Tests bestanden');
 } catch (e) { console.error('FEHLER nach Test', n, '\n', e); process.exitCode = 1; }
 stop();

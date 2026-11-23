@@ -275,6 +275,7 @@ function render() {
   if (!list.length) box.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: 'Noch keine Box. Unter ⚙ Einstellungen kannst du Boxen suchen und Gruppen anlegen.'})));
   list.forEach((e, pos) => box.append(entryCard(e, pos, list.length)));
   $('#btn-sort').classList.toggle('lit', ui.sort);
+  const ma = $('#ma-open'); ma.hidden = !cfg.ma; if (cfg.ma) ma.href = cfg.ma;
   fillUrlTargets();
   paint();
 }
@@ -427,7 +428,7 @@ $('#btn-settings').onclick = () => {
   (cfg.speakers.length ? cfg.speakers : [{}]).forEach(addRow);
   editGroups = cfg.groups.map(g => ({id: g.id, name: g.name, members: g.members.slice()}));
   renderGroupEditor();
-  $('#scan-res').textContent = ''; $('#dlg-err').textContent = '';
+  $('#scan-res').textContent = ''; $('#dlg-err').textContent = ''; $('#ma-url').value = cfg.ma || ''; $('#ma-res').textContent = '';
   $('#version').textContent = 'Version ' + (window.APP_VERSION || '?');
   $('#dlg').showModal();
 };
@@ -450,12 +451,23 @@ $('#scan-go').onclick = async e => {
   } catch (ex) { err.textContent = ex.message; }
   finally { b.disabled = false; b.classList.remove('wait'); }
 };
+$('#ma-scan').onclick = async e => {
+  const b = e.currentTarget, err = $('#dlg-err'), v = $('#scan-net').value.trim();
+  b.disabled = true; b.classList.add('wait'); err.textContent = ''; $('#ma-res').textContent = '';
+  try {
+    const j = await api('/api/ma/scan', v ? {prefixes: v.split(/[,\s]+/).filter(Boolean)} : {});
+    if (!j.found.length) err.textContent = 'Kein Music Assistant gefunden (Suchbereich: ' + j.prefixes.join(', ') + ') - Adresse von Hand eintragen';
+    j.found.forEach(f => $('#ma-res').append(el('button', {type: 'button', text: 'Übernehmen: ' + f.url + (f.version ? ' · ' + f.version : ''),
+      onclick: () => { $('#ma-url').value = f.url; }})));
+  } catch (ex) { err.textContent = ex.message; }
+  finally { b.disabled = false; b.classList.remove('wait'); }
+};
 $('#dlg-form').addEventListener('submit', async ev => {
   if (ev.submitter && ev.submitter.value !== 'ok') return; // Abbrechen: schließt einfach
   ev.preventDefault();
   const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70}));
   try {
-    await api('/api/config', {speakers, groups: editGroups});
+    await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value});
     $('#dlg').close(); toast('Gespeichert'); refresh(true);
   } catch (e) { $('#dlg-err').textContent = e.message; }
 });

@@ -87,3 +87,7 @@ details.row2box{margin-top:8px}details.row2box summary{cursor:pointer;color:var(
 .player.single{grid-template-columns:1fr}
 .player button{display:flex;align-items:center;justify-content:center;min-height:54px}
 details.movebox{display:grid;gap:8px}details.movebox>select{margin-top:6px}
+
+a.btnlink{display:flex;align-items:center;justify-content:center;min-height:50px;background:var(--btn);border:1px solid var(--line);border-radius:12px;color:var(--fg);text-decoration:none}
+a.btnlink[hidden]{display:none}
+#ma-res{display:grid;gap:8px}

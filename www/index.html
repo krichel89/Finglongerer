@@ -17,6 +17,7 @@
     <select id="url-to"></select>
     <button id="url-go">Abspielen</button>
   </details>
+  <a id="ma-open" class="btnlink" target="_blank" rel="noopener" hidden>Music Assistant öffnen</a>
 </main>
 <div id="toast" role="status"></div>
 <dialog id="dlg">
@@ -31,6 +32,10 @@
     <button type="button" id="scan-go">Boxen suchen</button>
     <div id="scan-res"></div>
     <p class="hint">Die IP einer Box steht auch in der SoundTouch-App unter Einstellungen &rarr; Lautsprecher &rarr; Info. &bdquo;Max&ldquo; ist die h&ouml;chste Lautst&auml;rke, die diese Fernbedienung einstellt.</p>
+    <h3>Music Assistant</h3>
+    <input id="ma-url" placeholder="http://192.168.178.10:8095" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" id="ma-scan">Music Assistant suchen</button>
+    <div id="ma-res"></div>
     <h3>Gruppen</h3>
     <div id="grp-edit"></div>
     <button type="button" id="grp-add">+ Gruppe hinzuf&uuml;gen</button>
