@@ -316,6 +316,24 @@
       }
       return 'Taste ' + n + ' gespeichert';
     }
+    // Beliebige Stream-Adresse abspielen lassen (STR-Agent: POST /api/play) - die Box holt sich den Stream selbst
+    function extractUrl(text) {
+      const m = /https?:\/\/[^\s<>"']+/i.exec(String(text || ''));
+      if (!m) throw new Error('Keine Adresse (http:// oder https://) gefunden');
+      const u = m[0].replace(/[),.;]+$/, '');
+      if (u.length > 2000) throw new Error('Adresse zu lang');
+      return u;
+    }
+    async function doUrl(sp, url, title) {
+      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
+        await pressKey(sp.ip, 'POWER');
+        if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
+        await sleep(1000);
+      }
+      try { await env.http('POST', sp.ip, AGENT_PORT, '/api/play', JSON.stringify({url, title}), 8000); }
+      catch (e) { throw new Error('Abspielen fehlgeschlagen (' + e.message + ') - STR-Agent auf Port 8888 erreichbar?'); }
+      return 'spielt ' + title;
+    }
     async function doOff(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') return 'war schon aus';
       await pressKey(sp.ip, 'POWER');
@@ -515,6 +533,14 @@
       if (path === '/api/preset') {
         const n = parseInt(data.n, 10);
         return summarize(await runMany(targets(data), sp => doPreset(sp, n)));
+      }
+      if (path === '/api/url') {
+        const url = extractUrl(data.url);
+        let title = String(data.title || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80);
+        if (!title) { try { title = decodeURIComponent((url.split('?')[0].split('/').filter(Boolean).pop() || '')).slice(0, 80); } catch (e) { /* egal */ } }
+        if (!title) title = url.replace(/^https?:\/\//i, '').split('/')[0];
+        const m = data.gid ? groupMembers(data) : targets(data);
+        return summarize(await zoneRun(m, sp => doUrl(sp, url, title), true));
       }
       if (path === '/api/save') {
         const n = parseInt(data.n, 10), t = data.gid ? groupMembers(data) : targets(data);

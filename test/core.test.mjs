@@ -103,6 +103,11 @@ try {
   await call('/api/preset', { idx: 1, n: 2 }); r = await call('/api/save', { idx: 1, n: 5 }); assert.match(r.message, /Taste 5 gespeichert/);
   assert.equal(await nodeHttp('GET', '127.0.0.3', 8090, '/_saved', null, 2000), '{"slot":5}'); ok('langer Druck: save-playing mit Slot 5');
   r = await call('/api/save', { idx: 1, n: 8 }); assert.match(r.message, /Taste 8 gespeichert/);
+  r = await call('/api/url', { idx: 1, url: 'Schau mal: https://example.org/musik/Sonate%20Nr1.flac?x=1, super' });
+  assert.match(r.message, /spielt Sonate Nr1\.flac/);
+  assert.deepEqual(JSON.parse(await nodeHttp('GET', '127.0.0.3', 8090, '/_played', null, 2000)), { url: 'https://example.org/musik/Sonate%20Nr1.flac?x=1', title: 'Sonate Nr1.flac' }); ok('URL abspielen: Adresse aus geteiltem Text, Titel aus Dateiname');
+  await assert.rejects(call('/api/url', { idx: 1, url: 'kein link' }), /Keine Adresse/); await assert.rejects(call('/api/url', { idx: 1, url: 'ftp://x/y' }), /Keine Adresse/); ok('URL abspielen: ohne http(s)-Adresse abgelehnt');
+  r = await call('/api/url', { gid: 'g1', url: 'http://jellyfin.lan:8096/Audio/abc/stream.mp3' }); assert.match(r.message, /Zone mit 2 weiteren/); ok('URL abspielen an Gruppe: Master + Zone');
   await assert.rejects(call('/api/save', { idx: 1, n: 0 }), /Taste 1 bis 12/); ok('Speichern auf Slot 8 (2. Reihe), Slot 0 abgelehnt');
   r = await call('/api/presets', { idx: 0 }); assert.deepEqual(r.presets.map(p => [p.n, p.name]), [[1, 'Radio Eins'], [3, 'Klassik']]); ok('Sendernamen aus /presets');
   await call('/api/preset', { idx: 0, n: 1 }); st = await call('/api/state'); r = await call('/api/presets', { idx: 0 });

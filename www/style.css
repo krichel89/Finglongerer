@@ -79,3 +79,5 @@ details.row2box{margin-top:8px}details.row2box summary{cursor:pointer;color:var(
 .pgrid button{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:46px}
 
 .gedit .lr{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:.9rem}.gedit .lr button{min-height:40px;padding:6px 10px;width:auto}
+
+#urlbox{margin-top:12px;display:grid;gap:8px}#urlbox summary{cursor:pointer;color:var(--dim);min-height:36px;display:flex;align-items:center}#urlbox>input,#urlbox>select{width:100%;min-height:46px;background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:8px 10px}#urlbox>button{min-height:46px}

@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.9.0
+- Stream-URL: ganz unten „Stream-URL abspielen" – Adresse eintragen, Box oder Gruppe wählen, Abspielen (`POST :8888/api/play` am STR-Agenten; die Box holt den Stream selbst). Bei Gruppen spielt die Master-Box, die anderen folgen per Zone.
+- „Teilen" aus anderen Android-Apps: Text/Link an „Boxen" teilen füllt das Feld (Adresse wird aus dem Text gezogen); gespielt wird erst nach Auswahl des Ziels.
+
 ## 0.8.0
 - Zweite Sender-Reihe heißt jetzt 7 bis 12, ist extra ausklappbar („Weitere Sender (7–12)") und zeigt nur belegte Slots mit Namen; ist sie leer, entfällt sie. Kann die App die Belegung nicht lesen, zeigt sie alle sechs.
 - Hinweis „Lang drücken = Laufendes speichern" steht unter den Tasten 1–6.

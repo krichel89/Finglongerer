@@ -234,6 +234,7 @@ function render() {
   if (!list.length) box.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: 'Noch keine Box. Unter ⚙ Einstellungen kannst du Boxen suchen und Gruppen anlegen.'})));
   list.forEach((e, pos) => box.append(entryCard(e, pos, list.length)));
   $('#btn-sort').classList.toggle('lit', ui.sort);
+  fillUrlTargets();
   paint();
 }
 
@@ -395,6 +396,29 @@ $('#dlg-form').addEventListener('submit', async ev => {
   } catch (e) { $('#dlg-err').textContent = e.message; }
 });
 
+// ---- Stream-URL: Adresse (auch aus „Teilen") an eine Box oder Gruppe schicken
+function fillUrlTargets() {
+  const sel = $('#url-to'), keep = sel.value || ui.urlTo;
+  sel.textContent = '';
+  entries().forEach(e => sel.append(el('option', {value: e.key, text: e.g ? e.g.name : (cfg.speakers[e.i] || {}).name || '?'})));
+  if (keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+}
+$('#url-go').onclick = e => {
+  const text = $('#url-in').value.trim(), key = $('#url-to').value;
+  if (!text) { toast('Adresse eintragen', true); return; }
+  const en = entries().find(x => x.key === key); if (!en) { toast('Ziel wählen', true); return; }
+  ui.urlTo = key; saveUi();
+  act('/api/url', en.g ? {gid: en.g.id, url: text} : {idx: en.i, url: text}, e.currentTarget);
+};
+window.STShareCheck = () => {            // Android „Teilen" -> Text steht in der Brücke bereit
+  try {
+    const t = window.STShare && window.STShare.take && window.STShare.take();
+    if (t) { $('#url-in').value = t; $('#urlbox').open = true; $('#urlbox').scrollIntoView(); toast('Link übernommen – Ziel wählen, dann Abspielen'); }
+  } catch (x) { /* nicht in der App */ }
+};
+window.addEventListener('focus', () => window.STShareCheck());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) window.STShareCheck(); });
+setTimeout(() => window.STShareCheck(), 800);
 $('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render(); };
 document.addEventListener('visibilitychange', () => refresh());
 refresh(true);
