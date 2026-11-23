@@ -600,3 +600,18 @@ $('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render();
 document.addEventListener('visibilitychange', () => refresh());
 refresh(true);
 setInterval(() => { if (Object.keys(pending).length || Date.now() - lastRefresh >= 5000) refresh(); }, 1500);
+
+// Zurück-Taste (Android/Fernbedienung): schließt zuerst Einstellungen, dann zuletzt aufgeklappte Bereiche; true = etwas wurde geschlossen
+window.STBack = () => {
+  const dlg = $('#dlg'); if (dlg && dlg.open) { dlg.close('cancel'); return true; }
+  const open = Array.from(document.querySelectorAll('details[open]'));
+  if (open.length) { const d = open[open.length - 1]; d.open = false; d.dispatchEvent(new Event('toggle')); const sm = d.querySelector('summary'); if (sm) sm.focus(); return true; }
+  return false;
+};
+// Fernseher: OK in einem Textfeld öffnet die Tastatur (auch die Handy-Tastatur der Google-TV-App), statt das Formular abzuschicken
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || !document.documentElement.classList.contains('tv')) return;
+  const el = ev.target; if (!el || el.tagName !== 'INPUT' || !/^(text|password|url|search|)$/.test(el.type)) return;
+  ev.preventDefault(); el.focus();
+  try { window.STDevice.showKeyboard(); } catch (e) { /* kein Fernseher */ }
+});

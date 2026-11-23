@@ -12,4 +12,6 @@ assert.ok(existsSync(new URL('../android/app/src/main/res/drawable-xhdpi/banner.
 assert.match(r('android/app/src/main/java/de/krichel/finglongerer/MainActivity.java'), /"STDevice"/, 'STDevice-Brücke fehlt');
 assert.match(r('www/native.js'), /classList\.add\('tv'\)/, 'TV-Klasse wird nicht gesetzt');
 assert.match(r('www/style.css'), /\.tv :focus/, 'Fokus-Stil für TV fehlt');
+assert.match(r('www/app.js'), /window\.STBack =/, 'Zurück-Behandlung fehlt');
+assert.match(r('android/app/src/main/java/de/krichel/finglongerer/MainActivity.java'), /OnBackPressedCallback/, 'Back-Callback fehlt');
 console.log('Google-TV-Grundlagen vorhanden');

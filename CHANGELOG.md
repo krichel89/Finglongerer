@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.18.1
+- Zurück-Taste schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche) und verlässt erst dann die App. Gilt auf Handy und Fernseher.
+- Fernseher: OK in einem Textfeld öffnet die Tastatur (auch die Handy-Tastatur der Google-TV-App) und schickt das Einstellungsformular nicht mehr ab.
+
 ## 0.18.0
 - Google TV / Android TV: Die App erscheint in der Programmübersicht (mit Banner), braucht keinen Touchscreen und lässt sich mit der Fernbedienung bedienen. Dieselbe APK läuft auf Handy und Fernseher.
 - Auf dem Fernseher: sichtbarer orangener Fokusrahmen, größere Schrift, Rand für Überscan, Gruppen in zwei Spalten. Sendertaste: OK kurz = abspielen, OK gehalten = Laufendes speichern.

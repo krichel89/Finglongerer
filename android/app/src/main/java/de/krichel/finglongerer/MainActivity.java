@@ -4,12 +4,15 @@ import android.app.UiModeManager;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.JavascriptInterface;
 
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+
+import androidx.activity.OnBackPressedCallback;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -51,6 +54,15 @@ public class MainActivity extends BridgeActivity {
             UiModeManager m = (UiModeManager) getSystemService(UI_MODE_SERVICE);
             return m != null && m.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
         }
+
+        /** Öffnet die Bildschirmtastatur (auf dem Fernseher auch für die Handy-Tastatur der Google-TV-App nötig). */
+        @JavascriptInterface
+        public void showKeyboard() {
+            runOnUiThread(() -> {
+                InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(getBridge().getWebView(), InputMethodManager.SHOW_IMPLICIT);
+            });
+        }
     }
 
     @Override
@@ -60,6 +72,18 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new TcpBridge(), "STTcp");
         getBridge().getWebView().addJavascriptInterface(new DeviceBridge(), "STDevice");
         remember(getIntent());
+        // Zurück schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche); erst ohne offenes Fenster verlässt es die App
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                getBridge().getWebView().evaluateJavascript("window.STBack ? window.STBack() : false", v -> {
+                    if (!"true".equals(v)) {
+                        setEnabled(false);
+                        getOnBackPressedDispatcher().onBackPressed();
+                    }
+                });
+            }
+        });
     }
 
     @Override
