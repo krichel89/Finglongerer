@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.20.1
+- Suche je Anbieter: Suchbegriff am Handy eintippen, dann „YouTube", „Netflix" oder „Prime Video" öffnet direkt die Suchergebnisse in der jeweiligen App (Enter startet YouTube).
+- „In Eingabefeld des Fernsehers tippen" sendet den Text als Tastendrücke an das Feld, das auf dem Fernseher gerade Fokus hat (Umlaute werden zu ae/oe/ue, Sonderzeichen übersprungen).
+
 ## 0.20.0
 - Reiter: Die Fernbedienungen liegen in runden Symbolen unter dem Titel. Bose = schwarzer Kreis mit weißem B, Google TV = schwarzes g im vierfarbigen Kreis. Der gewählte Reiter wird gemerkt.
 - Fernseher automatisch finden: Einstellungen → „Fernseher suchen" (oder „Koppeln"/„Verbindung testen" ohne IP) durchsucht das Heimnetz nach Google-TV-Geräten und liest Name und MAC-Adresse.
