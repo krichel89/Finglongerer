@@ -437,8 +437,8 @@ function addRow(sp) {
       editGroups.forEach(g => { g.members = g.members.filter(id => id !== row.dataset.id); });
       row.remove(); renderGroupEditor(); }}),
     el('div', {class: 'soff'},
-      el('label', {text: t('set.offAux')}, el('input', {type: 'number', min: -50, max: 50, value: sp.offAux || 0, 'data-f': 'offAux'})),
-      el('label', {text: t('set.offBt')}, el('input', {type: 'number', min: -50, max: 50, value: sp.offBt || 0, 'data-f': 'offBt'}))));
+      el('label', {text: t('set.maxAux')}, el('input', {type: 'number', min: 10, max: 100, value: sp.maxAux || '', placeholder: '=', 'data-f': 'maxAux'})),
+      el('label', {text: t('set.maxBt')}, el('input', {type: 'number', min: 10, max: 100, value: sp.maxBt || '', placeholder: '=', 'data-f': 'maxBt'}))));
   $('#set-rows').append(row);
   return row;
 }
@@ -537,7 +537,7 @@ $('#ma-test').onclick = async e => {       // erst speichern (Adresse/Token), da
   const b = e.currentTarget, err = $('#dlg-err'), res = $('#ma-res');
   b.disabled = true; b.classList.add('wait'); err.textContent = ''; res.textContent = '';
   try {
-    const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, offAux: +rowVal(r, 'offAux') || 0, offBt: +rowVal(r, 'offBt') || 0}));
+    const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
     const j = await api('/api/ma/test'); res.append(el('p', {class: 'hint', text: j.message}));
     j.lines.forEach(t => res.append(el('p', {class: 'hint', text: t})));
@@ -547,7 +547,7 @@ $('#ma-test').onclick = async e => {       // erst speichern (Adresse/Token), da
 $('#dlg-form').addEventListener('submit', async ev => {
   if (ev.submitter && ev.submitter.value !== 'ok') return; // Abbrechen: schließt einfach
   ev.preventDefault();
-  const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, offAux: +rowVal(r, 'offAux') || 0, offBt: +rowVal(r, 'offBt') || 0}));
+  const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
   try {
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
     $('#dlg').close(); toast(t('toast.saved')); refresh(true);

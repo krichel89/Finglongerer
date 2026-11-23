@@ -4,8 +4,8 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
-## 0.17.1
-- Lautstärke-Ausgleich je Box für AUX und Bluetooth (−50 bis +50, Einstellungen unter jeder Box). Die Box bekommt Reglerstand + Ausgleich; der Regler zeigt weiter den Reglerstand. Gilt für einzelne Boxen, Gruppen und Stereopaare.
+## 0.17.2
+- Statt des Lautstärke-Ausgleichs aus 0.17.1: eigenes Max je Box für AUX und Bluetooth (Einstellungen unter jeder Box, leer = wie Max). Der Regler zeigt immer die echte Box-Lautstärke und reicht bei AUX/Bluetooth bis zu diesem Max (bis 100).
 
 ## 0.17.0
 - Einstellungen: Box neu starten. Schickt `sys reboot` an die Diagnose-Shell der Box (Port 17000), mit Rückfrage. Dafür gibt es im Android-Teil eine kleine TCP-Brücke, die nur diesen einen Befehl und nur Heimnetz-Adressen zulässt.
