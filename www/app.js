@@ -102,7 +102,8 @@ function volText(m, cap) { return String(m); }
 const RADIO_SRC = new Set(['LOCAL_INTERNET_RADIO', 'INTERNET_RADIO', 'TUNEIN', 'RADIO_BROWSER']);
 function nowText(s) {
   if (!s || !s.online || s.standby || s.source === 'AUX') return '';
-  const t = s.title || '', a = s.artist || '';
+  const m = s.ma && s.ma.active && s.ma.title ? s.ma : s;       // spielt Music Assistant, gilt dessen Titel
+  const t = m.title || '', a = m.artist || '';
   return t && a ? a + ' – ' + t : (t || s.station || '');
 }
 const ICON = {
@@ -115,7 +116,8 @@ function playerRow(s) {
     b.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">' + ICON[icon] + '</svg>';
     return b;
   };
-  const playing = s.play !== 'PAUSE_STATE' && s.play !== 'STOP_STATE', skip = !RADIO_SRC.has(s.source);
+  const viaMa = !!(s.ma && s.ma.active);
+  const playing = viaMa ? s.ma.state === 'playing' : s.play !== 'PAUSE_STATE' && s.play !== 'STOP_STATE', skip = viaMa || !RADIO_SRC.has(s.source);
   return el('div', {class: 'player' + (skip ? '' : ' single')},
     skip ? mk('prev', 'prev', 'Zurück') : null, mk('pp', playing ? 'pause' : 'play', playing ? 'Pause' : 'Abspielen'), skip ? mk('next', 'next', 'Weiter') : null);
 }
@@ -428,7 +430,7 @@ $('#btn-settings').onclick = () => {
   (cfg.speakers.length ? cfg.speakers : [{}]).forEach(addRow);
   editGroups = cfg.groups.map(g => ({id: g.id, name: g.name, members: g.members.slice()}));
   renderGroupEditor();
-  $('#scan-res').textContent = ''; $('#dlg-err').textContent = ''; $('#ma-url').value = cfg.ma || ''; $('#ma-res').textContent = '';
+  $('#scan-res').textContent = ''; $('#dlg-err').textContent = ''; $('#ma-url').value = cfg.ma || ''; $('#ma-token').value = cfg.maToken || ''; $('#ma-res').textContent = '';
   $('#version').textContent = 'Version ' + (window.APP_VERSION || '?');
   $('#dlg').showModal();
 };
@@ -462,12 +464,23 @@ $('#ma-scan').onclick = async e => {
   } catch (ex) { err.textContent = ex.message; }
   finally { b.disabled = false; b.classList.remove('wait'); }
 };
+$('#ma-test').onclick = async e => {       // erst speichern (Adresse/Token), dann prüfen
+  const b = e.currentTarget, err = $('#dlg-err'), res = $('#ma-res');
+  b.disabled = true; b.classList.add('wait'); err.textContent = ''; res.textContent = '';
+  try {
+    const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70}));
+    await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
+    const j = await api('/api/ma/test'); res.append(el('p', {class: 'hint', text: j.message}));
+    j.lines.forEach(t => res.append(el('p', {class: 'hint', text: t})));
+  } catch (ex) { err.textContent = ex.message; }
+  finally { b.disabled = false; b.classList.remove('wait'); }
+};
 $('#dlg-form').addEventListener('submit', async ev => {
   if (ev.submitter && ev.submitter.value !== 'ok') return; // Abbrechen: schließt einfach
   ev.preventDefault();
   const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70}));
   try {
-    await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value});
+    await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
     $('#dlg').close(); toast('Gespeichert'); refresh(true);
   } catch (e) { $('#dlg-err').textContent = e.message; }
 });

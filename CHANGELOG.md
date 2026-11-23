@@ -4,6 +4,12 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.13.0
+- Music Assistant steuert Weiter/Zurück/Play-Pause selbst: Spielt MA auf einer Box, gehen die Player-Tasten per `POST /api` (`player_queues/next`, `/previous`, `/play_pause`) an MA statt an die Box (deren Tasten melden dort „Invalid Source"; Fortsetzen ging nicht). Bei Gruppen zählt die Master-Box. Titel und Interpret in der Titelzeile kommen dann ebenfalls von MA.
+- Einstellungen: neues Feld „Token" (langlebiger Token aus dem MA-Profil) und „Verbindung testen": zeigt je Box den zugeordneten MA-Player, den Zustand der Warteschlange und die Quelle der Box (als Diagnose).
+- Ob MA „aktiv" ist, schätzt die App: MA-Warteschlange läuft/pausiert und die Box steht nicht auf AUX, Bluetooth, Radio, Spotify oder Standby (oder ihre Stream-Adresse zeigt auf den MA-Server). Ohne erreichbares MA bleibt alles wie in 0.12.0; ein nicht erreichbares MA bremst die Anzeige höchstens einmal je 15 s.
+- Nicht verifiziert gegen ein echtes MA: Antwortformen von `players/all` und `player_queues/all` (tolerant gelesen) und ob `play_pause` das Fortsetzen auf der Box bewirkt.
+
 ## 0.12.0
 - Music Assistant: Adresse in den Einstellungen (leer lassen = kein Knopf). „Music Assistant suchen" prüft im Heimnetz Port 8095 (`/info`, sonst Startseite); Handeingabe geht ebenfalls. Auf der Hauptseite öffnet „Music Assistant öffnen" dessen Weboberfläche im Browser (Login dort). Die Autoerkennung stützt sich auf `/info` ohne Anmeldung; ob MA das bei deiner Version so liefert, ist nicht verifiziert (Handeingabe bleibt der Ausweg). Direkte Steuerung über die MA-API ist noch nicht gebaut.
 

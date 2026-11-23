@@ -12,10 +12,10 @@ const stop = () => mocks.forEach(m => m.kill());
 process.on('exit', stop);
 await new Promise(r => setTimeout(r, 1200));
 
-function nodeHttp(method, ip, port, path, body, timeout) {
+function nodeHttp(method, ip, port, path, body, timeout, extra) {
   return new Promise((resolve, reject) => {
     const req = http.request({ host: ip, port, path, method, timeout,
-      headers: body ? { 'Content-Type': 'text/xml', 'Content-Length': Buffer.byteLength(body) } : {} }, res => {
+      headers: Object.assign(body ? { 'Content-Type': 'text/xml', 'Content-Length': Buffer.byteLength(body) } : {}, extra || {}) }, res => {
       let d = ''; res.on('data', c => d += c);
       res.on('end', () => res.statusCode >= 400 ? reject(new Error('HTTP ' + res.statusCode)) : resolve(d));
     });
@@ -148,8 +148,42 @@ try {
   await assert.rejects(call('/api/config', { speakers: [], groups: [], ma: 'http://8.8.8.8:8095' }), /Ungültige Music-Assistant/);
   r = await call('/api/config', { speakers: [], groups: [], ma: '192.168.178.10' }); assert.equal(r.config.ma, 'http://192.168.178.10:8095');
   r = await call('/api/config', { speakers: [], groups: [], ma: 'http://192.168.178.10:8095/' }); assert.equal(r.config.ma, 'http://192.168.178.10:8095'); ok('Music-Assistant-Adresse: nur Heimnetz, Port 8095 als Standard');
-  const maSrv = http.createServer((q, res) => res.end(q.url === '/info' ? '{"server_version":"2.9.1","schema_version":30}' : 'x')).listen(8095, '127.0.0.9');
-  r = await call('/api/ma/scan', { prefixes: ['127.0.0'] }); assert.deepEqual(r.found.map(f => f.url + '|' + f.version), ['http://127.0.0.9:8095|2.9.1']); maSrv.close(); ok('Music Assistant per Port 8095 gefunden');
+  const maLog = []; const maQ = { 'ma-a': 'playing', 'ma-b': 'idle' };
+  const maSrv = http.createServer((q, res) => {
+    let b = ''; q.on('data', c => b += c);
+    q.on('end', () => {
+      if (q.url === '/info') return res.end('{"server_version":"2.9.1","schema_version":30}');
+      if (q.url !== '/api') return res.end('x');
+      if (q.headers.authorization !== 'Bearer tok-123456789') { res.statusCode = 401; return res.end('{}'); }
+      const m = JSON.parse(b); maLog.push(m.command + ':' + JSON.stringify(m.args));
+      if (m.command === 'players/all') return res.end(JSON.stringify([
+        { player_id: 'ma-a', name: 'Musikzimmer', available: true, device_info: { address: '127.0.0.2' } },
+        { player_id: 'ma-b', name: 'Bibliothek', available: true, device_info: { address: '127.0.0.3' } }]));
+      if (m.command === 'player_queues/all') return res.end(JSON.stringify([
+        { queue_id: 'ma-a', active: true, state: maQ['ma-a'], current_item: { name: 'Nina Simone - Sinnerman', media_item: { name: 'Sinnerman', artists: [{ name: 'Nina Simone' }] } } },
+        { queue_id: 'ma-b', active: false, state: maQ['ma-b'], current_item: null }]));
+      if (m.command === 'player_queues/play_pause') maQ[m.args.queue_id] = maQ[m.args.queue_id] === 'playing' ? 'paused' : 'playing';
+      res.end('null');
+    });
+  }).listen(8095, '127.0.0.9');
+  r = await call('/api/ma/scan', { prefixes: ['127.0.0'] }); assert.deepEqual(r.found.map(f => f.url + '|' + f.version), ['http://127.0.0.9:8095|2.9.1']); ok('Music Assistant per Port 8095 gefunden');
+  // Music Assistant steuert Weiter/Pause selbst (Box-Tasten melden dort "Invalid Source")
+  await assert.rejects(call('/api/config', { speakers: [], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'zu kurz' }), /Ungültiger Music-Assistant-Token/); ok('MA-Token: Format geprüft');
+  await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }, { id: 'b', name: 'Bibliothek', ip: '127.0.0.3', max: 70 }],
+    groups: [{ id: 'g1', name: 'Beide', members: ['a', 'b'] }], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
+  await call('/api/aux', { idx: 0 }); await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="UPNP" location="http://127.0.0.9:8097/x"/>', 2000);
+  r = await call('/api/ma/test'); assert.match(r.message, /2 Player/); assert.match(r.lines[0], /Musikzimmer: Player ma-a, Warteschlange playing, MA spielt hier/); assert.match(r.lines[1], /Bibliothek: Player ma-b/); assert.ok(!/MA spielt hier/.test(r.lines[1])); ok('MA-Test: Boxen den MA-Playern zugeordnet (Adresse)');
+  st = await call('/api/state'); assert.deepEqual([st.speakers[0].ma.active, st.speakers[0].ma.state, st.speakers[0].ma.title, st.speakers[0].ma.artist], [true, 'playing', 'Sinnerman', 'Nina Simone']); assert.equal(st.speakers[1].ma.active, false); ok('Stand: MA-Titel und -Status der Box, zweite Box nicht aktiv');
+  maLog.length = 0; const tBox = st.speakers[0].title;
+  r = await call('/api/key', { idx: 0, key: 'NEXT_TRACK' }); assert.match(r.message, /Weiter \(Music Assistant\)/); assert.ok(maLog.includes('player_queues/next:{"queue_id":"ma-a"}')); ok('Weiter geht an MA (player_queues/next), nicht an die Box');
+  await call('/api/key', { idx: 0, key: 'PREV_TRACK' }); assert.ok(maLog.includes('player_queues/previous:{"queue_id":"ma-a"}'));
+  await call('/api/key', { gid: 'g1', key: 'PLAY_PAUSE' }); assert.ok(maLog.includes('player_queues/play_pause:{"queue_id":"ma-a"}'));
+  st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused'); assert.equal(st.speakers[0].title, tBox); ok('Zurück, Play/Pause (Gruppe → Master) über MA; Box-Tasten blieben unberührt');
+  await call('/api/aux', { idx: 1 }); await call('/api/preset', { idx: 1, n: 1 }); maLog.length = 0;
+  await call('/api/key', { idx: 1, key: 'NEXT_TRACK' }); assert.ok(!maLog.some(x => x.startsWith('player_queues/next'))); ok('Box ohne laufendes MA: Taste geht an die Box');
+  await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'falscher-token-1' });
+  st = await call('/api/state'); assert.equal(st.speakers[0].ma, undefined); await assert.rejects(call('/api/ma/test'), /lehnt den Token ab/); ok('Falscher Token: Anzeige läuft ohne MA weiter, Test meldet es');
+  maSrv.close();
   console.log('\nalle', n, 'Tests bestanden');
 } catch (e) { console.error('FEHLER nach Test', n, '\n', e); process.exitCode = 1; }
 stop();

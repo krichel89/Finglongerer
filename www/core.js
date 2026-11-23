@@ -59,6 +59,11 @@
     if (!ip || (m[2] && +m[2] > 65535)) throw new Error('Ungültige Music-Assistant-Adresse (z. B. http://192.168.178.10:8095)');
     return 'http://' + ip + ':' + (m[2] || '8095');
   }
+  function cleanToken(v) {
+    const t = String(v || '').trim(); if (!t) return '';
+    if (!/^[\w.~+\/=-]{8,4000}$/.test(t)) throw new Error('Ungültiger Music-Assistant-Token (nur der Token selbst, ohne Leerzeichen)');
+    return t;
+  }
   function sanitize(cfg) {
     cfg = cfg || {};
     const speakers = [], used = new Set();
@@ -85,7 +90,7 @@
       outG.push({id: uniqueId(g.id, gused), name: String(g.name || '').trim().slice(0, 30) || 'Gruppe', members});
     }
     speakers.forEach(sp => { delete sp._flag; });
-    return {speakers, groups: outG, ma: cleanMa(cfg.ma)};
+    return {speakers, groups: outG, ma: cleanMa(cfg.ma), maToken: cleanToken(cfg.maToken)};
   }
 
   /* env: {http(method, ip, port, path, body, timeoutMs) -> Promise<string>,
@@ -408,6 +413,64 @@
       catch (e) { master.errs.push('Zone: ' + e.message); }
       return master;
     }
+    // ---- Music Assistant (HTTP-API: POST /api mit Bearer-Token; Befehle laut MA-Doku/Clients, Antwortformen tolerant gelesen)
+    const MA_NOT_MA = new Set(['AUX', 'BLUETOOTH', 'PRODUCT', 'STANDBY', 'LOCAL_INTERNET_RADIO', 'INTERNET_RADIO', 'TUNEIN', 'SPOTIFY', 'DEEZER', 'AIRPLAY']);
+    const MA_CMD = {PLAY_PAUSE: 'player_queues/play_pause', NEXT_TRACK: 'player_queues/next', PREV_TRACK: 'player_queues/previous'};
+    let maCache = {key: '', at: 0, players: null}, maDownUntil = 0;
+    function maConf() {
+      const c = loadConfig(), m = /^http:\/\/([\d.]+):(\d+)$/.exec(c.ma || '');
+      return m && c.maToken ? {ip: m[1], port: +m[2], token: c.maToken, url: c.ma} : null;
+    }
+    async function maCall(conf, command, args, timeout) {
+      let t;
+      try {
+        t = await env.http('POST', conf.ip, conf.port, '/api', JSON.stringify({message_id: String(ridCounter++), command, args: args || {}}), timeout || 2500,
+          {Authorization: 'Bearer ' + conf.token});
+      } catch (e) {
+        if (/401|403/.test(e.message)) throw new Error('Music Assistant lehnt den Token ab');
+        throw new Error('Music Assistant: ' + e.message);
+      }
+      let j = null; try { j = t && t.trim() ? JSON.parse(t) : null; } catch (e) { return t; }
+      if (j && typeof j === 'object' && !Array.isArray(j) && (j.error_code !== undefined || j.error !== undefined))
+        throw new Error('Music Assistant: ' + String(j.details || j.error || j.error_code).slice(0, 120));
+      return j;
+    }
+    const asList = j => Array.isArray(j) ? j : (j && Array.isArray(j.items) ? j.items : []);
+    async function maPlayers(conf) {
+      const key = conf.url + conf.token;
+      if (!maCache.players || maCache.key !== key || Date.now() - maCache.at > 60000)
+        maCache = {key, at: Date.now(), players: asList(await maCall(conf, 'players/all', {}, 2500))};
+      return maCache.players;
+    }
+    // Welcher MA-Player gehört zur Box? Adresse (device_info.address) vor Name
+    function maMatch(players, sp) {
+      const addr = p => String((p.device_info && p.device_info.address) || p.address || '');
+      const nm = p => String(p.display_name || p.name || '').trim().toLowerCase();
+      const hit = players.filter(p => p && p.player_id && addr(p).includes(sp.ip));
+      const byName = players.filter(p => p && p.player_id && nm(p) === sp.name.trim().toLowerCase());
+      return (hit.length ? hit : byName).filter(p => p.available !== false);
+    }
+    // MA-Stand einer Box; "active" nur, wenn MA wirklich die Quelle der Box ist (Warteschlange läuft/pausiert, Box nicht auf AUX/BT/Radio/Standby)
+    function maInfo(conf, players, queues, sp, f) {
+      const cands = maMatch(players, sp); if (!cands.length) return null;
+      const qs = cands.map(p => queues.find(q => q && (q.queue_id === p.player_id))).filter(Boolean);
+      const live = q => (q.state === 'playing' || q.state === 'paused') && q.active !== false && !!q.current_item;
+      const q = qs.find(live) || qs[0], p = cands.find(c => q && c.player_id === q.queue_id) || cands[0];
+      const out = {playerId: p.player_id, queueId: (q && q.queue_id) || p.player_id, state: (q && q.state) || '', active: false, title: '', artist: ''};
+      if (!q) return out;
+      const ci = q.current_item || {}, mi = ci.media_item || {};
+      out.title = String(mi.name || ci.name || '').slice(0, 120);
+      out.artist = String((Array.isArray(mi.artists) && mi.artists[0] && mi.artists[0].name) || mi.artist_str || '').slice(0, 120);
+      const loc = (f && f.ci && f.ci.location) || '', fromMa = !!loc && loc.includes(conf.ip);
+      out.active = live(q) && !!f && f.source !== 'STANDBY' && (fromMa || !(MA_NOT_MA.has(f.ci.source) || MA_NOT_MA.has(f.source)));
+      return out;
+    }
+    async function maSnapshot() {
+      const conf = maConf(); if (!conf || Date.now() < maDownUntil) return null;
+      try { return {conf, players: await maPlayers(conf), queues: asList(await maCall(conf, 'player_queues/all', {}, 2500))}; }
+      catch (e) { maDownUntil = Date.now() + 15000; return null; }   // nicht erreichbar: 15 s nicht erneut warten
+    }
+
     // ---- Umziehen: laufende Wiedergabe von einer Box/Gruppe auf eine andere
     async function wake(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
@@ -622,7 +685,13 @@
       data = data || {};
       if (path === '/api/state') {
         const cfg = loadConfig();
-        return {ok: true, config: cfg, speakers: await Promise.all(cfg.speakers.map(speakerState))};
+        const [speakers, snap] = await Promise.all([Promise.all(cfg.speakers.map(speakerState)), maSnapshot()]);
+        if (snap) await Promise.all(cfg.speakers.map(async (sp, i) => {
+          const st = speakers[i]; if (!st.online) return;
+          let f = null; try { f = await nowFull(sp.ip); } catch (e) { /* ohne Box-Stand */ }
+          const info = maInfo(snap.conf, snap.players, snap.queues, sp, f); if (info) st.ma = info;
+        }));
+        return {ok: true, config: cfg, speakers};
       }
       if (path === '/api/config') return {ok: true, config: saveConfig(data)};
       if (path === '/api/aux') return summarize(await runMany(targets(data), doAuxOn));
@@ -647,7 +716,13 @@
       if (path === '/api/key') {       // Player-Tasten; bei Gruppen an die Master-Box (die Zone folgt)
         const key = String(data.key || ''); if (!PLAYER_KEYS[key]) throw new Error('Unbekannte Taste');
         const sp = (data.gid ? groupMembers(data) : targets(data))[0];
-        if ((await nowPlaying(sp.ip))[0] === 'STANDBY') throw new Error(sp.name + ' ist aus');
+        const f = await nowFull(sp.ip);
+        if (f.source === 'STANDBY') throw new Error(sp.name + ' ist aus');
+        const snap = await maSnapshot(), info = snap && maInfo(snap.conf, snap.players, snap.queues, sp, f);
+        if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
+          await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 4000);
+          return {ok: true, message: PLAYER_KEYS[key] + ' (Music Assistant)'};
+        }
         await pressKey(sp.ip, key);
         return {ok: true, message: PLAYER_KEYS[key]};
       }
@@ -693,6 +768,18 @@
           return {ok: true, message: action === 'pair' ? await pairSpeakers(m[0], m[1]) : await unpairSpeakers(m[0], m[1])};
         }
         throw new Error('Unbekannte Aktion');
+      }
+      if (path === '/api/ma/test') {        // Verbindung prüfen und Boxen den MA-Playern zuordnen (zugleich Diagnose)
+        const conf = maConf(); if (!conf) throw new Error('Adresse und Token eintragen und speichern');
+        maCache = {key: '', at: 0, players: null}; maDownUntil = 0;
+        const players = await maPlayers(conf), queues = asList(await maCall(conf, 'player_queues/all', {}, 2500)), lines = [];
+        for (const sp of loadConfig().speakers.filter(x => x.ip)) {
+          let f = null; try { f = await nowFull(sp.ip); } catch (e) { /* aus/nicht erreichbar */ }
+          const i = maInfo(conf, players, queues, sp, f);
+          lines.push(sp.name + ': ' + (i ? 'Player ' + i.playerId + ', Warteschlange ' + (i.state || 'leer') + (i.active ? ', MA spielt hier' : '') +
+            (f ? ' (Box: ' + (f.ci.source || f.source) + (f.ci.location ? ' ' + f.ci.location.slice(0, 60) : '') + ')' : '') : 'kein MA-Player gefunden'));
+        }
+        return {ok: true, message: 'Verbunden, ' + players.length + ' Player', lines};
       }
       if (path === '/api/ma/scan') {
         const prefixes = (data.prefixes && data.prefixes.length ? data.prefixes : guessPrefixes()).slice(0, 4).map(netPrefix);

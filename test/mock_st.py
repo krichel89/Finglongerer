@@ -102,6 +102,7 @@ class H(BaseHTTPRequestHandler):
         elif self.path == "/select":
             if 'source="AUX"' in body: S["source"] = "AUX"; S["preset"] = 0
             if 'source="BLUETOOTH"' in body and not os.environ.get("MOCK_NO_BT_SELECT"): S["source"] = "BLUETOOTH"
+            if 'source="UPNP"' in body: S["source"] = "UPNP"
             if 'source="LOCAL_INTERNET_RADIO"' in body and not os.environ.get("MOCK_NO_RADIO_SELECT"):
                 S["source"] = "LOCAL_INTERNET_RADIO"; S["preset"] = 1 if 'location="x"' in body else 0
             self.send("<status>/select</status>")

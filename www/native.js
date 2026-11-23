@@ -8,12 +8,12 @@
     if (typeof C.nativePromise === 'function') return opts => C.nativePromise('CapacitorHttp', 'request', opts);
     return null;
   }
-  async function http(method, ip, port, path, body, timeout) {
+  async function http(method, ip, port, path, body, timeout, extra) {
     const call = plugin();
     if (!call) throw new Error('Nur in der Android-App möglich (native HTTP-Schnittstelle fehlt)');
     const opts = {
       url: 'http://' + ip + ':' + port + path, method,
-      headers: body ? {'Content-Type': /^\s*[{\[]/.test(body) ? 'application/json' : 'text/xml'} : {},
+      headers: Object.assign(body ? {'Content-Type': /^\s*[{\[]/.test(body) ? 'application/json' : 'text/xml'} : {}, extra || {}),
       responseType: 'text', connectTimeout: timeout, readTimeout: timeout
     };
     if (body) opts.data = body;
