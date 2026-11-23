@@ -3,7 +3,11 @@ name: APK bauen
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   apk:
@@ -19,13 +23,28 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
-      - run: npm test
+      - name: Version prüfen (bei Tag: muss zum Tag passen)
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          node test/version.test.mjs
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$V" ]; then
+            echo "Tag ${GITHUB_REF_NAME} passt nicht zur Version $V"; exit 1
+          fi
+      - run: node test/core.test.mjs
         continue-on-error: true
       - run: npx cap sync android
       - name: Debug-APK bauen
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
+      - name: APK benennen
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "Boxen-$VERSION.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Boxen-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Boxen-${{ env.VERSION }}-apk
+          path: Boxen-${{ env.VERSION }}.apk
+      - name: Release erstellen (nur bei Tag)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "Boxen-$VERSION.apk" --title "Boxen $VERSION" --notes-file CHANGELOG.md

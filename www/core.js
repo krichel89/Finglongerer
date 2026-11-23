@@ -8,8 +8,8 @@
   'use strict';
 
   const KEYS = new Set(['POWER', 'AUX_INPUT', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE']);
-  const DEFAULT_CONFIG = {speakers: [
-    {name: 'Musikzimmer', ip: '', max: 70}, {name: 'Bibliothek', ip: '', max: 70}]};
+  const DEFAULT_CONFIG = {groupName: 'Gruppe', speakers: [
+    {name: 'Musikzimmer', ip: '', max: 70, group: true}, {name: 'Bibliothek', ip: '', max: 70, group: true}]};
   const CFG_KEY = 'steasyremote.config';
 
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -46,9 +46,10 @@
       if (raw && !ip) throw new Error('Ungültige IP bei ' + name + ': ' + raw.slice(0, 40) + ' (nur Heimnetz-Adressen)');
       let mx = parseInt(sp.max, 10);
       if (!Number.isFinite(mx)) mx = 70;
-      out.push({name, ip, max: Math.max(10, Math.min(100, mx))});
+      out.push({name, ip, max: Math.max(10, Math.min(100, mx)), group: !!sp.group});
     }
-    return {speakers: out};
+    const gn = String((cfg && cfg.groupName) || '').trim().slice(0, 30) || 'Gruppe';
+    return {speakers: out, groupName: gn};
   }
 
   /* env: {http(method, ip, port, path, body, timeoutMs) -> Promise<string>,
@@ -284,6 +285,39 @@
       return 'Kein Stereopaar aktiv';
     }
 
+    // ---- Automatische Suche: /info auf allen Adressen der angegebenen /24-Netze
+    function netPrefix(text) {
+      const m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})(?:\.\d{1,3}(?:\/\d{1,2})?)?$/.exec(String(text).trim());
+      if (!m || !validIp(m[1] + '.1')) throw new Error('Ungültiger Suchbereich: ' + String(text).slice(0, 30));
+      return m[1];
+    }
+    function guessPrefixes() {
+      const out = [];
+      for (const sp of loadConfig().speakers) {
+        if (sp.ip) { const p = sp.ip.split('.').slice(0, 3).join('.'); if (!out.includes(p)) out.push(p); }
+      }
+      for (const p of ['192.168.178', '192.168.0', '192.168.1']) if (!out.includes(p)) out.push(p);
+      return out.slice(0, 3);
+    }
+    async function scanNet(prefixes) {
+      const hosts = [], found = [];
+      for (const p of prefixes) for (let i = 1; i <= 254; i++) hosts.push(p + '.' + i);
+      let next = 0;
+      async function worker() {
+        while (next < hosts.length) {
+          const ip = hosts[next++];
+          try {
+            const xml = await env.http('GET', ip, ST_PORT, '/info', null, env.scanTimeout || 800);
+            const id = attr(xml, 'info', 'deviceID');
+            if (id) found.push({ip, deviceID: id, name: tag(xml, 'name') || ip, type: tag(xml, 'type') || ''});
+          } catch (e) { /* keine Box */ }
+        }
+      }
+      await Promise.all(Array.from({length: 40}, worker));
+      const key = ip => ip.split('.').reduce((a, b) => a * 256 + +b, 0);
+      return found.sort((a, b) => key(a.ip) - key(b.ip));
+    }
+
     // ---- Routing (gleiche Pfade wie die Server-Version)
     function targets(data) {
       const cfg = loadConfig().speakers;
@@ -325,6 +359,15 @@
         const [left, right] = pair(data);
         if (data.action === 'read') return Object.assign({ok: true}, await duoRead(left));
         return {ok: true, message: await doDuo(left, right, data.master, data.balance)};
+      }
+      if (path === '/api/group') {
+        const t = loadConfig().speakers.filter(sp => sp.group && sp.ip);
+        if (!t.length) throw new Error('Keine Box mit IP in der Gruppe (Einstellungen ⚙)');
+        return summarize(await runMany(t, doAuxOn));
+      }
+      if (path === '/api/scan') {
+        const prefixes = (data.prefixes && data.prefixes.length ? data.prefixes : guessPrefixes()).slice(0, 4).map(netPrefix);
+        return {ok: true, prefixes, found: await scanNet(prefixes)};
       }
       if (path === '/api/stereo') {
         const [left, right] = pair(data);

@@ -44,7 +44,7 @@ class H(BaseHTTPRequestHandler):
         elif p == "/volume":
             self.send('<volume deviceID="%s"><targetvolume>%d</targetvolume><actualvolume>%d</actualvolume><muteenabled>false</muteenabled></volume>' % (DEVID, S["vol"], S["vol"]))
         elif p == "/info":
-            self.send('<info deviceID="%s"><name>%s</name></info>' % (DEVID, NAME))
+            self.send('<info deviceID="%s"><name>%s</name><type>SoundTouch 10</type></info>' % (DEVID, NAME))
         elif p == "/getGroup":
             self.send(S["group"] or "<group/>")
         elif p == "/removeGroup":

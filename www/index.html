@@ -11,9 +11,10 @@
 <header><h1>Boxen</h1><button id="btn-settings" class="icon" aria-label="Einstellungen">&#9881;</button></header>
 <main>
   <section class="row2">
-    <button id="all-aux" class="primary">Alle: AUX an</button>
-    <button id="all-off">Alle: Aus</button>
+    <button id="all-aux" data-key="all-aux">Alle: AUX an</button>
+    <button id="all-off" data-key="all-off">Alle: Aus</button>
   </section>
+  <button id="btn-group" data-key="group" hidden></button>
   <section id="cards"></section>
   <section class="card" id="stereo">
     <div class="head"><h2>Beide Boxen</h2><span id="duo-mode" class="badge"></span></div>
@@ -36,25 +37,43 @@
       <button id="duo-center" class="small">Mitte</button>
     </div>
     <div class="row2">
-      <button id="btn-pair" class="primary">Stereopaar bilden</button>
+      <button id="btn-pair" data-key="pair">Stereopaar bilden</button>
       <button id="btn-unpair">Aufl&ouml;sen</button>
     </div>
     <p class="hint" id="duo-hint"></p>
   </section>
+  <details id="adv" class="card">
+    <summary>Erweitert</summary>
+    <div class="adv-body">
+      <h3>Boxen</h3>
+      <div id="adv-rows"></div>
+      <button type="button" id="adv-add">+ Box hinzuf&uuml;gen</button>
+      <h3>Automatische Suche</h3>
+      <label class="lbl">Suchbereich (leer = Heimnetz erraten)
+        <input id="scan-net" placeholder="z. B. 192.168.178" inputmode="decimal"></label>
+      <button type="button" id="scan-go">Boxen suchen</button>
+      <div id="scan-res"></div>
+      <p class="hint">Die IP der Box steht auch in der SoundTouch-App unter Einstellungen &rarr; Lautsprecher &rarr; Info. &bdquo;Max&ldquo; ist die h&ouml;chste Lautst&auml;rke, die diese Fernbedienung einstellt.</p>
+      <button type="button" id="adv-save" data-key="">Boxen speichern</button>
+    </div>
+  </details>
 </main>
 <div id="toast" role="status"></div>
 <dialog id="dlg">
   <form method="dialog" id="dlg-form">
     <h2>Einstellungen</h2>
-    <div id="dlg-rows"></div>
-    <button type="button" id="dlg-add">+ Box hinzuf&uuml;gen</button>
-    <p class="hint">IP der Box steht in der SoundTouch-App unter Einstellungen &rarr; Lautsprecher &rarr; Info. &bdquo;Max&ldquo; ist die h&ouml;chste Lautst&auml;rke, die diese Fernbedienung einstellt.</p>
+    <h3>Gruppe</h3>
+    <label class="lbl">Name der Gruppe <input id="grp-name" maxlength="30"></label>
+    <div id="grp-members" class="members"></div>
+    <p class="hint">Der Knopf &bdquo;Gruppe&ldquo; schaltet diese Boxen ein und w&auml;hlt AUX.</p>
+    <p class="version" id="version"></p>
     <div class="row2">
       <button value="cancel">Abbrechen</button>
-      <button id="dlg-save" class="primary" value="ok">Speichern</button>
+      <button id="dlg-save" value="ok">Speichern</button>
     </div>
   </form>
 </dialog>
+<script src="version.js"></script>
 <script src="core.js"></script>
 <script src="native.js"></script>
 <script src="app.js"></script>

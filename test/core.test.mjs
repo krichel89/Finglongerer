@@ -27,7 +27,7 @@ function nodeHttp(method, ip, port, path, body, timeout) {
 }
 const mem = {};
 const storage = { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } };
-const core = STCore.createCore({ http: nodeHttp, WebSocket, storage }); // wsPorts Standard: 8080 (verweigert) -> 8090
+const core = STCore.createCore({ http: nodeHttp, WebSocket, storage, scanTimeout: 400 }); // wsPorts Standard: 8080 (verweigert) -> 8090
 
 let n = 0;
 const ok = (name) => console.log('ok', ++n, name);
@@ -65,6 +65,12 @@ try {
   r = await call('/api/stereo', { action: 'unpair', left: 0, right: 1 }); assert.match(r.message, /Kein Stereopaar/); ok('erneut auflösen: nichts zu tun');
   await assert.rejects(call('/api/duo', { action: 'set', left: 0, right: 0, master: 1, balance: 0 }), /ungültig/); ok('links == rechts abgelehnt');
 
+  r = await call('/api/scan', { prefixes: ['127.0.0'] }); assert.deepEqual(r.found.map(f => f.ip + '|' + f.name + '|' + f.type), ['127.0.0.2|Musikzimmer|SoundTouch 10', '127.0.0.3|Bibliothek|SoundTouch 10']); ok('Auto-Suche findet beide Boxen');
+  await assert.rejects(call('/api/scan', { prefixes: ['8.8.8'] }), /Ungültiger Suchbereich/); ok('Auto-Suche lehnt öffentliche Netze ab');
+  await call('/api/config', { groupName: 'Musik', speakers: [{ name: 'Musikzimmer', ip: '127.0.0.2', max: 70, group: true }, { name: 'Bibliothek', ip: '127.0.0.3', max: 60, group: false }] });
+  r = await call('/api/off', { idx: 'all' });
+  r = await call('/api/group', {}); assert.match(r.message, /Musikzimmer: AUX an/); assert.doesNotMatch(r.message, /Bibliothek/);
+  st = await call('/api/state'); assert.equal(st.speakers[0].source, 'AUX'); assert.equal(st.speakers[1].standby, true); assert.equal(st.config.groupName, 'Musik'); ok('Gruppe: nur Mitglieder werden eingeschaltet');
   r = await call('/api/off', { idx: 'all' }); assert.match(r.message, /Musikzimmer: aus/);
   r = await call('/api/off', { idx: 'all' }); assert.match(r.message, /war schon aus/); ok('Aus / erneut Aus');
   console.log('\nalle', n, 'Tests bestanden');
