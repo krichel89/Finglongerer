@@ -2,7 +2,7 @@ import sys, os, threading, time, base64, hashlib, re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST, NAME, DEVID = sys.argv[1], sys.argv[2], sys.argv[3]
-S = {"preset": 0, "bal": 0, "source": "STANDBY", "vol": 20, "group": None, "wake_at": 0, "zone": None}
+S = {"preset": 0, "bal": 0, "source": "STANDBY", "vol": 20, "group": None, "wake_at": 0, "zone": None, "track": 1, "paused": False}
 
 
 class H(BaseHTTPRequestHandler):
@@ -53,7 +53,10 @@ class H(BaseHTTPRequestHandler):
             if S["wake_at"] and time.time() < S["wake_at"]:
                 src = "STANDBY"
             ci = '<ContentItem source="LOCAL_INTERNET_RADIO" location="x"/>' if S["preset"] == 1 and src not in ("STANDBY",) else '<ContentItem source="%s"/>' % src
-            self.send('<nowPlaying deviceID="%s" source="%s">%s</nowPlaying>' % (DEVID, src, ci))
+            meta = ""
+            if src not in ("STANDBY", "AUX", "BLUETOOTH"):
+                meta = "<track>Titel %d</track><artist>Interpret</artist><album>Album</album><stationName>Radio Eins</stationName><playStatus>%s</playStatus>" % (S["track"], "PAUSE_STATE" if S["paused"] else "PLAY_STATE")
+            self.send('<nowPlaying deviceID="%s" source="%s">%s%s</nowPlaying>' % (DEVID, src, ci, meta))
         elif p == "/volume":
             self.send('<volume deviceID="%s"><targetvolume>%d</targetvolume><actualvolume>%d</actualvolume><muteenabled>false</muteenabled></volume>' % (DEVID, S["vol"], S["vol"]))
         elif p == "/info":
@@ -80,19 +83,27 @@ class H(BaseHTTPRequestHandler):
             if 'state="release"' in body:
                 if ">POWER<" in body:
                     if S["source"] == "STANDBY":
-                        S["source"] = "AUX"; S["wake_at"] = time.time() + 2
+                        S["source"] = "AUX"; S["preset"] = 0; S["wake_at"] = time.time() + 2
                     else:
                         S["source"] = "STANDBY"
                 elif ">PRESET_" in body:
                     S["preset"] = int(body.split("PRESET_")[1][0])
                 elif ">AUX_INPUT<" in body:
                     S["source"] = "BLUETOOTH" if S["source"] == "AUX" else "AUX"
+                elif ">PLAY_PAUSE<" in body:
+                    S["paused"] = not S["paused"]
+                elif ">NEXT_TRACK<" in body:
+                    S["track"] += 1
+                elif ">PREV_TRACK<" in body:
+                    S["track"] = max(1, S["track"] - 1)
             self.send("<status>/key</status>")
         elif self.path == "/volume":
             S["vol"] = int(body.split(">")[1].split("<")[0]); self.send("<status>/volume</status>")
         elif self.path == "/select":
-            if 'source="AUX"' in body: S["source"] = "AUX"
+            if 'source="AUX"' in body: S["source"] = "AUX"; S["preset"] = 0
             if 'source="BLUETOOTH"' in body and not os.environ.get("MOCK_NO_BT_SELECT"): S["source"] = "BLUETOOTH"
+            if 'source="LOCAL_INTERNET_RADIO"' in body and not os.environ.get("MOCK_NO_RADIO_SELECT"):
+                S["source"] = "LOCAL_INTERNET_RADIO"; S["preset"] = 1 if 'location="x"' in body else 0
             self.send("<status>/select</status>")
         elif self.path == "/setZone":
             S["zone"] = body; self.send("<status>/setZone</status>")

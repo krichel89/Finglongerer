@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.11.0
+- Laufender Titel: unter dem Namen jeder Box/Gruppe steht „Interpret – Titel" (bei Radio der Sendername), bei Gruppen die Angabe der Master-Box. Quelle: `/now_playing` (`track`, `artist`, `stationName`).
+- Player-Tasten (Zurück, Play/Pause, Weiter) oben im aufgeklappten Eintrag, gesendet als `PREV_TRACK`/`PLAY_PAUSE`/`NEXT_TRACK` an `/key`; bei Gruppen an die Master-Box. Bei Radio nur Play/Pause, bei AUX/Standby gar nicht. Ob die Box die Tasten bei jeder Quelle (Spotify, STR, MA) annimmt, ist nicht verifiziert.
+- Umziehen bei laufender Musik (ganz unten im Eintrag): Ziel wählen, dann „Umziehen" (gleicher Inhalt per `/select` auf der Ziel-Box, erst wenn er dort läuft, gehen die Quell-Boxen aus; Titel beginnt vermutlich von vorn) oder „Dazunehmen" (Zone, Musik läuft ohne Pause weiter, Quelle bleibt Master). AUX und Bluetooth lassen sich nicht umziehen, nur dazunehmen. Spotify/MA/STR-Streams: ungetestet; übernimmt das Ziel die Quelle nicht, bleibt die Quelle an.
+
 ## 0.10.0
 - App heißt jetzt **STEasy** (Name unter dem Icon, Titel, Kopfzeile, APK-Dateiname `STEasy-<Version>.apk`). Die App-ID bleibt, Updates laufen weiter über die alte Installation.
 - Immer nur ein Eintrag (Box oder Gruppe) ist aufgeklappt; ein anderer öffnet, der vorherige schließt.

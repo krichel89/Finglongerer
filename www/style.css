@@ -69,10 +69,10 @@ button.etoggle:active{background:none}
 .sortbtns button{width:48px;min-height:44px;padding:4px}
 .ebody{display:grid;gap:12px}
 .entry.sorting .ehead{display:flex;justify-content:space-between;align-items:center;gap:8px}
-details.presets summary{cursor:pointer;color:var(--dim);list-style:none;min-height:36px;display:flex;align-items:center;justify-content:space-between}
-details.presets summary::-webkit-details-marker{display:none}
-details.presets summary::after,details.row2box summary::after{content:'\25BE';font-size:1.4rem;font-weight:700;color:var(--fg)}
-details.presets[open]>summary::after,details.row2box[open]>summary::after{content:'\25B4'}
+details.presets summary,details.movebox summary{cursor:pointer;color:var(--dim);list-style:none;min-height:36px;display:flex;align-items:center;justify-content:space-between}
+details.presets summary::-webkit-details-marker,details.movebox summary::-webkit-details-marker{display:none}
+details.presets summary::after,details.row2box summary::after,details.movebox summary::after{content:'\25BE';font-size:1.4rem;font-weight:700;color:var(--fg)}
+details.presets[open]>summary::after,details.row2box[open]>summary::after,details.movebox[open]>summary::after{content:'\25B4'}
 details.row2box{margin-top:8px}details.row2box summary{cursor:pointer;color:var(--dim);list-style:none;min-height:36px;display:flex;align-items:center;justify-content:space-between}details.row2box summary::-webkit-details-marker{display:none}
 .v:empty{display:none}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
@@ -81,3 +81,9 @@ details.row2box{margin-top:8px}details.row2box summary{cursor:pointer;color:var(
 .gedit .lr{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:.9rem}.gedit .lr button{min-height:40px;padding:6px 10px;width:auto}
 
 #urlbox{margin-top:12px;display:grid;gap:8px}#urlbox summary{cursor:pointer;color:var(--dim);min-height:36px;display:flex;align-items:center}#urlbox>input,#urlbox>select{width:100%;min-height:46px;background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:8px 10px}#urlbox>button{min-height:46px}
+
+.enp{color:var(--dim);font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-4px}
+.player{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.player.single{grid-template-columns:1fr}
+.player button{display:flex;align-items:center;justify-content:center;min-height:54px}
+details.movebox{display:grid;gap:8px}details.movebox>select{margin-top:6px}

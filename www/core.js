@@ -8,7 +8,11 @@
   'use strict';
 
   const KEYS = new Set(['POWER', 'AUX_INPUT', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE',
-    'PRESET_1', 'PRESET_2', 'PRESET_3', 'PRESET_4', 'PRESET_5', 'PRESET_6']);
+    'PRESET_1', 'PRESET_2', 'PRESET_3', 'PRESET_4', 'PRESET_5', 'PRESET_6',
+    'PLAY_PAUSE', 'PREV_TRACK', 'NEXT_TRACK']);
+  const PLAYER_KEYS = {PLAY_PAUSE: 'Play/Pause', PREV_TRACK: 'Zurück', NEXT_TRACK: 'Weiter'};
+  // Quellen, die sich nicht per /select auf eine andere Box übergeben lassen (Ton hängt an der Box bzw. kommt vom Gerät)
+  const NO_MOVE = new Set(['AUX', 'BLUETOOTH', 'STANDBY', 'PRODUCT', 'AIRPLAY', 'NOTIFICATION']);
   const DEFAULT_CONFIG = {
     speakers: [{id: 'b1', name: 'Musikzimmer', ip: '', max: 70}, {id: 'b2', name: 'Bibliothek', ip: '', max: 70}],
     groups: [{id: 'g1', name: 'Beide Boxen', members: ['b1', 'b2']}]};
@@ -112,11 +116,19 @@
       for (const state of ['press', 'release'])
         await stPost(ip, '/key', '<key state="' + state + '" sender="Gabbo">' + name + '</key>');
     }
+    // /now_playing einmal lesen: Quelle, Inhalt (ContentItem) und – soweit die Box sie meldet – Titel, Interpret, Sender, Status
+    async function nowFull(ip) {
+      const xml = await stGet(ip, '/now_playing'), cut = (v, n) => String(v || '').slice(0, n || 120);
+      return {
+        source: attr(xml, 'nowPlaying', 'source'), deviceID: attr(xml, 'nowPlaying', 'deviceID'),
+        ci: {source: attr(xml, 'ContentItem', 'source'), type: attr(xml, 'ContentItem', 'type'),
+          location: attr(xml, 'ContentItem', 'location'), account: attr(xml, 'ContentItem', 'sourceAccount'), name: cut(tag(xml, 'itemName'))},
+        track: cut(tag(xml, 'track')), artist: cut(tag(xml, 'artist')), album: cut(tag(xml, 'album')),
+        station: cut(tag(xml, 'stationName')), play: cut(tag(xml, 'playStatus'), 30)};
+    }
     async function nowPlaying(ip) {
-      const xml = await stGet(ip, '/now_playing');
-      const loc = attr(xml, 'ContentItem', 'location');
-      return [attr(xml, 'nowPlaying', 'source'), attr(xml, 'nowPlaying', 'deviceID'),
-        loc ? attr(xml, 'ContentItem', 'source') + '|' + loc : ''];
+      const f = await nowFull(ip);
+      return [f.source, f.deviceID, f.ci.location ? f.ci.source + '|' + f.ci.location : ''];
     }
     async function getInfo(ip) {
       const xml = await stGet(ip, '/info');
@@ -201,14 +213,15 @@
     async function speakerState(sp) {
       const out = {name: sp.name, ip: sp.ip, max: sp.max, online: false};
       if (!sp.ip) { out.error = 'keine IP eingetragen'; return out; }
-      let src, dev, item;
-      try { [src, dev, item] = await nowPlaying(sp.ip); }
+      let f;
+      try { f = await nowFull(sp.ip); }
       catch (e) { out.error = 'nicht erreichbar'; return out; }
-      Object.assign(out, {online: true, source: src, standby: src === 'STANDBY', deviceID: dev, item: item || ''});
+      Object.assign(out, {online: true, source: f.source, standby: f.source === 'STANDBY', deviceID: f.deviceID,
+        item: f.ci.location ? f.ci.source + '|' + f.ci.location : '', title: f.track, artist: f.artist, album: f.album, station: f.station, play: f.play});
       try { const [v, m] = await getVolume(sp.ip); out.volume = v; out.mute = m; } catch (e) { /* egal */ }
       try {
         const g = await getGroup(sp.ip);
-        out.group = {paired: g.paired, name: g.name, role: g.roles[dev] || ''};
+        out.group = {paired: g.paired, name: g.name, role: g.roles[f.deviceID] || ''};
       } catch (e) { out.group = null; }
       return out;
     }
@@ -388,6 +401,62 @@
       catch (e) { master.errs.push('Zone: ' + e.message); }
       return master;
     }
+    // ---- Umziehen: laufende Wiedergabe von einer Box/Gruppe auf eine andere
+    async function wake(sp) {
+      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
+        await pressKey(sp.ip, 'POWER');
+        if (!(await waitAwake(sp.ip))) throw new Error(sp.name + ' ist nicht aufgewacht');
+        await sleep(1000);
+      }
+    }
+    const names = m => m.map(b => b.name).join(' + ');
+    // mode "add": Quelle bleibt Master, Ziel-Boxen kommen per Zone dazu (Musik läuft weiter).
+    // mode "move": gleichen Inhalt auf der Ziel-Box starten (/select), erst wenn er dort läuft, die Quell-Boxen ausschalten.
+    async function doMove(src, dst, mode) {
+      if (!src.length || !dst.length) throw new Error('Quelle oder Ziel fehlt');
+      const dstIds = new Set(dst.map(b => b.id)), srcIds = new Set(src.map(b => b.id));
+      if (src.length === dst.length && src.every(b => dstIds.has(b.id))) throw new Error('Quelle und Ziel sind dasselbe');
+      const now = await nowFull(src[0].ip);
+      if (now.source === 'STANDBY') throw new Error(src[0].name + ' ist aus - es läuft nichts');
+      if (mode === 'add') {
+        const extra = dst.filter(b => !srcIds.has(b.id));
+        if (!extra.length) throw new Error('Das Ziel ist schon dabei');
+        if (await isStereoPair(src) || await isStereoPair(dst)) throw new Error('Stereopaare lassen sich nicht dazunehmen');
+        await makeZone(src.concat(extra));
+        return names(extra) + ' dazugenommen';
+      }
+      const ci = now.ci;
+      if (!ci.source || !ci.location || NO_MOVE.has(ci.source))
+        throw new Error('Quelle ' + (ci.source || now.source) + ' lässt sich nicht umziehen - nur "Dazunehmen" geht');
+      const d0 = dst[0];
+      await wake(d0);
+      const before = await nowFull(d0.ip);
+      await stPost(d0.ip, '/select', '<ContentItem source="' + esc(ci.source) + '" type="' + esc(ci.type) + '" location="' + esc(ci.location) +
+        '" sourceAccount="' + esc(ci.account) + '" isPresetable="true"><itemName>' + esc(ci.name) + '</itemName></ContentItem>');
+      let ok = false, n = before;
+      for (let i = 0; i < 5 && !ok; i++) {
+        await sleep(700);
+        n = await nowFull(d0.ip);
+        const changed = n.ci.source !== before.ci.source || n.ci.location !== before.ci.location;
+        ok = n.source !== 'STANDBY' && n.ci.source === ci.source && (n.ci.location === ci.location || changed);
+      }
+      if (!ok) throw new Error(d0.name + ' übernimmt die Quelle nicht (Quelle dort: ' + (n.ci.source || n.source) + ') - ' + names(src) + ' bleibt an');
+      const warn = [];
+      if (dst.length > 1) {
+        try { if (!(await isStereoPair(dst))) await makeZone(dst); } catch (e) { warn.push('Zone: ' + e.message); }
+      }
+      const leaving = src.filter(b => !dstIds.has(b.id));
+      for (let i = 0; i < leaving.length; i++) {      // wie Gruppe aus: Master zuerst, dann Pause (sonst weckt der zweite POWER die Folge-Box)
+        try { await doOff(leaving[i]); } catch (e) { warn.push(leaving[i].name + ': ' + e.message); }
+        if (i === 0 && leaving.length > 1) await sleep(1500);
+      }
+      return 'umgezogen auf ' + names(dst) + (warn.length ? ' (' + warn.join('; ') + ')' : '');
+    }
+    function refBoxes(ref) {
+      if (!ref || ref.idx === 'all') throw new Error('Unbekannte Box');
+      return ref.gid ? groupMembers(ref) : targets(ref);
+    }
+
     async function runMany(targets, fn) {
       const res = await Promise.all(targets.map(async sp => {
         try { return [sp.name + ': ' + await fn(sp), null]; }
@@ -545,6 +614,17 @@
       if (path === '/api/save') {
         const n = parseInt(data.n, 10), t = data.gid ? groupMembers(data) : targets(data);
         return summarize(await runMany([t[0]], sp => doSave(sp, n)));   // Gruppe: speichert, was auf der Master-Box läuft
+      }
+      if (path === '/api/key') {       // Player-Tasten; bei Gruppen an die Master-Box (die Zone folgt)
+        const key = String(data.key || ''); if (!PLAYER_KEYS[key]) throw new Error('Unbekannte Taste');
+        const sp = (data.gid ? groupMembers(data) : targets(data))[0];
+        if ((await nowPlaying(sp.ip))[0] === 'STANDBY') throw new Error(sp.name + ' ist aus');
+        await pressKey(sp.ip, key);
+        return {ok: true, message: PLAYER_KEYS[key]};
+      }
+      if (path === '/api/move') {
+        const mode = data.mode === 'add' ? 'add' : 'move';
+        return {ok: true, message: await doMove(refBoxes(data.from), refBoxes(data.to), mode)};
       }
       if (path === '/api/presets') { const ip = targets(data)[0].ip; return Object.assign({ok: true, presets: await getPresets(ip)}, await agentRow2(ip)); }
       if (path === '/api/volume') {

@@ -98,6 +98,41 @@ function sourceBadge(S) {
 function balText(b) { return ''; }
 function volText(m, cap) { return String(m); }
 
+// ---- Laufender Titel und Player-Tasten (Daten der Master-Box)
+const RADIO_SRC = new Set(['LOCAL_INTERNET_RADIO', 'INTERNET_RADIO', 'TUNEIN', 'RADIO_BROWSER']);
+function nowText(s) {
+  if (!s || !s.online || s.standby || s.source === 'AUX') return '';
+  const t = s.title || '', a = s.artist || '';
+  return t && a ? a + ' – ' + t : (t || s.station || '');
+}
+const ICON = {
+  prev: '<path d="M6 6h2v12H6zM20 6v12L9.5 12z"/>', next: '<path d="M16 6h2v12h-2zM4 6l10.5 6L4 18z"/>',
+  play: '<path d="M8 5v14l11-7z"/>', pause: '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>'};
+function playerRow(s) {
+  if (!s || !s.online || s.standby || s.source === 'AUX' || s.source === 'PRODUCT') return null;
+  const mk = (a, icon, label) => {
+    const b = el('button', {'data-act': a, title: label}); b.setAttribute('aria-label', label);
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">' + ICON[icon] + '</svg>';
+    return b;
+  };
+  const playing = s.play !== 'PAUSE_STATE' && s.play !== 'STOP_STATE', skip = !RADIO_SRC.has(s.source);
+  return el('div', {class: 'player' + (skip ? '' : ' single')},
+    skip ? mk('prev', 'prev', 'Zurück') : null, mk('pp', playing ? 'pause' : 'play', playing ? 'Pause' : 'Abspielen'), skip ? mk('next', 'next', 'Weiter') : null);
+}
+// Umziehen: laufende Musik auf eine andere Box/Gruppe übergeben oder diese dazunehmen
+const mvTo = {};
+function moveBlock(ekey) {
+  const d = el('details', {class: 'movebox'}, el('summary', {text: 'Umziehen'}));
+  const sel = el('select', {'data-role': 'mvto'}), others = entries().filter(e => e.key !== ekey);
+  others.forEach(e => sel.append(el('option', {value: e.key, text: e.g ? e.g.name : (cfg.speakers[e.i] || {}).name || '?'})));
+  if (mvTo[ekey] && others.some(e => e.key === mvTo[ekey])) sel.value = mvTo[ekey];
+  sel.addEventListener('change', () => { mvTo[ekey] = sel.value; sel.blur(); });
+  d.append(sel, el('div', {class: 'row2'}, el('button', {text: 'Umziehen', 'data-act': 'mvgo'}), el('button', {text: 'Dazunehmen', 'data-act': 'mvadd'})));
+  d.open = !!ui.open['m:' + ekey];
+  d.addEventListener('toggle', () => { if (!!ui.open['m:' + ekey] !== d.open) { ui.open['m:' + ekey] = d.open; saveUi(); } });
+  return others.length ? d : null;
+}
+
 function entries() {
   const all = cfg.groups.map(g => ({key: 'g:' + g.id, g})).concat(cfg.speakers.map((s, i) => ({key: 'b:' + s.id, i})));
   const byKey = new Map(all.map(e => [e.key, e])), out = [];
@@ -160,6 +195,7 @@ function groupBody(g, ekey) {
   const sub = S.map(s => s.name).join(' · ');
   const kids = [
     el('div', {class: 'head'}, el('div', {class: 'sub', text: sub})),
+    playerRow(S[0]),
     srcRow('g', w => 'g:' + g.id + ':' + w),
     el('div', {class: 'vol'},
       el('button', {text: '−', 'data-act': 'gdown'}),
@@ -191,7 +227,7 @@ function groupBody(g, ekey) {
       }).catch(() => { /* Balance bleibt wie sie ist */ });
     }
   }
-  kids.push(presetBlock(ekey));
+  kids.push(presetBlock(ekey), moveBlock(ekey));
   return kids;
 }
 function boxBody(s, i, ekey) {
@@ -201,13 +237,14 @@ function boxBody(s, i, ekey) {
     : s.ip);
   return [
     el('div', {class: 'sub', text: sub}),
+    playerRow(s),
     srcRow('', w => w + ':' + i),
     el('div', {class: 'vol'},
       el('button', {text: '−', 'data-act': 'down', 'data-i': i}),
       el('input', {type: 'range', min: 0, max: s.max, value: Math.min(vol, s.max), 'data-i': i, 'data-role': 'slider'}),
       el('button', {text: '+', 'data-act': 'up', 'data-i': i}),
       el('span', {class: 'v', text: typeof s.volume === 'number' ? String(s.volume) : '-'})),
-    presetBlock(ekey)];
+    presetBlock(ekey), moveBlock(ekey)];
 }
 function entryCard(e, pos, total) {
   const open = !!ui.open[e.key];
@@ -223,7 +260,8 @@ function entryCard(e, pos, total) {
   const props = {class: 'card entry' + (ui.sort ? ' sorting' : ''), 'data-ekey': e.key};
   if (e.g) props['data-gid'] = e.g.id; else props['data-i'] = e.i;
   if (ui.sort) return el('div', props, el('div', {class: 'ehead'}, el('span', {class: 'ename', text: name}), el('span', {class: 'badge ' + bcls, text: btxt}), right));
-  const card = el('div', props, head);
+  const card = el('div', props, head), np = nowText(S[0]);
+  if (np) card.append(el('div', {class: 'enp', text: np}));
   if (open) card.append(el('div', {class: 'ebody'}, ...(e.g ? groupBody(e.g, e.key) : boxBody(state[e.i] || {name: '?', max: 70}, e.i, e.key))));
   return card;
 }
@@ -231,6 +269,7 @@ function entryCard(e, pos, total) {
 function render() {
   cfgSig = JSON.stringify(cfg);
   if (dragging) return;
+  const ae = document.activeElement; if (ae && ae.tagName === 'SELECT' && ae.dataset.role === 'mvto') return;   // Auswahl nicht wegzeichnen
   const box = $('#groups'); box.textContent = '';
   const list = entries();
   if (!list.length) box.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: 'Noch keine Box. Unter ⚙ Einstellungen kannst du Boxen suchen und Gruppen anlegen.'})));
@@ -289,6 +328,15 @@ document.addEventListener('click', async ev => {
     const n = +b.dataset.n;
     if (ecard.dataset.gid) act('/api/group', {gid: ecard.dataset.gid, action: 'preset', n}, b);
     else act('/api/preset', {idx: +ecard.dataset.i, n}, b);
+  }
+  else if (a === 'pp' || a === 'prev' || a === 'next') {
+    const key = {pp: 'PLAY_PAUSE', prev: 'PREV_TRACK', next: 'NEXT_TRACK'}[a];
+    act('/api/key', ecard.dataset.gid ? {gid: ecard.dataset.gid, key} : {idx: +ecard.dataset.i, key}, b).then(() => setTimeout(() => refresh(true), 1500));
+  }
+  else if (a === 'mvgo' || a === 'mvadd') {
+    const to = $('[data-role=mvto]', ecard).value, ref = k => k.startsWith('g:') ? {gid: k.slice(2)} : {idx: cfg.speakers.findIndex(x => 'b:' + x.id === k)};
+    if (!to) return;
+    act('/api/move', {from: ecard.dataset.gid ? {gid: ecard.dataset.gid} : {idx: +ecard.dataset.i}, to: ref(to), mode: a === 'mvadd' ? 'add' : 'move'}, b);
   }
   else if (a === 'bt') act('/api/bt', {idx}, null, ['bt:' + idx]);
   else if (a === 'gbt') act('/api/group', {gid, action: 'bt'}, null, ['g:' + gid + ':bt']);
