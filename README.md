@@ -10,7 +10,7 @@ Schlanke Android-Fernbedienung für Bose SoundTouch mit ST Reborn – **ohne Ser
 - Stereopaar bilden und auflösen
 - **Gruppen:** beliebig viele, mit beliebig vielen Boxen (⚙ Einstellungen); Startseite zeigt nur Gruppen. Bei genau zwei Boxen zusätzlich Balance und Stereopaar
 - Anzeige: Knöpfe dunkelgrau, eingeschaltet = orange Schrift, wartet auf die Box = blinkend
-- **Erweitert** (unten, eingeklappt): Ein/Aus und Lautstärke der einzelnen Boxen. **Boxen verwalten und automatisch suchen:** ⚙ Einstellungen
+- Startseite: Gruppen und Einzelboxen gleichrangig, zugeklappt, sortierbar (⇅); Reihenfolge und aufgeklappte Karten werden gemerkt. Pro Eintrag AUX, Bluetooth, Aus, Lautstärke und ausklappbar die Sendertasten 1–6. Boxen verwalten und automatisch suchen: ⚙ Einstellungen
 - Boxen (Name, IP, max. Lautstärke) unter ⚙ einstellbar, bleiben gespeichert
 
 ## Version

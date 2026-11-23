@@ -6,6 +6,13 @@ const pending = {};            // Knopf-Schlüssel -> Ablaufzeit (Infinity solan
 const balCache = {}, balRead = {}; // pro Gruppe: letzte bekannte Stereopaar-Balance / schon gelesen?
 const newId = () => Math.random().toString(36).slice(2, 8);
 
+// ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
+const UI_KEY = 'steasyremote.ui';
+const ui = {order: [], open: {}, sort: false};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; } } catch (e) { /* neu anfangen */ }
+const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open})); } catch (e) { /* egal */ } };
+const presetNames = {};
+
 async function api(path, body) {
   // Direkt an die Boxen (kein Server): Kernlogik aus core.js, Transport aus native.js
   const j = await core.route(path, body);
@@ -34,11 +41,13 @@ const gState = g => gIdx(g).map(i => state[i]).filter(Boolean);
 // ---- Zustandsanzeige der Knöpfe: orange = an, orange blinkend = wartet auf die Box
 function pred(key) {
   if (key.startsWith('aux:')) { const s = state[+key.slice(4)]; return !!(s && s.online && s.source === 'AUX'); }
+  if (key.startsWith('bt:')) { const s = state[+key.slice(3)]; return !!(s && s.online && s.source === 'BLUETOOTH'); }
   if (key.startsWith('off:')) { const s = state[+key.slice(4)]; return !!(s && s.online && s.standby); }
   const [, gid, what] = key.split(':');
   const g = cfg.groups.find(x => x.id === gid); if (!g) return false;
   const S = gState(g);
   if (what === 'aux') return S.length > 0 && S.every(s => s.online && s.source === 'AUX');
+  if (what === 'bt') return S.length > 0 && S.every(s => s.online && s.source === 'BLUETOOTH');
   if (what === 'off') return S.length > 0 && S.every(s => s.online && s.standby);
   if (what === 'pair') return S.length === 2 && !!(S[0].group && S[0].group.paired);
   return false;
@@ -64,33 +73,70 @@ async function act(path, body, btn, keys = []) {
   finally { inflight--; if (btn) btn.disabled = false; await refresh(true); paint(); }
 }
 
-// ---- Anzeige: Gruppen
+// ---- Anzeige: Gruppen und Einzelboxen gleichrangig
 function sourceBadge(S) {
   if (!S.length || S.every(s => !s.online)) return ['nicht erreichbar', 'err'];
   const off = S.filter(s => !s.online).length;
   if (off) return [off + ' nicht erreichbar', 'err'];
   if (S.every(s => s.standby)) return ['Standby', ''];
   if (S.every(s => s.source === 'AUX')) return ['AUX', 'on'];
+  if (S.every(s => s.source === 'BLUETOOTH')) return ['Bluetooth', 'on'];
+  if (S.every(s => s.source === S[0].source)) return [S[0].source || 'an', 'on'];
   return ['gemischt', ''];
 }
 function balText(b) { return b === 0 ? 'Balance: Mitte' : 'Balance: ' + (b < 0 ? 'links ' + (-b) : 'rechts ' + b) + ' %'; }
 function volText(m, cap) { return 'Gesamtlautstärke ' + m + ' / max ' + cap; }
 
-function groupCard(g) {
+function entries() {
+  const all = cfg.groups.map(g => ({key: 'g:' + g.id, g})).concat(cfg.speakers.map((s, i) => ({key: 'b:' + s.id, i})));
+  const byKey = new Map(all.map(e => [e.key, e])), out = [];
+  ui.order.forEach(k => { if (byKey.has(k)) { out.push(byKey.get(k)); byKey.delete(k); } });
+  byKey.forEach(e => out.push(e));
+  return out;
+}
+const srcRow = (act, key) => el('div', {class: 'row3'},
+  el('button', {text: 'AUX an', 'data-act': act + 'aux', 'data-key': key('aux')}),
+  el('button', {text: 'Bluetooth', 'data-act': act + 'bt', 'data-key': key('bt')}),
+  el('button', {text: 'Aus', 'data-act': act + 'off', 'data-key': key('off')}));
+
+async function loadPresetNames(ekey) {
+  if (ekey in presetNames) return;
+  presetNames[ekey] = {};
+  const card = $('[data-ekey="' + ekey + '"]'); if (!card) return;
+  const body = card.dataset.gid ? {gid: card.dataset.gid, action: 'presets'} : {idx: +card.dataset.i};
+  try {
+    const j = await api(card.dataset.gid ? '/api/group' : '/api/presets', body);
+    const names = {}; (j.presets || []).forEach(p => { if (p.name) names[p.n] = p.name; });
+    presetNames[ekey] = names;
+    document.querySelectorAll('[data-ekey="' + ekey + '"] [data-act=preset]').forEach(b => {
+      b.textContent = b.dataset.n + (names[b.dataset.n] ? ' · ' + names[b.dataset.n] : ''); });
+  } catch (e) { /* ohne Namen */ }
+}
+function presetBlock(ekey) {
+  const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6)'}));
+  const names = presetNames[ekey] || {}, grid = el('div', {class: 'pgrid'});
+  for (let n = 1; n <= 6; n++) grid.append(el('button', {text: n + (names[n] ? ' · ' + names[n] : ''), 'data-act': 'preset', 'data-n': n}));
+  d.append(grid);
+  d.open = !!ui.open['p:' + ekey];
+  d.addEventListener('toggle', () => {
+    if (!!ui.open['p:' + ekey] === d.open) return;
+    ui.open['p:' + ekey] = d.open; saveUi(); if (d.open) loadPresetNames(ekey);
+  });
+  if (d.open) setTimeout(() => loadPresetNames(ekey), 0);
+  return d;
+}
+
+function groupBody(g, ekey) {
   const idx = gIdx(g), S = idx.map(i => state[i] || {name: '?', max: 70}), n = S.length;
-  const [btxt, bcls] = sourceBadge(S);
   const cap = Math.min(...S.map(s => s.max));
   const vols = S.map(s => (typeof s.volume === 'number' ? s.volume : 0));
   const paired = n === 2 && !!(S[0].group && S[0].group.paired);
   const m = paired ? vols[0] : Math.max(...vols);
   const sub = n === 2 ? 'Links: ' + S[0].name + ' · Rechts: ' + S[1].name : S.map(s => s.name).join(' · ');
   const kids = [
-    el('div', {class: 'head'}, el('h2', {text: g.name}), el('span', {class: 'badge ' + bcls, text: btxt})),
     el('div', {class: 'head'}, el('div', {class: 'sub', text: sub}),
       n === 2 ? el('button', {class: 'swap', text: '⇆', title: 'Links/Rechts tauschen', 'data-act': 'gswap'}) : null),
-    el('div', {class: 'row2'},
-      el('button', {text: 'AUX an', 'data-act': 'gaux', 'data-key': 'g:' + g.id + ':aux'}),
-      el('button', {text: 'Aus', 'data-act': 'goff', 'data-key': 'g:' + g.id + ':off'})),
+    srcRow('g', w => 'g:' + g.id + ':' + w),
     el('div', {class: 'vol'},
       el('button', {text: '−', 'data-act': 'gdown'}),
       el('input', {type: 'range', min: 0, max: cap, value: Math.min(m, cap), 'data-role': 'gvol'}),
@@ -125,40 +171,51 @@ function groupCard(g) {
       }).catch(() => { /* Balance bleibt wie sie ist */ });
     }
   }
-  return el('div', {class: 'card', 'data-gid': g.id}, ...kids);
+  kids.push(presetBlock(ekey));
+  return kids;
 }
-
-function boxCard(s, i) {
-  const bb = (() => {
-    if (!s.online) return ['nicht erreichbar', 'err'];
-    if (s.standby) return ['Standby', ''];
-    return [s.source === 'AUX' ? 'AUX' : (s.source || 'an'), 'on'];
-  })();
+function boxBody(s, i, ekey) {
   const vol = typeof s.volume === 'number' ? s.volume : 0;
   const sub = s.error ? s.error : (s.group && s.group.paired
     ? 'Stereopaar' + (s.group.role ? ' (' + (s.group.role === 'LEFT' ? 'links' : s.group.role === 'RIGHT' ? 'rechts' : s.group.role) + ')' : '')
     : s.ip);
-  return el('div', {class: 'card'},
-    el('div', {class: 'head'}, el('h2', {text: s.name}), el('span', {class: 'badge ' + bb[1], text: bb[0]})),
+  return [
     el('div', {class: 'sub', text: sub}),
-    el('div', {class: 'row2'},
-      el('button', {text: 'AUX an', 'data-act': 'aux', 'data-i': i, 'data-key': 'aux:' + i}),
-      el('button', {text: 'Aus', 'data-act': 'off', 'data-i': i, 'data-key': 'off:' + i})),
+    srcRow('', w => w + ':' + i),
     el('div', {class: 'vol'},
       el('button', {text: '−', 'data-act': 'down', 'data-i': i}),
       el('input', {type: 'range', min: 0, max: s.max, value: Math.min(vol, s.max), 'data-i': i, 'data-role': 'slider'}),
       el('button', {text: '+', 'data-act': 'up', 'data-i': i}),
-      el('span', {class: 'v', text: 'Lautstärke ' + (typeof s.volume === 'number' ? s.volume : '-') + ' / max ' + s.max})));
+      el('span', {class: 'v', text: 'Lautstärke ' + (typeof s.volume === 'number' ? s.volume : '-') + ' / max ' + s.max})),
+    presetBlock(ekey)];
+}
+function entryCard(e, pos, total) {
+  const open = !!ui.open[e.key];
+  const S = e.g ? gState(e.g) : [state[e.i]].filter(Boolean);
+  const name = e.g ? e.g.name : (cfg.speakers[e.i] || {}).name;
+  const [btxt, bcls] = sourceBadge(S);
+  const right = ui.sort
+    ? el('div', {class: 'sortbtns'},
+        el('button', {text: '▲', disabled: pos === 0, 'data-act': 'eup'}), el('button', {text: '▼', disabled: pos === total - 1, 'data-act': 'edown'}))
+    : el('span', {class: 'chev', text: open ? '▴' : '▾'});
+  const head = el('button', {class: 'etoggle', 'data-act': 'toggle', disabled: ui.sort},
+    el('span', {class: 'ename', text: (e.g ? '' : '') + name}), el('span', {class: 'badge ' + bcls, text: btxt}), ui.sort ? null : right);
+  const props = {class: 'card entry' + (ui.sort ? ' sorting' : ''), 'data-ekey': e.key};
+  if (e.g) props['data-gid'] = e.g.id; else props['data-i'] = e.i;
+  if (ui.sort) return el('div', props, el('div', {class: 'ehead'}, el('span', {class: 'ename', text: name}), el('span', {class: 'badge ' + bcls, text: btxt}), right));
+  const card = el('div', props, head);
+  if (open) card.append(el('div', {class: 'ebody'}, ...(e.g ? groupBody(e.g, e.key) : boxBody(state[e.i] || {name: '?', max: 70}, e.i, e.key))));
+  return card;
 }
 
 function render() {
   cfgSig = JSON.stringify(cfg);
   if (dragging) return;
-  const gbox = $('#groups'); gbox.textContent = '';
-  if (!cfg.groups.length) gbox.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: 'Noch keine Gruppe. Unter ⚙ Einstellungen → Gruppen kannst du Gruppen anlegen.'})));
-  cfg.groups.forEach(g => gbox.append(groupCard(g)));
-  const box = $('#cards'); box.textContent = '';
-  state.forEach((s, i) => box.append(boxCard(s, i)));
+  const box = $('#groups'); box.textContent = '';
+  const list = entries();
+  if (!list.length) box.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: 'Noch keine Box. Unter ⚙ Einstellungen kannst du Boxen suchen und Gruppen anlegen.'})));
+  list.forEach((e, pos) => box.append(entryCard(e, pos, list.length)));
+  $('#btn-sort').classList.toggle('lit', ui.sort);
   paint();
 }
 
@@ -177,8 +234,22 @@ function gSend(card, volOverride) {
 }
 document.addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-act]'); if (!b) return;
-  const a = b.dataset.act, card = b.closest('[data-gid]'), gid = card && card.dataset.gid, idx = +b.dataset.i;
-  if (a === 'aux') act('/api/aux', {idx}, null, ['aux:' + idx]);
+  const a = b.dataset.act, card = b.closest('[data-gid]'), gid = card && card.dataset.gid;
+  const ecard = b.closest('[data-ekey]'), ekey = ecard && ecard.dataset.ekey;
+  const idx = +(b.dataset.i !== undefined ? b.dataset.i : (ecard && ecard.dataset.i));
+  if (a === 'toggle') { ui.open[ekey] = !ui.open[ekey]; saveUi(); dragging = false; render(); }
+  else if (a === 'eup' || a === 'edown') {
+    const keys = entries().map(e => e.key), p = keys.indexOf(ekey), q = p + (a === 'eup' ? -1 : 1);
+    if (q >= 0 && q < keys.length) { [keys[p], keys[q]] = [keys[q], keys[p]]; ui.order = keys; saveUi(); render(); }
+  }
+  else if (a === 'preset') {
+    const n = +b.dataset.n;
+    if (ecard.dataset.gid) act('/api/group', {gid: ecard.dataset.gid, action: 'preset', n}, b);
+    else act('/api/preset', {idx: +ecard.dataset.i, n}, b);
+  }
+  else if (a === 'bt') act('/api/bt', {idx}, null, ['bt:' + idx]);
+  else if (a === 'gbt') act('/api/group', {gid, action: 'bt'}, null, ['g:' + gid + ':bt']);
+  else if (a === 'aux') act('/api/aux', {idx}, null, ['aux:' + idx]);
   else if (a === 'off') act('/api/off', {idx}, null, ['off:' + idx]);
   else if (a === 'up') act('/api/volume', {idx, delta: 3}, b);
   else if (a === 'down') act('/api/volume', {idx, delta: -3}, b);
@@ -291,6 +362,7 @@ $('#dlg-form').addEventListener('submit', async ev => {
   } catch (e) { $('#dlg-err').textContent = e.message; }
 });
 
+$('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render(); };
 document.addEventListener('visibilitychange', () => refresh());
 refresh(true);
 setInterval(() => { if (Object.keys(pending).length || Date.now() - lastRefresh >= 5000) refresh(); }, 1500);

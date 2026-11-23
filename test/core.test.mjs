@@ -88,6 +88,19 @@ try {
   st = await call('/api/state'); assert.deepEqual(st.speakers.map(x => x.volume), [65, 60, 50]); ok('3er-Gruppe: Lautstärke je Box auf deren max begrenzt');
   await assert.rejects(call('/api/group', { gid: 'g1', action: 'pair' }), /genau zwei/); ok('Stereopaar nur mit zwei Boxen');
   r = await call('/api/group', { gid: 'g2', action: 'off' }); st = await call('/api/state'); assert.equal(st.speakers[0].standby, true); assert.equal(st.speakers[1].standby, false); ok('Gruppe mit einer Box wirkt nur auf diese');
+  // Bluetooth direkt, Ersatzweg, Gruppe; Presets
+  r = await call('/api/bt', { idx: 0 }); st = await call('/api/state'); assert.equal(st.speakers[0].source, 'BLUETOOTH'); ok('Bluetooth per /select');
+  r = await call('/api/group', { gid: 'g1', action: 'bt' }); st = await call('/api/state'); assert.deepEqual(st.speakers.map(x => x.source), ['BLUETOOTH', 'BLUETOOTH', 'BLUETOOTH']); ok('Gruppe: Bluetooth');
+  r = await call('/api/group', { gid: 'g1', action: 'aux' }); st = await call('/api/state'); assert.equal(st.speakers[1].source, 'AUX'); ok('zurück auf AUX');
+  const dbg = ip => nodeHttp('GET', ip, 8090, '/_dbg', null, 2000);
+  r = await call('/api/preset', { idx: 1, n: 4 }); assert.equal(await dbg('127.0.0.3'), '4'); ok('einzelne Box: Taste 4');
+  r = await call('/api/group', { gid: 'g1', action: 'preset', n: 2 }); assert.deepEqual([await dbg('127.0.0.2'), await dbg('127.0.0.3'), await dbg('127.0.0.4')], ['2', '2', '2']); ok('Gruppe: Taste 2 an allen Boxen');
+  await assert.rejects(call('/api/preset', { idx: 0, n: 9 }), /Taste 1 bis 6/); ok('Taste 9 abgelehnt');
+  r = await call('/api/presets', { idx: 0 }); assert.deepEqual(r.presets, [{ n: 1, name: 'Radio Eins' }, { n: 3, name: 'Klassik' }]); ok('Sendernamen aus /presets');
+  const m5 = spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, '127.0.0.5', 'Flur', 'DEV-E'], { stdio: 'ignore', env: { ...process.env, MOCK_NO_BT_SELECT: '1' } }); mocks.push(m5);
+  await new Promise(r => setTimeout(r, 800));
+  await call('/api/config', { speakers: [{ id: 'e', name: 'Flur', ip: '127.0.0.5', max: 50 }], groups: [] });
+  r = await call('/api/bt', { idx: 0 }); st = await call('/api/state'); assert.equal(st.speakers[0].source, 'BLUETOOTH'); ok('Bluetooth-Ersatzweg über AUX_INPUT, wenn /select nicht greift');
   await assert.rejects(call('/api/group', { gid: 'nix', action: 'aux' }), /Unbekannte Gruppe/); ok('unbekannte Gruppe abgelehnt');
   console.log('\nalle', n, 'Tests bestanden');
 } catch (e) { console.error('FEHLER nach Test', n, '\n', e); process.exitCode = 1; }

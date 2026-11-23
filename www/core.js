@@ -7,7 +7,8 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const KEYS = new Set(['POWER', 'AUX_INPUT', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE']);
+  const KEYS = new Set(['POWER', 'AUX_INPUT', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE',
+    'PRESET_1', 'PRESET_2', 'PRESET_3', 'PRESET_4', 'PRESET_5', 'PRESET_6']);
   const DEFAULT_CONFIG = {
     speakers: [{id: 'b1', name: 'Musikzimmer', ip: '', max: 70}, {id: 'b2', name: 'Bibliothek', ip: '', max: 70}],
     groups: [{id: 'g1', name: 'Beide Boxen', members: ['b1', 'b2']}]};
@@ -226,6 +227,43 @@
       }
       throw new Error('AUX nicht aktiv (Quelle: ' + (await nowPlaying(sp.ip))[0] + ')');
     }
+    // Bluetooth: direkt wählen (/select); Ersatzweg: AUX_INPUT schaltete bei der Box von AUX auf Bluetooth um
+    async function doBluetoothOn(sp) {
+      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
+        await pressKey(sp.ip, 'POWER');
+        if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
+        await sleep(1000);
+      }
+      const is = async () => (await nowPlaying(sp.ip))[0] === 'BLUETOOTH';
+      if (await is()) return 'Bluetooth an';
+      try { await stPost(sp.ip, '/select', '<ContentItem source="BLUETOOTH" sourceAccount=""></ContentItem>'); } catch (e) { /* Ersatzweg */ }
+      for (let i = 0; i < 4; i++) { await sleep(700); if (await is()) return 'Bluetooth an'; }
+      if ((await nowPlaying(sp.ip))[0] !== 'AUX') {
+        try { await stPost(sp.ip, '/select', '<ContentItem source="AUX" sourceAccount="AUX"></ContentItem>'); } catch (e) { /* egal */ }
+        await sleep(1200);
+      }
+      await pressKey(sp.ip, 'AUX_INPUT');
+      for (let i = 0; i < 4; i++) { await sleep(700); if (await is()) return 'Bluetooth an'; }
+      throw new Error('Bluetooth nicht aktiv (Quelle: ' + (await nowPlaying(sp.ip))[0] + ')');
+    }
+    async function getPresets(ip) {
+      try {
+        const xml = await stGet(ip, '/presets', 2000), out = [];
+        for (const m of xml.matchAll(/<preset\s+id="(\d+)"[^>]*>([\s\S]*?)<\/preset>/g))
+          out.push({n: +m[1], name: tag(m[2], 'itemName') || ''});
+        return out;
+      } catch (e) { return []; }
+    }
+    async function doPreset(sp, n) {
+      if (!(n >= 1 && n <= 6)) throw new Error('Taste 1 bis 6');
+      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
+        await pressKey(sp.ip, 'POWER');
+        if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
+        await sleep(1000);
+      }
+      await pressKey(sp.ip, 'PRESET_' + n);
+      return 'Taste ' + n;
+    }
     async function doOff(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') return 'war schon aus';
       await pressKey(sp.ip, 'POWER');
@@ -379,6 +417,12 @@
       if (path === '/api/config') return {ok: true, config: saveConfig(data)};
       if (path === '/api/aux') return summarize(await runMany(targets(data), doAuxOn));
       if (path === '/api/off') return summarize(await runMany(targets(data), doOff));
+      if (path === '/api/bt') return summarize(await runMany(targets(data), doBluetoothOn));
+      if (path === '/api/preset') {
+        const n = parseInt(data.n, 10);
+        return summarize(await runMany(targets(data), sp => doPreset(sp, n)));
+      }
+      if (path === '/api/presets') return {ok: true, presets: await getPresets(targets(data)[0].ip)};
       if (path === '/api/volume') {
         const t = targets(data);
         if ('value' in data) return summarize(await runMany(t, sp => doVolume(sp, null, data.value)));
@@ -389,6 +433,14 @@
         const m = groupMembers(data), n = m.length, action = data.action;
         if (action === 'aux') return summarize(await runMany(m, doAuxOn));
         if (action === 'off') return summarize(await runMany(m, doOff));
+        if (action === 'bt') return summarize(await runMany(m, doBluetoothOn));
+        if (action === 'presets') return {ok: true, presets: await getPresets(m[0].ip)};
+        if (action === 'preset') {
+          const n = parseInt(data.n, 10);
+          // Stereopaar: die Taste nur an der ersten (linken/Master-)Box drücken
+          const t = n >= 1 && m.length === 2 && (await getGroup(m[0].ip)).paired ? [m[0]] : m;
+          return summarize(await runMany(t, sp => doPreset(sp, n)));
+        }
         if (action === 'read') return Object.assign({ok: true}, n === 2 ? await duoRead(m[0]) : {mode: 'none', balance: null});
         if (action === 'volume') {
           if (n === 2) return {ok: true, message: await doDuo(m[0], m[1], data.master, data.balance)};

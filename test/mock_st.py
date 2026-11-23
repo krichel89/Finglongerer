@@ -1,8 +1,8 @@
-import sys, threading, time, base64, hashlib, re
+import sys, os, threading, time, base64, hashlib, re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST, NAME, DEVID = sys.argv[1], sys.argv[2], sys.argv[3]
-S = {"bal": 0, "source": "STANDBY", "vol": 20, "group": None, "wake_at": 0}
+S = {"preset": 0, "bal": 0, "source": "STANDBY", "vol": 20, "group": None, "wake_at": 0}
 
 
 class H(BaseHTTPRequestHandler):
@@ -32,6 +32,10 @@ class H(BaseHTTPRequestHandler):
         p = self.path
         if self.headers.get("Upgrade", "").lower() == "websocket":
             return self.ws()
+        if p == "/_dbg":
+            return self.send(str(S["preset"]))
+        if p == "/presets":
+            return self.send('<presets><preset id="1"><ContentItem source="LOCAL_INTERNET_RADIO" location="x"><itemName>Radio Eins</itemName></ContentItem></preset><preset id="3"><ContentItem source="LOCAL_INTERNET_RADIO" location="y"><itemName>Klassik</itemName></ContentItem></preset></presets>')
         if p == "/balance":
             if not S["group"]:
                 return self.send("<balance><balanceAvailable>false</balanceAvailable></balance>")
@@ -62,6 +66,8 @@ class H(BaseHTTPRequestHandler):
                         S["source"] = "AUX"; S["wake_at"] = time.time() + 2
                     else:
                         S["source"] = "STANDBY"
+                elif ">PRESET_" in body:
+                    S["preset"] = int(body.split("PRESET_")[1][0])
                 elif ">AUX_INPUT<" in body:
                     S["source"] = "BLUETOOTH" if S["source"] == "AUX" else "AUX"
             self.send("<status>/key</status>")
@@ -69,6 +75,7 @@ class H(BaseHTTPRequestHandler):
             S["vol"] = int(body.split(">")[1].split("<")[0]); self.send("<status>/volume</status>")
         elif self.path == "/select":
             if 'source="AUX"' in body: S["source"] = "AUX"
+            if 'source="BLUETOOTH"' in body and not os.environ.get("MOCK_NO_BT_SELECT"): S["source"] = "BLUETOOTH"
             self.send("<status>/select</status>")
         elif self.path == "/addGroup":
             S["group"] = body; self.send("<group/>")
