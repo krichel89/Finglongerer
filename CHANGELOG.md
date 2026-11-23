@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.2.1 – 2026-11-23
+- Behoben: „App nicht installiert" beim Update – die APK wird jetzt bei jedem Build mit demselben Schlüssel signiert (einmalig muss die alte App deinstalliert werden)
+
 ## 0.2.0 – 2026-11-23
 - Neu: Version unter ⚙ Einstellungen sichtbar
 - Neu: Bereich „Erweitert" (eingeklappt, unten) mit der Box-Verwaltung
