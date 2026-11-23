@@ -17,6 +17,9 @@ Languages: English and German (follows the system language, switchable under ⚙
 GitHub → **Actions** → latest run → artifact **Finglongerer-&lt;version&gt;-apk**; for tags also under *Releases*. Install the APK on your phone (allow installation from unknown sources). Phone and speakers must be on the same network.
 The APK is debug-signed with a fixed, public key; it is meant for private use.
 
+## License
+MIT, see [LICENSE](LICENSE).
+
 ## Privacy
 Everything stays on your phone and in your home network. No accounts, no analytics. Only private network addresses are accepted. Settings (including a Music Assistant token, if you enter one) are stored in the app's private storage; Android backup is disabled.
 
@@ -43,6 +46,9 @@ Android-Fernbedienung für **Bose SoundTouch** mit SoundTouch Reborn (STR) und o
 
 ## Installation
 GitHub → **Actions** → letzter Lauf → Artefakt **Finglongerer-&lt;Version&gt;-apk** (bei Tags auch unter *Releases*), APK auf dem Handy installieren („Installation aus unbekannten Quellen“ erlauben). Handy und Boxen im selben Netz. Die APK ist mit einem festen, öffentlichen Debug-Schlüssel signiert und für den privaten Gebrauch gedacht.
+
+## Lizenz
+MIT, siehe [LICENSE](LICENSE).
 
 ## Datenschutz
 Alles bleibt auf dem Handy und im Heimnetz. Keine Konten, keine Statistik. Es werden nur private Netzwerkadressen akzeptiert. Einstellungen (auch ein Music-Assistant-Token) liegen im privaten Speicher der App; das Android-Backup ist abgeschaltet.

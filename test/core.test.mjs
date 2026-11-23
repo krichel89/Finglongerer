@@ -27,7 +27,7 @@ function nodeHttp(method, ip, port, path, body, timeout, extra) {
 }
 const mem = {};
 const storage = { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } };
-let LANG = 'de';
+let LANG = 'de', maStuck = false;   // maStuck: play_pause setzt eine pausierte Warteschlange nicht fort (wie bei AirPlay beobachtet)
 const core = STCore.createCore({ http: nodeHttp, WebSocket, storage, scanTimeout: 400, lang: () => LANG }); // wsPorts Standard: 8080 (verweigert) -> 8090
 
 let n = 0;
@@ -163,7 +163,8 @@ try {
       if (m.command === 'player_queues/all') return res.end(JSON.stringify([
         { queue_id: 'ma-a', active: true, state: maQ['ma-a'], current_item: { name: 'Nina Simone/Band - Sinnerman', media_item: { name: 'Sinnerman', artists: [{ name: 'Nina Simone' }, { name: 'Band' }], album: { name: 'Sinnerman LP' }, metadata: { images: [{ type: 'thumb', path: 'http://127.0.0.9:8096/Items/1/Images/Primary?api_key=GEHEIMSCHLUESSEL1' }] } } } },
         { queue_id: 'ma-b', active: false, state: maQ['ma-b'], current_item: null }]));
-      if (m.command === 'player_queues/play_pause') maQ[m.args.queue_id] = maQ[m.args.queue_id] === 'playing' ? 'paused' : 'playing';
+      if (m.command === 'player_queues/play_pause' && !(maStuck && maQ[m.args.queue_id] === 'paused')) maQ[m.args.queue_id] = maQ[m.args.queue_id] === 'playing' ? 'paused' : 'playing';
+      if (m.command === 'player_queues/play') maQ[m.args.queue_id] = 'playing';
       res.end('null');
     });
   }).listen(8095, '127.0.0.9');
@@ -181,6 +182,12 @@ try {
   await call('/api/key', { idx: 0, key: 'PREV_TRACK' }); assert.ok(maLog.includes('player_queues/previous:{"queue_id":"ma-a"}'));
   await call('/api/key', { gid: 'g1', key: 'PLAY_PAUSE' }); assert.ok(maLog.includes('player_queues/play_pause:{"queue_id":"ma-a"}'));
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused'); assert.equal(st.speakers[0].title, tBox); ok('Zurück, Play/Pause (Gruppe → Master) über MA; Box-Tasten blieben unberührt');
+  maStuck = true; maLog.length = 0;
+  await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' });
+  assert.ok(maLog.includes('player_queues/play:{"queue_id":"ma-a"}')); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'playing'); maStuck = false;
+  ok('Weiterspielen: setzt play_pause nicht fort, hilft play nach');
+  await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' }); await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' });   // zurück auf "pausiert" wie vorher: Pause, dann Fortsetzen
+  await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' }); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused');
   await call('/api/aux', { idx: 1 }); await call('/api/preset', { idx: 1, n: 1 }); maLog.length = 0;
   await call('/api/key', { idx: 1, key: 'NEXT_TRACK' }); assert.ok(!maLog.some(x => x.startsWith('player_queues/next'))); ok('Box ohne laufendes MA: Taste geht an die Box');
   await call('/api/config', { speakers: [{ id: 'a', name: 'Alpha', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'falscher-token-1' });
@@ -192,6 +199,8 @@ try {
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, true); ok('AirPlay von MA (Titel der Box = Titel der MA-Warteschlange): MA aktiv');
   await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName>Anderes Lied</itemName></ContentItem>', 2000);   // AirPlay vom Handy
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('AirPlay mit anderem Titel (z. B. vom Handy): MA nicht aktiv');
+  await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName></itemName></ContentItem>', 2000);   // pausiert: Box meldet keinen Titel
+  st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, true); ok('AirPlay ohne Titel (pausiert): MA-Warteschlange gilt');
   r = await call('/api/diag'); assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();
   // Englisch: Meldungen der Kernlogik folgen der Spracheinstellung

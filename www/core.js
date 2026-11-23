@@ -466,7 +466,7 @@
       const norm = v => String(v || '').trim().toLowerCase(), air = !!f && (f.ci.source === 'AIRPLAY' || f.source === 'AIRPLAY');
       // AirPlay (so streamt MA zu diesen Boxen) kann auch vom Handy kommen: MA gilt nur, wenn der Titel der Box zum Titel der MA-Warteschlange passt
       const sure = u ? (u[1] === conf.ip && (u[2] === '8095' || u[2] === '8097'))
-        : air ? (!!f.track && norm(f.track) === norm(out.title))
+        : air ? (!f.track || norm(f.track) === norm(out.title))   // pausiert meldet die Box über AirPlay oft keinen Titel: dann gilt die MA-Warteschlange
         : (f ? !(MA_NOT_MA.has(f.ci.source) || MA_NOT_MA.has(f.source)) : false);   // ohne IP-Adresse in der URL: nach Quelle entscheiden
       out.active = live(q) && !!f && f.source !== 'STANDBY' && !!sure;
       return out;
@@ -475,6 +475,20 @@
       const conf = maConf(); if (!conf || Date.now() < maDownUntil) return null;
       try { return {conf, players: await maPlayers(conf), queues: asList(await maCall(conf, 'player_queues/all', {}, 2500))}; }
       catch (e) { maDownUntil = Date.now() + 15000; return null; }   // nicht erreichbar: 15 s nicht erneut warten
+    }
+
+    // Weiterspielen nach Pause: play_pause allein setzt bei manchen Playern (z. B. AirPlay) nicht fort -> prüfen und mit play/resume nachhelfen
+    async function maResume(conf, queueId) {
+      const state = async () => {
+        await sleep(900);
+        try { const q = asList(await maCall(conf, 'player_queues/all', {}, 2500)).find(x => x && x.queue_id === queueId); return q ? q.state : ''; }
+        catch (e) { return ''; }
+      };
+      let st = await state(); if (st === 'playing' || st === '') return;
+      for (const cmd of ['player_queues/play', 'player_queues/resume']) {
+        try { await maCall(conf, cmd, {queue_id: queueId}, 4000); } catch (e) { continue; }
+        if ((await state()) === 'playing') return;
+      }
     }
 
     // ---- Umziehen: laufende Wiedergabe von einer Box/Gruppe auf eine andere
@@ -726,6 +740,7 @@
         const snap = await maSnapshot(), info = snap && maInfo(snap.conf, snap.players, snap.queues, sp, f);
         if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
           await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 4000);
+          if (key === 'PLAY_PAUSE' && info.state === 'paused') await maResume(snap.conf, info.queueId);
           return {ok: true, message: T('act.viaMa', T('key.' + key))};
         }
         await pressKey(sp.ip, key);

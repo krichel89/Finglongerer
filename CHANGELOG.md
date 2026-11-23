@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.1
+- **Weiterspielen nach Pause über Music Assistant:** Pause ging, Weiterspielen nicht. Zwei mögliche Ursachen sind behoben: (1) Über AirPlay meldet die Box im Pausenzustand oft keinen Titel; dann galt Music Assistant nicht mehr als Quelle und die Taste ging an die Box. Jetzt gilt die MA-Warteschlange, solange sie läuft oder pausiert und kein anderer Titel gemeldet wird. (2) `play_pause` setzt bei manchen Playern nicht fort: die App prüft nach und schickt dann `play`, danach `resume`. Nicht an echter Hardware geprüft.
+- MIT-Lizenz (`LICENSE`).
+
 ## 0.16.0
 - **Zwei Sprachen:** Deutsch und Englisch. Standard folgt der Systemsprache des Geräts (andere Sprachen → Englisch); umschaltbar unter ⚙ Einstellungen → Sprache, wirkt sofort. Alle Texte stehen in `www/i18n.js`; ein Test prüft, dass beide Sprachen vollständig sind.
 - **Keine Vorgaben mehr:** keine voreingetragenen Boxen und keine Standardgruppe; Platzhalter-Adressen sind neutral (192.168.1.x). Der alte Server-Ordner `server/` (Version 0.1) ist entfernt. Die Übernahme der Version-0.2-Einstellungen entfällt.
