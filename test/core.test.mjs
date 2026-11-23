@@ -165,6 +165,7 @@ try {
         { queue_id: 'ma-b', active: false, state: maQ['ma-b'], current_item: null }]));
       if (m.command === 'player_queues/play_pause' && !(maStuck && maQ[m.args.queue_id] === 'paused')) maQ[m.args.queue_id] = maQ[m.args.queue_id] === 'playing' ? 'paused' : 'playing';
       if (m.command === 'player_queues/play') maQ[m.args.queue_id] = 'playing';
+      if (m.command === 'player_queues/transfer') { maQ[m.args.target_queue_id] = 'playing'; maQ[m.args.source_queue_id] = 'idle'; }
       res.end('null');
     });
   }).listen(8095, '127.0.0.9');
@@ -201,6 +202,12 @@ try {
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('AirPlay mit anderem Titel (z. B. vom Handy): MA nicht aktiv');
   await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName></itemName></ContentItem>', 2000);   // pausiert: Box meldet keinen Titel
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, true); ok('AirPlay ohne Titel (pausiert): MA-Warteschlange gilt');
+  // Umziehen bei laufendem MA: Warteschlange wird per MA übertragen
+  await call('/api/config', { speakers: [{ id: 'a', name: 'Alpha', ip: '127.0.0.2', max: 70 }, { id: 'b', name: 'Bravo', ip: '127.0.0.3', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
+  await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName>Sinnerman</itemName></ContentItem>', 2000);
+  maQ['ma-a'] = 'playing'; maQ['ma-b'] = 'idle'; maLog.length = 0;
+  r = await call('/api/move', { from: { idx: 0 }, to: { idx: 1 }, mode: 'move' }); assert.match(r.message, /umgezogen auf Bravo/);
+  assert.ok(maLog.includes('player_queues/transfer:{"source_queue_id":"ma-a","target_queue_id":"ma-b","auto_play":true}')); ok('Umziehen mit MA: player_queues/transfer an die Ziel-Box');
   r = await call('/api/diag'); assert.match(r.text, /== Letzte Player-Tasten/); assert.match(r.text, /"via":"MA".*player_queues\/play_pause ok/); assert.match(r.text, /"via":"Box"/); assert.match(r.text, /player_queues\/play ok/);
   assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();

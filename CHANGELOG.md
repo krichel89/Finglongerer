@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.3
+- Umziehen bei laufendem Music Assistant: MA überträgt die Warteschlange selbst auf die Ziel-Box (`player_queues/transfer`), statt die Box-Quelle zu kopieren. Auch wenn die Quell-Box dabei als „aus“ gemeldet wird.
+- Die Diagnose zeigt unter „Letzte Player-Tasten“ jetzt auch die letzten Umzüge mit Schritten.
+
 ## 0.16.2
 - Diagnose zeigt jetzt die letzten Player-Tasten: ob die Taste an Music Assistant oder an die Box ging, warum (Quelle, Titel, Zustand der MA-Warteschlange) und was MA geantwortet hat. Für die Suche, warum Weiterspielen/Weiter/Zurück bei Music Assistant nicht sauber laufen.
 

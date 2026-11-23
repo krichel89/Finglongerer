@@ -511,6 +511,18 @@
       const dstIds = new Set(dst.map(b => b.id)), srcIds = new Set(src.map(b => b.id));
       if (src.length === dst.length && src.every(b => dstIds.has(b.id))) throw new Error(T('err.moveSame'));
       const now = await nowFull(src[0].ip);
+      // Spielt Music Assistant (Box-Quelle meist AirPlay), zieht MA die Warteschlange selbst um; die Box-Quelle lässt sich dort nicht kopieren
+      const log = {move: names(src) + ' -> ' + names(dst), mode, box: [now.source, now.ci.source, now.play || '-', now.track || '-'].join(' | '), via: '', schritte: []};
+      keyLog.push(log); if (keyLog.length > 8) keyLog.shift();
+      if (mode === 'move') {
+        const snap = await maSnapshot(), sq = snap && maLiveQueue(snap, src[0]);
+        log.ma = snap ? (sq ? {queue: sq.queue_id, state: sq.state} : 'keine laufende Warteschlange') : 'nicht erreichbar/nicht eingerichtet';
+        const info = snap && now.source !== 'STANDBY' ? maInfo(snap.conf, snap.players, snap.queues, src[0], now) : null;
+        if (sq && ((info && info.active) || now.source === 'STANDBY')) {
+          log.via = 'MA';
+          try { return await moveViaMa(snap, sq, src, dst, log); } catch (e) { log.schritte.push('FEHLER ' + e.message); throw e; }
+        }
+      }
       if (now.source === 'STANDBY') throw new Error(T('err.moveOff', src[0].name));
       if (mode === 'add') {
         const extra = dst.filter(b => !srcIds.has(b.id));
@@ -541,6 +553,49 @@
       }
       const leaving = src.filter(b => !dstIds.has(b.id));
       for (let i = 0; i < leaving.length; i++) {      // wie Gruppe aus: Master zuerst, dann Pause (sonst weckt der zweite POWER die Folge-Box)
+        try { await doOff(leaving[i]); } catch (e) { warn.push(leaving[i].name + ': ' + e.message); }
+        if (i === 0 && leaving.length > 1) await sleep(1500);
+      }
+      return T('act.moved', names(dst), warn.length ? ' (' + warn.join('; ') + ')' : '');
+    }
+    // laufende (spielende/pausierte) MA-Warteschlange einer Box, sonst null
+    function maLiveQueue(snap, sp) {
+      for (const p of maMatch(snap.players, sp)) {
+        const q = snap.queues.find(x => x && x.queue_id === p.player_id);
+        if (q && (q.state === 'playing' || q.state === 'paused') && q.current_item) return q;
+      }
+      return null;
+    }
+    async function moveViaMa(snap, sq, src, dst, log) {
+      const dstIds = new Set(dst.map(b => b.id)), d0 = dst[0], steps = log.schritte;
+      const leaving = src.filter(b => !dstIds.has(b.id));
+      await wake(d0); steps.push('Ziel wach');
+      // frisch aufgewachte Box taucht erst nach einigen Sekunden wieder als MA-Player auf
+      let tq = null;
+      for (let i = 0; i < 8 && !tq; i++) {
+        maCache.players = null;
+        const players = await maPlayers(snap.conf);
+        const p = maMatch(players, d0)[0];
+        if (p) tq = p.player_id; else await sleep(1000);
+      }
+      if (!tq) throw new Error(T('err.moveNoMa', d0.name));
+      steps.push('Ziel-Player ' + tq);
+      if (tq !== sq.queue_id) {
+        await maCall(snap.conf, 'player_queues/transfer', {source_queue_id: sq.queue_id, target_queue_id: tq, auto_play: true}, 8000);
+        steps.push('player_queues/transfer ok');
+      }
+      let st = '';
+      for (let i = 0; i < 6 && st !== 'playing'; i++) {
+        await sleep(1000);
+        try { const q = asList(await maCall(snap.conf, 'player_queues/all', {}, 2500)).find(x => x && x.queue_id === tq); st = q ? q.state : ''; } catch (e) { st = ''; }
+      }
+      steps.push('Ziel-Zustand: ' + (st || '?'));
+      if (st !== 'playing') throw new Error(T('err.moveMaNotPlaying', d0.name));
+      const warn = [];
+      if (dst.length > 1) {
+        try { if (!(await isStereoPair(dst))) await makeZone(dst); } catch (e) { warn.push(T('err.zone', e.message)); }
+      }
+      for (let i = 0; i < leaving.length; i++) {
         try { await doOff(leaving[i]); } catch (e) { warn.push(leaving[i].name + ': ' + e.message); }
         if (i === 0 && leaving.length > 1) await sleep(1500);
       }
