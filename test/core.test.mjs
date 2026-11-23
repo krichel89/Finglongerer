@@ -185,8 +185,8 @@ try {
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused'); assert.equal(st.speakers[0].title, tBox); ok('Zurück, Play/Pause (Gruppe → Master) über MA; Box-Tasten blieben unberührt');
   maStuck = true; maLog.length = 0;
   await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' });
-  assert.ok(maLog.includes('player_queues/resume:{"queue_id":"ma-a"}')); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'playing'); maStuck = false;
-  ok('Weiterspielen: setzt play_pause nicht fort, hilft play nach');
+  assert.ok(!maLog.some(x => x.startsWith('player_queues/play_pause'))); assert.ok(maLog.includes('player_queues/resume:{"queue_id":"ma-a"}')); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'playing'); maStuck = false;
+  ok('Weiterspielen: setzt play_pause nicht fort, geht gleich per resume');
   await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' }); await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' });   // zurück auf "pausiert" wie vorher: Pause, dann Fortsetzen
   await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' }); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused');
   await call('/api/aux', { idx: 1 }); await call('/api/preset', { idx: 1, n: 1 }); maLog.length = 0;

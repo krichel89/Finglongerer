@@ -804,9 +804,14 @@
           if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
             log.via = 'MA';
             const resuming = key === 'PLAY_PAUSE' && info.state === 'paused';
-            try { await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, resuming ? 8000 : 4000); log.schritte.push(MA_CMD[key] + ' ok'); }
-            catch (e) { if (!resuming) throw e; log.schritte.push(MA_CMD[key] + ' FEHLER ' + e.message); }   // MA wartet bis 5 s auf die Box: Fehler heißt "noch pausiert", nicht Abbruch
-            if (resuming) await maResume(snap.conf, info.queueId, log.schritte);
+            const t0 = Date.now(), ms = () => ' (' + (Date.now() - t0) + ' ms)';
+            if (resuming) {     // laut Diagnose setzt play_pause bei diesen Boxen (UPnP) nicht fort und kostet nur Wartezeit: gleich resume
+              try { await maCall(snap.conf, 'player_queues/resume', {queue_id: info.queueId}, 9000); log.schritte.push('player_queues/resume ok' + ms()); }
+              catch (e) {
+                log.schritte.push('player_queues/resume FEHLER ' + e.message + ms());
+                await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 8000); log.schritte.push(MA_CMD[key] + ' ok' + ms());
+              }
+            } else { await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 4000); log.schritte.push(MA_CMD[key] + ' ok' + ms()); }
             return {ok: true, message: T('act.viaMa', T('key.' + key))};
           }
           log.via = 'Box';
