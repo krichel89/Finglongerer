@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.10
+- AUX bei Gruppen: Die Auswahl von AUX wird auf jeder Box erzwungen. Eine Folge-Box in einer Zone meldet die Quelle des Masters (AUX), ohne selbst auf AUX zu stehen; die App hatte das Wählen dann übersprungen.
+- Folge-Boxen, deren Zone nur den Master meldet, entlassen sich jetzt selbst. Nach dem Auflösen wird geprüft, ob noch eine Zone besteht; sonst kommt eine Fehlermeldung.
+- Die Diagnose zeigt je Box auch `/getZone` und `/getGroup`.
+
 ## 0.16.9
 - AUX löst Gruppierungen auf: Wechselt eine Box (oder eine ganze Gruppe) auf AUX, wird eine Zone aufgelöst und ein Stereopaar aufgehoben. Jede Box nutzt ihren eigenen AUX-Eingang, damit nichts asynchron läuft.
 - Stereopaar: statt AUX/BT/Aus nur noch ein Ein/Aus-Knopf mit Symbol (grau = aus, orange = an).

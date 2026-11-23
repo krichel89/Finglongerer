@@ -238,13 +238,13 @@
 
     // ---- Aktionen
     // AUX direkt wählen (/select). Die Taste AUX_INPUT schaltet je nach Box zwischen AUX und Bluetooth um.
-    async function doAuxOn(sp) {
+    async function doAuxOn(sp, force) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
         if (!(await waitAwake(sp.ip))) throw new Error(T('err.noWake'));
         await sleep(1000);
       }
-      if ((await nowPlaying(sp.ip))[0] === 'AUX') return T('act.auxOn');
+      if (!force && (await nowPlaying(sp.ip))[0] === 'AUX') return T('act.auxOn');
       await stPost(sp.ip, '/select', '<ContentItem source="AUX" sourceAccount="AUX"></ContentItem>');
       for (let i = 0; i < 4; i++) {
         await sleep(700);
@@ -261,7 +261,8 @@
       const masterIp = attr(xml, 'zone', 'senderIPAddress') || sp.ip;
       let mine = null; try { mine = (await getInfo(sp.ip))[0]; } catch (e) { /* egal */ }
       const isMaster = !master || master === mine;
-      const out = (all || isMaster) ? mem : mem.filter(m => m.id === mine);
+      let out = (all || isMaster) ? mem : mem.filter(m => m.id === mine);
+      if (!out.length && master && mine && master !== mine) out = [{ip: sp.ip, id: mine}];     // Folge-Box meldet nur den Master: sich selbst entlassen
       if (!out.length) return false;
       let body = '<zone master="' + esc(master || mine || '') + '">';
       for (const m of out) body += '<member ipaddress="' + esc(m.ip) + '">' + esc(m.id) + '</member>';
@@ -280,7 +281,7 @@
       if (await dissolveZone(sp, all)) done.push(T('act.unzoned'));
       return done;
     }
-    async function doAuxFree(sp) { const d = await releaseBox(sp, false); return (await doAuxOn(sp)) + (d.length ? ' (' + d.join(', ') + ')' : ''); }
+    async function doAuxFree(sp) { const d = await releaseBox(sp, false); return (await doAuxOn(sp, d.length > 0)) + (d.length ? ' (' + d.join(', ') + ')' : ''); }
 
     // Bluetooth: direkt wählen (/select); Ersatzweg: AUX_INPUT schaltete bei der Box von AUX auf Bluetooth um
     async function doBluetoothOn(sp) {
@@ -891,7 +892,10 @@
         if (action === 'aux') {       // jede Box nimmt ihren eigenen AUX-Eingang: Zone und Stereopaar vorher auflösen
           const freed = [];
           for (const b of m) { try { freed.push(...(await releaseBox(b, true))); } catch (e) { return summarize({oks: [], errs: [b.name + ': ' + e.message]}); } }
-          const r = await runMany(m, doAuxOn);
+          const r = await runMany(m, sp => doAuxOn(sp, true));     // erzwingen: eine Folge-Box meldete vorher die Quelle des Masters (AUX), ohne selbst auf AUX zu stehen
+          for (const b of m) {          // prüfen, dass wirklich keine Zone mehr besteht
+            try { if ((await getZoneIds(b.ip)).length > 1) r.errs.push(b.name + ': ' + T('err.unzoneFail')); } catch (e) { /* nicht lesbar: nicht melden */ }
+          }
           if (freed.length && !r.errs.length) r.oks.push(T('act.groupFreed'));
           return summarize(r);
         }
@@ -929,7 +933,8 @@
         const cfg = loadConfig(), parts = [];
         for (const sp of cfg.speakers.filter(x => x.ip)) {
           let raw; try { raw = await stGet(sp.ip, '/now_playing'); } catch (e) { raw = T('diag.error', e.message); }
-          parts.push('== ' + sp.name + ' (' + sp.ip + ') /now_playing\n' + String(raw).slice(0, 4000));
+          let zr, gr; try { zr = await stGet(sp.ip, '/getZone', 2500); } catch (e) { zr = T('diag.error', e.message); } try { gr = await stGet(sp.ip, '/getGroup', 2500); } catch (e) { gr = T('diag.error', e.message); }
+          parts.push('== ' + sp.name + ' (' + sp.ip + ') /now_playing\n' + String(raw).slice(0, 4000) + '\n/getZone ' + String(zr).slice(0, 800) + '\n/getGroup ' + String(gr).slice(0, 800));
         }
         const conf = maConf();
         if (conf) {
