@@ -769,6 +769,24 @@
         }
         throw new Error('Unbekannte Aktion');
       }
+      if (path === '/api/diag') {            // Rohantworten zum Weitergeben (kein Token, keine Zugangsdaten)
+        const cfg = loadConfig(), parts = [];
+        for (const sp of cfg.speakers.filter(x => x.ip)) {
+          let raw; try { raw = await stGet(sp.ip, '/now_playing'); } catch (e) { raw = 'Fehler: ' + e.message; }
+          parts.push('== ' + sp.name + ' (' + sp.ip + ') /now_playing\n' + String(raw).slice(0, 4000));
+        }
+        const conf = maConf();
+        if (conf) {
+          try {
+            const players = await maPlayers(conf), queues = asList(await maCall(conf, 'player_queues/all', {}, 2500));
+            for (const sp of cfg.speakers.filter(x => x.ip)) {
+              const pl = maMatch(players, sp)[0], q = pl && queues.find(x => x && x.queue_id === pl.player_id);
+              parts.push('== ' + sp.name + ' Music Assistant ' + (pl ? 'Player ' + pl.player_id : '- kein Player') + (q ? ' Warteschlange:\n' + JSON.stringify(q).slice(0, 3500) : ''));
+            }
+          } catch (e) { parts.push('== Music Assistant: ' + e.message); }
+        }
+        return {ok: true, text: parts.join('\n\n') || 'Keine Box mit IP eingetragen'};
+      }
       if (path === '/api/ma/test') {        // Verbindung prüfen und Boxen den MA-Playern zuordnen (zugleich Diagnose)
         const conf = maConf(); if (!conf) throw new Error('Adresse und Token eintragen und speichern');
         maCache = {key: '', at: 0, players: null}; maDownUntil = 0;

@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.13.1
+- Einstellungen → Diagnose: „Antworten der Boxen zeigen" listet je Box die Rohantwort von `/now_playing` (Titel, Cover-Feld, Quelle) und, wenn Music Assistant verbunden ist, den Warteschlangen-Eintrag des zugeordneten Players; „Kopieren" legt den Text in die Zwischenablage. Der MA-Token steht nie darin.
+
 ## 0.13.0
 - Music Assistant steuert Weiter/Zurück/Play-Pause selbst: Spielt MA auf einer Box, gehen die Player-Tasten per `POST /api` (`player_queues/next`, `/previous`, `/play_pause`) an MA statt an die Box (deren Tasten melden dort „Invalid Source"; Fortsetzen ging nicht). Bei Gruppen zählt die Master-Box. Titel und Interpret in der Titelzeile kommen dann ebenfalls von MA.
 - Einstellungen: neues Feld „Token" (langlebiger Token aus dem MA-Profil) und „Verbindung testen": zeigt je Box den zugeordneten MA-Player, den Zustand der Warteschlange und die Quelle der Box (als Diagnose).

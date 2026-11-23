@@ -430,7 +430,7 @@ $('#btn-settings').onclick = () => {
   (cfg.speakers.length ? cfg.speakers : [{}]).forEach(addRow);
   editGroups = cfg.groups.map(g => ({id: g.id, name: g.name, members: g.members.slice()}));
   renderGroupEditor();
-  $('#scan-res').textContent = ''; $('#dlg-err').textContent = ''; $('#ma-url').value = cfg.ma || ''; $('#ma-token').value = cfg.maToken || ''; $('#ma-res').textContent = '';
+  $('#scan-res').textContent = ''; $('#dlg-err').textContent = ''; $('#ma-url').value = cfg.ma || ''; $('#ma-token').value = cfg.maToken || ''; $('#ma-res').textContent = ''; $('#diag-out').hidden = true;
   $('#version').textContent = 'Version ' + (window.APP_VERSION || '?');
   $('#dlg').showModal();
 };
@@ -463,6 +463,18 @@ $('#ma-scan').onclick = async e => {
       onclick: () => { $('#ma-url').value = f.url; }})));
   } catch (ex) { err.textContent = ex.message; }
   finally { b.disabled = false; b.classList.remove('wait'); }
+};
+$('#diag-go').onclick = async e => {
+  const b = e.currentTarget, out = $('#diag-out'), err = $('#dlg-err');
+  b.disabled = true; b.classList.add('wait'); err.textContent = '';
+  try { const j = await api('/api/diag'); out.value = j.text; out.hidden = false; }
+  catch (ex) { err.textContent = ex.message; }
+  finally { b.disabled = false; b.classList.remove('wait'); }
+};
+$('#diag-copy').onclick = async () => {
+  const out = $('#diag-out'); if (out.hidden || !out.value) { toast('Erst „Antworten der Boxen zeigen"', true); return; }
+  try { await navigator.clipboard.writeText(out.value); toast('Kopiert'); }
+  catch (e) { out.focus(); out.select(); try { document.execCommand('copy'); toast('Kopiert'); } catch (x) { toast('Text markieren und von Hand kopieren', true); } }
 };
 $('#ma-test').onclick = async e => {       // erst speichern (Adresse/Token), dann prüfen
   const b = e.currentTarget, err = $('#dlg-err'), res = $('#ma-res');

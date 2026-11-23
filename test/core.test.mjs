@@ -183,7 +183,9 @@ try {
   await call('/api/key', { idx: 1, key: 'NEXT_TRACK' }); assert.ok(!maLog.some(x => x.startsWith('player_queues/next'))); ok('Box ohne laufendes MA: Taste geht an die Box');
   await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'falscher-token-1' });
   st = await call('/api/state'); assert.equal(st.speakers[0].ma, undefined); await assert.rejects(call('/api/ma/test'), /lehnt den Token ab/); ok('Falscher Token: Anzeige läuft ohne MA weiter, Test meldet es');
-  maSrv.close();
+  r = await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
+  r = await call('/api/diag'); assert.match(r.text, /== Musikzimmer \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Musikzimmer Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
+  maSrv.closeAllConnections(); maSrv.close();
   console.log('\nalle', n, 'Tests bestanden');
 } catch (e) { console.error('FEHLER nach Test', n, '\n', e); process.exitCode = 1; }
 stop();
