@@ -23,7 +23,7 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
-      - name: Version prüfen (bei Tag: muss zum Tag passen)
+      - name: "Version prüfen (bei Tag muss sie zum Tag passen)"
         run: |
           V=$(node -p "require('./package.json').version")
           echo "VERSION=$V" >> "$GITHUB_ENV"
