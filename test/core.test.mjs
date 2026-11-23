@@ -164,7 +164,7 @@ try {
         { queue_id: 'ma-a', active: true, state: maQ['ma-a'], current_item: { name: 'Nina Simone/Band - Sinnerman', media_item: { name: 'Sinnerman', artists: [{ name: 'Nina Simone' }, { name: 'Band' }], album: { name: 'Sinnerman LP' }, metadata: { images: [{ type: 'thumb', path: 'http://127.0.0.9:8096/Items/1/Images/Primary?api_key=GEHEIMSCHLUESSEL1' }] } } } },
         { queue_id: 'ma-b', active: false, state: maQ['ma-b'], current_item: null }]));
       if (m.command === 'player_queues/play_pause' && !(maStuck && maQ[m.args.queue_id] === 'paused')) maQ[m.args.queue_id] = maQ[m.args.queue_id] === 'playing' ? 'paused' : 'playing';
-      if (m.command === 'player_queues/play') maQ[m.args.queue_id] = 'playing';
+      if (m.command === 'player_queues/resume') maQ[m.args.queue_id] = 'playing';
       if (m.command === 'player_queues/transfer') { maQ[m.args.target_queue_id] = 'playing'; maQ[m.args.source_queue_id] = 'idle'; }
       res.end('null');
     });
@@ -185,7 +185,7 @@ try {
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused'); assert.equal(st.speakers[0].title, tBox); ok('Zurück, Play/Pause (Gruppe → Master) über MA; Box-Tasten blieben unberührt');
   maStuck = true; maLog.length = 0;
   await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' });
-  assert.ok(maLog.includes('player_queues/play:{"queue_id":"ma-a"}')); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'playing'); maStuck = false;
+  assert.ok(maLog.includes('player_queues/resume:{"queue_id":"ma-a"}')); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'playing'); maStuck = false;
   ok('Weiterspielen: setzt play_pause nicht fort, hilft play nach');
   await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' }); await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' });   // zurück auf "pausiert" wie vorher: Pause, dann Fortsetzen
   await call('/api/key', { idx: 0, key: 'PLAY_PAUSE' }); st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused');
@@ -208,7 +208,7 @@ try {
   maQ['ma-a'] = 'playing'; maQ['ma-b'] = 'idle'; maLog.length = 0;
   r = await call('/api/move', { from: { idx: 0 }, to: { idx: 1 }, mode: 'move' }); assert.match(r.message, /umgezogen auf Bravo/);
   assert.ok(maLog.includes('player_queues/transfer:{"source_queue_id":"ma-a","target_queue_id":"ma-b","auto_play":true}')); ok('Umziehen mit MA: player_queues/transfer an die Ziel-Box');
-  r = await call('/api/diag'); assert.match(r.text, /== Letzte Player-Tasten/); assert.match(r.text, /"via":"MA".*player_queues\/play_pause ok/); assert.match(r.text, /"via":"Box"/); assert.match(r.text, /player_queues\/play ok/);
+  r = await call('/api/diag'); assert.match(r.text, /== Letzte Player-Tasten/); assert.match(r.text, /"via":"MA".*player_queues\/play_pause ok/); assert.match(r.text, /"via":"Box"/); assert.match(r.text, /player_queues\/resume ok/);
   assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();
   // Englisch: Meldungen der Kernlogik folgen der Spracheinstellung

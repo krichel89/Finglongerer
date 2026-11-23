@@ -488,8 +488,9 @@
       };
       let st = await state(); if (steps) steps.push('nach play_pause: ' + (st || '?'));
       if (st === 'playing' || st === '') return;
-      for (const cmd of ['player_queues/play', 'player_queues/resume']) {
-        try { await maCall(conf, cmd, {queue_id: queueId}, 4000); note(cmd); } catch (e) { note(cmd, e); continue; }
+      // play_pause entspricht bei Pause schon player_queues/play (MA wartet bis 5 s auf die Bestätigung der Box); bleibt es pausiert, startet resume den Titel neu an der Pausenstelle
+      for (const cmd of ['player_queues/resume']) {
+        try { await maCall(conf, cmd, {queue_id: queueId}, 9000); note(cmd); } catch (e) { note(cmd, e); continue; }
         st = await state(); if (steps) steps.push('danach: ' + (st || '?'));
         if (st === 'playing') return;
       }
@@ -802,8 +803,10 @@
         try {
           if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
             log.via = 'MA';
-            await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 4000); log.schritte.push(MA_CMD[key] + ' ok');
-            if (key === 'PLAY_PAUSE' && info.state === 'paused') await maResume(snap.conf, info.queueId, log.schritte);
+            const resuming = key === 'PLAY_PAUSE' && info.state === 'paused';
+            try { await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, resuming ? 8000 : 4000); log.schritte.push(MA_CMD[key] + ' ok'); }
+            catch (e) { if (!resuming) throw e; log.schritte.push(MA_CMD[key] + ' FEHLER ' + e.message); }   // MA wartet bis 5 s auf die Box: Fehler heißt "noch pausiert", nicht Abbruch
+            if (resuming) await maResume(snap.conf, info.queueId, log.schritte);
             return {ok: true, message: T('act.viaMa', T('key.' + key))};
           }
           log.via = 'Box';

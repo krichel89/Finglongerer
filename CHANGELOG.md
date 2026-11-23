@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.4
+- Play nach Pause über Music Assistant: Laut MA-Quelltext wartet `play_pause` bis zu 5 s auf die Bestätigung der Box, die App brach nach 4 s ab und kam nie zum Nachhelfen. Jetzt 8 s Wartezeit, ein Fehler dort bricht nicht mehr ab, danach `player_queues/resume`. Der nicht belegte Befehl `player_queues/play` ist raus.
+
 ## 0.16.3
 - Umziehen bei laufendem Music Assistant: MA überträgt die Warteschlange selbst auf die Ziel-Box (`player_queues/transfer`), statt die Box-Quelle zu kopieren. Auch wenn die Quell-Box dabei als „aus“ gemeldet wird.
 - Die Diagnose zeigt unter „Letzte Player-Tasten“ jetzt auch die letzten Umzüge mit Schritten.
