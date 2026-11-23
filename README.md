@@ -1,34 +1,48 @@
 # Finglongerer
 
-**Finglongerer** – schlanke Android-Fernbedienung für Bose SoundTouch mit ST Reborn – **ohne Server**, die App spricht die Boxen direkt im WLAN an.
+Android remote control for **Bose SoundTouch** speakers running SoundTouch Reborn (STR), with optional **Music Assistant** integration. **No server needed** – the app talks to your speakers directly over your home Wi-Fi.
+Languages: English and German (follows the system language, switchable under ⚙ Settings).
 
-- Pro Box: **AUX an**, **Aus** (Standby wird erkannt, POWER ist nur ein Umschalter), Lautstärke mit Obergrenze
-- Oben: „Alle: AUX an" / „Alle: Aus"
-- **Beide Boxen:** Gesamtlautstärke und Balance
-  - ohne Stereopaar: *virtuelle* Balance (die abgewandte Box wird leiser)
-  - im Stereopaar: *echte* Balance der Boxen (−7 … +7, per WebSocket)
-- Stereopaar bilden und auflösen
-- **Gruppen:** beliebig viele, mit beliebig vielen Boxen (⚙ Einstellungen); Startseite zeigt nur Gruppen. Bei genau zwei Boxen zusätzlich Balance und Stereopaar
-- Anzeige: Knöpfe dunkelgrau, eingeschaltet = orange Schrift, wartet auf die Box = blinkend
-- Startseite: Gruppen und Einzelboxen gleichrangig, zugeklappt, sortierbar (⇅); Reihenfolge und aufgeklappte Karten werden gemerkt. Pro Eintrag AUX, Bluetooth, Aus, Lautstärke und ausklappbar die Sendertasten 1–6. Boxen verwalten und automatisch suchen: ⚙ Einstellungen
-- Boxen (Name, IP, max. Lautstärke) unter ⚙ einstellbar, bleiben gespeichert
+## Features
+- Per speaker or group: AUX, Bluetooth, Off, volume with a maximum limit, presets 1–6 (7–12 with the STR agent), long press saves what is playing
+- Groups of any size (multiroom zones); with exactly two speakers also balance and stereo pair
+- Now playing: title, artist, album, station and cover; play/pause/previous/next
+- Move running music to another speaker or group, or add speakers to it
+- Music Assistant: skip/pause controlled through MA when MA is the source (token needed)
+- Play any stream URL (also via Android "Share")
+- Automatic search for speakers and Music Assistant on your network
+- Nothing is preconfigured: add your speakers and groups under ⚙ Settings
 
-## Version
-Steht unter ⚙ Einstellungen. Neue Version: `node scripts/set-version.mjs 0.3.0`, `CHANGELOG.md` ergänzen, committen, dann `git tag v0.3.0 && git push --tags` – das erzeugt ein GitHub-Release mit der APK.
+## Install
+GitHub → **Actions** → latest run → artifact **Finglongerer-&lt;version&gt;-apk**; for tags also under *Releases*. Install the APK on your phone (allow installation from unknown sources). Phone and speakers must be on the same network.
+The APK is debug-signed with a fixed, public key; it is meant for private use.
 
-## APK bauen
-GitHub → **Actions** → „APK bauen" → *Run workflow* (läuft auch bei jedem Push auf `main`).
-Danach unter dem Lauf das Artefakt **Finglongerer-<Version>-apk** herunterladen (bei Tags zusätzlich unter *Releases*), auf dem Handy installieren
-(„Installation aus unbekannten Quellen" erlauben). Handy und Boxen müssen im selben WLAN sein.
+## Privacy
+Everything stays on your phone and in your home network. No accounts, no analytics. Only private network addresses are accepted. Settings (including a Music Assistant token, if you enter one) are stored in the app's private storage; Android backup is disabled.
 
-Lokal: `npm ci && npx cap sync android`, dann `android/` in Android Studio öffnen.
+## Build
+`npm ci && npm test` (needs Node 22 and Python 3), `npx cap sync android`, then build `android/` with Gradle or Android Studio.
+New version: `node scripts/set-version.mjs X.Y.Z`, add a `## X.Y.Z` entry to `CHANGELOG.md`, commit, then `git tag vX.Y.Z && git push --tags` (creates a GitHub release with the APK).
+Structure: `www/core.js` logic, `www/native.js` transport and language, `www/i18n.js` texts, `www/app.js` + `index.html` + `style.css` UI, `test/` tests against simulated speakers.
 
-## Aufbau
-- `www/core.js` – Logik (Port der Python-Version), `www/native.js` – Transport (native HTTP, WebSocket), `www/app.js` + `index.html` + `style.css` – Oberfläche
-- `test/` – `npm test` prüft die Logik gegen simulierte Boxen (`test/mock_st.py`, benötigt Python 3)
-- `server/soundtouch_fernbedienung.py` – frühere Variante als kleiner Server mit PWA (Stand 0.1, ohne Gruppe/Auto-Suche) (ohne Abhängigkeiten, `python3 soundtouch_fernbedienung.py`)
+---
 
-## Noch nicht an echter Hardware geprüft
-- Balance schreiben: Nachrichtenformat und Port (8080, sonst 8090) stammen aus Community-Dokumentation; ob ST Reborn das unterstützt, ist offen.
-- Stereopaar bilden (`/addGroup`): Format aus Dokumentation; die App prüft das Ergebnis und meldet Fehler.
-- Sendet native HTTP-Anfragen mit XML-Body wie erwartet (Capacitor-HTTP-Plugin).
+# Finglongerer (Deutsch)
+
+Android-Fernbedienung für **Bose SoundTouch** mit SoundTouch Reborn (STR) und optional **Music Assistant** – **ohne Server**, die App spricht die Boxen direkt im WLAN an. Sprachen: Deutsch und Englisch (folgt der Systemsprache, umschaltbar unter ⚙ Einstellungen).
+
+## Funktionen
+- Pro Box oder Gruppe: AUX, Bluetooth, Aus, Lautstärke mit Obergrenze, Sendertasten 1–6 (7–12 mit STR-Agent), langer Druck speichert das Laufende
+- Gruppen beliebiger Größe (Multiroom-Zonen); bei genau zwei Boxen zusätzlich Balance und Stereopaar
+- Laufender Titel, Interpret, Album, Sender und Cover; Play/Pause/Zurück/Weiter
+- Laufende Musik auf eine andere Box oder Gruppe umziehen oder Boxen dazunehmen
+- Music Assistant: Weiter/Pause über MA, wenn MA die Quelle ist (Token nötig)
+- Beliebige Stream-URL abspielen (auch über „Teilen“)
+- Automatische Suche nach Boxen und Music Assistant im Netz
+- Nichts vorbelegt: Boxen und Gruppen unter ⚙ Einstellungen anlegen
+
+## Installation
+GitHub → **Actions** → letzter Lauf → Artefakt **Finglongerer-&lt;Version&gt;-apk** (bei Tags auch unter *Releases*), APK auf dem Handy installieren („Installation aus unbekannten Quellen“ erlauben). Handy und Boxen im selben Netz. Die APK ist mit einem festen, öffentlichen Debug-Schlüssel signiert und für den privaten Gebrauch gedacht.
+
+## Datenschutz
+Alles bleibt auf dem Handy und im Heimnetz. Keine Konten, keine Statistik. Es werden nur private Netzwerkadressen akzeptiert. Einstellungen (auch ein Music-Assistant-Token) liegen im privaten Speicher der App; das Android-Backup ist abgeschaltet.

@@ -1,13 +1,26 @@
 'use strict';
 const core = STCore.createCore(STNative);
 const $ = (s, el = document) => el.querySelector(s);
+const t = (key, ...a) => STI18n.t(STNative.lang(), key, ...a);   // Sprache: Einstellung oder Systemsprache
+// feste Texte der Seite (data-i18n="Schlüssel", data-i18n-ph = Platzhalter, data-i18n-title/-aria = Hinweis/Beschriftung)
+function applyStatic() {
+  document.documentElement.lang = STNative.lang();
+  document.querySelectorAll('[data-i18n]').forEach(e => { e.textContent = t(e.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(e => { e.placeholder = t(e.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-title]').forEach(e => { e.title = t(e.dataset.i18nTitle); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(e => { e.setAttribute('aria-label', t(e.dataset.i18nAria)); });
+  document.querySelectorAll('#set-rows [data-f=name]').forEach(e => { e.placeholder = t('ph.name'); });
+  document.querySelectorAll('#set-rows [data-f=max]').forEach(e => { e.placeholder = t('ph.max'); });
+  if ($('#version').textContent) $('#version').textContent = t('set.version', window.APP_VERSION || '?');
+}
+applyStatic();
 let cfg = {speakers: [], groups: []}, state = [], dragging = false, inflight = 0, cfgSig = '', lastRefresh = 0;
 const pending = {};            // Knopf-Schlüssel -> Ablaufzeit (Infinity solange der Befehl läuft)
 const balCache = {}, balRead = {}; // pro Gruppe: letzte bekannte Stereopaar-Balance / schon gelesen?
 const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
-const UI_KEY = 'steasyremote.ui';
+const UI_KEY = 'finglongerer.ui';
 const ui = {order: [], open: {}, sort: false};
 try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
@@ -18,7 +31,7 @@ const presetNames = {}, presetLoc = {}, presetRows = {}, presetRow2 = {};
 async function api(path, body) {
   // Direkt an die Boxen (kein Server): Kernlogik aus core.js, Transport aus native.js
   const j = await core.route(path, body);
-  if (j && j.ok === false) throw new Error(j.error || 'Fehler');
+  if (j && j.ok === false) throw new Error(j.error || t('ui.error'));
   return j;
 }
 let toastTimer;
@@ -73,27 +86,27 @@ async function act(path, body, btn, keys = []) {
   if (keys.some(k => k in pending)) return; // läuft schon
   inflight++; if (btn) btn.disabled = true;
   keys.forEach(k => { pending[k] = Infinity; }); paint();
-  toast('Sende ...');
+  toast(t('ui.sending'));
   try {
-    const j = await api(path, body); toast(j.message || 'OK');
+    const j = await api(path, body); toast(j.message || t('ui.ok'));
     keys.forEach(k => { if (pending[k] === Infinity) pending[k] = Date.now() + 12000; });
   } catch (e) { toast(e.message, true); keys.forEach(k => { delete pending[k]; }); }
   finally { inflight--; if (btn) btn.disabled = false; await refresh(true); paint(); }
 }
 
 // ---- Anzeige: Gruppen und Einzelboxen gleichrangig
-const SRC_NAMES = {LOCAL_INTERNET_RADIO: 'Internetradio', INTERNET_RADIO: 'Internetradio', TUNEIN: 'TuneIn', BLUETOOTH: 'BT', AIRPLAY: 'AirPlay',
-  SPOTIFY: 'Spotify', DEEZER: 'Deezer', STORED_MUSIC: 'Musikbibliothek', QPLAY: 'QPlay', PRODUCT: 'Eingang', AUX: 'AUX', NOTIFICATION: 'Hinweis'};
-const srcName = x => SRC_NAMES[x] || (x ? x.charAt(0) + x.slice(1).toLowerCase().replace(/_/g, ' ') : 'an');
+const SRC_NAMES = {LOCAL_INTERNET_RADIO: 'src.radio', INTERNET_RADIO: 'src.radio', STORED_MUSIC: 'src.library', PRODUCT: 'src.input', NOTIFICATION: 'src.notice',
+  TUNEIN: 'TuneIn', BLUETOOTH: 'BT', AIRPLAY: 'AirPlay', SPOTIFY: 'Spotify', DEEZER: 'Deezer', QPLAY: 'QPlay', AUX: 'AUX'};
+const srcName = x => SRC_NAMES[x] ? (SRC_NAMES[x].includes('.') ? t(SRC_NAMES[x]) : SRC_NAMES[x]) : (x ? x.charAt(0) + x.slice(1).toLowerCase().replace(/_/g, ' ') : t('badge.on'));
 function sourceBadge(S) {
-  if (!S.length || S.every(s => !s.online)) return ['nicht erreichbar', 'err'];
+  if (!S.length || S.every(s => !s.online)) return [t('badge.unreachable'), 'err'];
   const off = S.filter(s => !s.online).length;
-  if (off) return [off + ' nicht erreichbar', 'err'];
-  if (S.every(s => s.standby)) return ['Standby', ''];
+  if (off) return [t('badge.nUnreachable', off), 'err'];
+  if (S.every(s => s.standby)) return [t('badge.standby'), ''];
   if (S.every(s => s.source === 'AUX')) return ['AUX', 'on'];
   if (S.every(s => s.source === 'BLUETOOTH')) return ['BT', 'on'];
   if (S.every(s => s.source === S[0].source)) return [srcName(S[0].source), 'on'];
-  return ['gemischt', ''];
+  return [t('badge.mixed'), ''];
 }
 function balText(b) { return ''; }
 function volText(m, cap) { return String(m); }
@@ -121,17 +134,17 @@ function playerRow(s) {
   const viaMa = !!(s.ma && s.ma.active);
   const playing = viaMa ? s.ma.state === 'playing' : s.play !== 'PAUSE_STATE' && s.play !== 'STOP_STATE', skip = viaMa || !RADIO_SRC.has(s.source);
   return el('div', {class: 'player' + (skip ? '' : ' single')},
-    skip ? mk('prev', 'prev', 'Zurück') : null, mk('pp', playing ? 'pause' : 'play', playing ? 'Pause' : 'Abspielen'), skip ? mk('next', 'next', 'Weiter') : null);
+    skip ? mk('prev', 'prev', t('player.prev')) : null, mk('pp', playing ? 'pause' : 'play', playing ? t('player.pause') : t('player.play')), skip ? mk('next', 'next', t('player.next')) : null);
 }
 // Umziehen: laufende Musik auf eine andere Box/Gruppe übergeben oder diese dazunehmen
 const mvTo = {};
 function moveBlock(ekey) {
-  const d = el('details', {class: 'movebox'}, el('summary', {text: 'Umziehen'}));
+  const d = el('details', {class: 'movebox'}, el('summary', {text: t('move.title')}));
   const sel = el('select', {'data-role': 'mvto'}), others = entries().filter(e => e.key !== ekey);
   others.forEach(e => sel.append(el('option', {value: e.key, text: e.g ? e.g.name : (cfg.speakers[e.i] || {}).name || '?'})));
   if (mvTo[ekey] && others.some(e => e.key === mvTo[ekey])) sel.value = mvTo[ekey];
   sel.addEventListener('change', () => { mvTo[ekey] = sel.value; sel.blur(); });
-  d.append(sel, el('div', {class: 'row2'}, el('button', {text: 'Umziehen', 'data-act': 'mvgo'}), el('button', {text: 'Dazunehmen', 'data-act': 'mvadd'})));
+  d.append(sel, el('div', {class: 'row2'}, el('button', {text: t('move.go'), 'data-act': 'mvgo'}), el('button', {text: t('move.add'), 'data-act': 'mvadd'})));
   d.open = !!ui.open['m:' + ekey];
   d.addEventListener('toggle', () => { if (!!ui.open['m:' + ekey] !== d.open) { ui.open['m:' + ekey] = d.open; saveUi(); } });
   return others.length ? d : null;
@@ -147,7 +160,7 @@ function entries() {
 const srcRow = (act, key) => el('div', {class: 'row3'},
   el('button', {text: 'AUX', 'data-act': act + 'aux', 'data-key': key('aux')}),
   el('button', {text: 'BT', 'data-act': act + 'bt', 'data-key': key('bt')}),
-  el('button', {text: 'Aus', 'data-act': act + 'off', 'data-key': key('off')}));
+  el('button', {text: t('btn.off'), 'data-act': act + 'off', 'data-key': key('off')}));
 
 async function loadPresetNames(ekey) {
   if (ekey in presetNames) return;
@@ -168,7 +181,7 @@ function addRow2(d, ekey) {
   if (presetRows[ekey] !== 2 || d.querySelector('.row2box')) return;
   const r2 = presetRow2[ekey], used = r2 ? Object.keys(r2).map(Number).sort((a, b) => a - b) : [7, 8, 9, 10, 11, 12];
   if (!used.length) return;            // zweite Reihe ist leer: gar nicht anzeigen
-  const box = el('details', {class: 'row2box'}, el('summary', {text: 'Weitere Sender (7–12)'}));
+  const box = el('details', {class: 'row2box'}, el('summary', {text: t('presets.more')}));
   const g2 = el('div', {class: 'pgrid'});
   used.forEach(n => g2.append(el('button', {text: n + (r2 && r2[n] ? ' · ' + r2[n] : ''), 'data-act': 'preset', 'data-n': n})));
   box.append(g2);
@@ -177,10 +190,10 @@ function addRow2(d, ekey) {
   d.append(box);
 }
 function presetBlock(ekey) {
-  const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6)'}));
+  const d = el('details', {class: 'presets'}, el('summary', {text: t('presets.title')}));
   const names = presetNames[ekey] || {}, grid = el('div', {class: 'pgrid'});
   for (let n = 1; n <= 6; n++) grid.append(el('button', {text: n + (names[n] ? ' · ' + names[n] : ''), 'data-act': 'preset', 'data-n': n, 'data-key': 'p:' + ekey + ':' + n}));
-  d.append(grid, el('p', {class: 'hint', text: 'Lang drücken = Laufendes speichern'})); addRow2(d, ekey);
+  d.append(grid, el('p', {class: 'hint', text: t('presets.hint')})); addRow2(d, ekey);
   d.open = !!ui.open['p:' + ekey];
   d.addEventListener('toggle', () => {
     if (!!ui.open['p:' + ekey] === d.open) return;
@@ -219,8 +232,8 @@ function groupBody(g, ekey) {
         el('span', {class: 'side', text: 'R'}),
         el('span', {class: 'v', text: balText(b)})),
       el('div', {class: 'row2'},
-        el('button', {text: 'Stereopaar bilden', 'data-act': 'gpair', 'data-key': 'g:' + g.id + ':pair'}),
-        el('button', {text: 'Auflösen', 'data-act': 'gunpair'})));
+        el('button', {text: t('grp.pair'), 'data-act': 'gpair', 'data-key': 'g:' + g.id + ':pair'}),
+        el('button', {text: t('grp.unpair'), 'data-act': 'gunpair'})));
     if (paired && !balRead[g.id]) {
       balRead[g.id] = true;
       api('/api/group', {gid: g.id, action: 'read'}).then(j => {
@@ -237,7 +250,7 @@ function groupBody(g, ekey) {
 function boxBody(s, i, ekey) {
   const vol = typeof s.volume === 'number' ? s.volume : 0;
   const sub = s.error ? s.error : (s.group && s.group.paired
-    ? 'Stereopaar' + (s.group.role ? ' (' + (s.group.role === 'LEFT' ? 'links' : s.group.role === 'RIGHT' ? 'rechts' : s.group.role) + ')' : '')
+    ? t('box.pair') + (s.group.role ? ' (' + (s.group.role === 'LEFT' ? t('box.left') : s.group.role === 'RIGHT' ? t('box.right') : s.group.role) + ')' : '')
     : s.ip);
   return [
     el('div', {class: 'sub', text: sub}),
@@ -281,7 +294,7 @@ function render() {
   const ae = document.activeElement; if (ae && ae.tagName === 'SELECT' && ae.dataset.role === 'mvto') return;   // Auswahl nicht wegzeichnen
   const box = $('#groups'); box.textContent = '';
   const list = entries();
-  if (!list.length) box.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: 'Noch keine Box. Unter ⚙ Einstellungen kannst du Boxen suchen und Gruppen anlegen.'})));
+  if (!list.length) box.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: t('ui.none')})));
   list.forEach((e, pos) => box.append(entryCard(e, pos, list.length)));
   $('#btn-sort').classList.toggle('lit', ui.sort);
   const ma = $('#ma-open'); ma.hidden = !cfg.ma; if (cfg.ma) ma.href = cfg.ma;
@@ -312,7 +325,7 @@ document.addEventListener('pointerdown', ev => {
     held = true; holdTimer = null;
     const ecard = b.closest('[data-ekey]'), n = +b.dataset.n, ekey = ecard.dataset.ekey;
     const label = String(n), old = (presetNames[ekey] || {})[n];
-    if (!confirm('Taste ' + label + (old ? ' (' + old + ')' : '') + ' mit dem aktuell Laufenden belegen?')) return;
+    if (!confirm(t('presets.confirm', label, old ? ' (' + old + ')' : ''))) return;
     act('/api/save', ecard.dataset.gid ? {gid: ecard.dataset.gid, n} : {idx: +ecard.dataset.i, n}, b)
       .then(() => { delete presetNames[ekey]; if (ui.open['p:' + ekey]) loadPresetNames(ekey); });
   }, 700);
@@ -394,9 +407,9 @@ const rowsOf = () => [...$('#set-rows').children];
 const rowVal = (r, k) => $('[data-f=' + k + ']', r).value.trim();
 function addRow(sp) {
   const row = el('div', {class: 'srow', 'data-id': sp.id || newId()},
-    el('input', {placeholder: 'Name', value: sp.name || '', maxLength: 40, 'data-f': 'name', oninput: renderGroupEditor}),
+    el('input', {placeholder: t('ph.name'), value: sp.name || '', maxLength: 40, 'data-f': 'name', oninput: renderGroupEditor}),
     el('input', {placeholder: '192.168.x.y', value: sp.ip || '', inputMode: 'decimal', 'data-f': 'ip'}),
-    el('input', {placeholder: 'Max', value: sp.max || 70, type: 'number', min: 10, max: 100, 'data-f': 'max'}),
+    el('input', {placeholder: t('ph.max'), value: sp.max || 70, type: 'number', min: 10, max: 100, 'data-f': 'max'}),
     el('button', {type: 'button', text: '✕', onclick: () => {
       editGroups.forEach(g => { g.members = g.members.filter(id => id !== row.dataset.id); });
       row.remove(); renderGroupEditor(); }}));
@@ -405,7 +418,7 @@ function addRow(sp) {
 }
 function renderGroupEditor() {
   const box = $('#grp-edit'); box.textContent = '';
-  const rows = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name') || 'Box'}));
+  const rows = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name') || t('def.box')}));
   editGroups.forEach((g, gi) => {
     const members = el('div', {class: 'members inline'});
     rows.forEach(r => members.append(el('label', {},
@@ -414,12 +427,12 @@ function renderGroupEditor() {
       el('span', {text: r.name}))));
     const mem = g.members.filter(id => rows.some(r => r.id === id)), nm = id => (rows.find(r => r.id === id) || {}).name;
     const lr = mem.length === 2 ? el('div', {class: 'lr'},
-      el('span', {text: 'Links: ' + nm(mem[0]) + ' · Rechts: ' + nm(mem[1])}),
-      el('button', {type: 'button', text: '⇆ tauschen', onclick: () => { g.members = mem.slice().reverse(); renderGroupEditor(); }})) : null;
+      el('span', {text: t('grp.leftRight', nm(mem[0]), nm(mem[1]))}),
+      el('button', {type: 'button', text: t('grp.swap'), onclick: () => { g.members = mem.slice().reverse(); renderGroupEditor(); }})) : null;
     box.append(el('div', {class: 'gedit'},
       el('div', {class: 'ghead'},
-        el('input', {value: g.name, maxLength: 30, placeholder: 'Name der Gruppe', oninput: e => { g.name = e.target.value; }}),
-        el('button', {type: 'button', text: '✕', title: 'Gruppe löschen', onclick: () => { editGroups.splice(gi, 1); renderGroupEditor(); }})),
+        el('input', {value: g.name, maxLength: 30, placeholder: t('ph.groupName'), oninput: e => { g.name = e.target.value; }}),
+        el('button', {type: 'button', text: '✕', title: t('grp.delete'), onclick: () => { editGroups.splice(gi, 1); renderGroupEditor(); }})),
       members, lr));
   });
 }
@@ -438,11 +451,11 @@ $('#btn-settings').onclick = () => {
   editGroups = cfg.groups.map(g => ({id: g.id, name: g.name, members: g.members.slice()}));
   renderGroupEditor();
   $('#scan-res').textContent = ''; $('#dlg-err').textContent = ''; $('#ma-url').value = cfg.ma || ''; $('#ma-token').value = cfg.maToken || ''; $('#ma-res').textContent = ''; $('#diag-out').hidden = true;
-  $('#version').textContent = 'Version ' + (window.APP_VERSION || '?');
+  $('#version').textContent = t('set.version', window.APP_VERSION || '?'); $('#lang-sel').value = STNative.langPref();
   $('#dlg').showModal();
 };
 $('#set-add').onclick = () => { addRow({max: 70}); renderGroupEditor(); };
-$('#grp-add').onclick = () => { editGroups.push({name: 'Gruppe ' + (editGroups.length + 1), members: []}); renderGroupEditor(); };
+$('#grp-add').onclick = () => { editGroups.push({name: t('grp.defaultName', editGroups.length + 1), members: []}); renderGroupEditor(); };
 $('#scan-go').onclick = async e => {
   const b = e.currentTarget, v = $('#scan-net').value.trim(), err = $('#dlg-err');
   b.disabled = true; b.classList.add('wait'); err.textContent = ''; $('#scan-res').textContent = '';
@@ -450,12 +463,12 @@ $('#scan-go').onclick = async e => {
     const j = await api('/api/scan', v ? {prefixes: v.split(/[,\s]+/).filter(Boolean)} : {});
     const box = $('#scan-res'); box.className = 'found';
     const known = new Set(rowsOf().map(r => rowVal(r, 'ip')));
-    if (!j.found.length) err.textContent = 'Keine Box gefunden (Suchbereich: ' + j.prefixes.join(', ') + ')';
+    if (!j.found.length) err.textContent = t('scan.none', j.prefixes.join(', '));
     j.found.forEach(f => box.append(el('button', {
-      type: 'button', text: '+ ' + f.name + ' · ' + f.ip + (f.type ? ' · ' + f.type : '') + (known.has(f.ip) ? ' (schon eingetragen)' : ''),
+      type: 'button', text: '+ ' + f.name + ' · ' + f.ip + (f.type ? ' · ' + f.type : '') + (known.has(f.ip) ? t('scan.known') : ''),
       disabled: known.has(f.ip), onclick: ev => { takeFound(f); ev.currentTarget.disabled = true; }})));
     if (j.found.filter(f => !known.has(f.ip)).length > 1)
-      box.append(el('button', {type: 'button', text: 'Alle übernehmen', onclick: () => {
+      box.append(el('button', {type: 'button', text: t('scan.all'), onclick: () => {
         j.found.forEach(takeFound); [...box.querySelectorAll('button')].forEach(x => { x.disabled = true; }); }}));
   } catch (ex) { err.textContent = ex.message; }
   finally { b.disabled = false; b.classList.remove('wait'); }
@@ -465,8 +478,8 @@ $('#ma-scan').onclick = async e => {
   b.disabled = true; b.classList.add('wait'); err.textContent = ''; $('#ma-res').textContent = '';
   try {
     const j = await api('/api/ma/scan', v ? {prefixes: v.split(/[,\s]+/).filter(Boolean)} : {});
-    if (!j.found.length) err.textContent = 'Kein Music Assistant gefunden (Suchbereich: ' + j.prefixes.join(', ') + ') - Adresse von Hand eintragen';
-    j.found.forEach(f => $('#ma-res').append(el('button', {type: 'button', text: 'Übernehmen: ' + f.url + (f.version ? ' · ' + f.version : ''),
+    if (!j.found.length) err.textContent = t('scan.maNone', j.prefixes.join(', '));
+    j.found.forEach(f => $('#ma-res').append(el('button', {type: 'button', text: t('scan.take', f.url + (f.version ? ' · ' + f.version : '')),
       onclick: () => { $('#ma-url').value = f.url; }})));
   } catch (ex) { err.textContent = ex.message; }
   finally { b.disabled = false; b.classList.remove('wait'); }
@@ -479,9 +492,9 @@ $('#diag-go').onclick = async e => {
   finally { b.disabled = false; b.classList.remove('wait'); }
 };
 $('#diag-copy').onclick = async () => {
-  const out = $('#diag-out'); if (out.hidden || !out.value) { toast('Erst „Antworten der Boxen zeigen"', true); return; }
-  try { await navigator.clipboard.writeText(out.value); toast('Kopiert'); }
-  catch (e) { out.focus(); out.select(); try { document.execCommand('copy'); toast('Kopiert'); } catch (x) { toast('Text markieren und von Hand kopieren', true); } }
+  const out = $('#diag-out'); if (out.hidden || !out.value) { toast(t('toast.copyFirst'), true); return; }
+  try { await navigator.clipboard.writeText(out.value); toast(t('toast.copied')); }
+  catch (e) { out.focus(); out.select(); try { document.execCommand('copy'); toast(t('toast.copied')); } catch (x) { toast(t('toast.copyManual'), true); } }
 };
 $('#ma-test').onclick = async e => {       // erst speichern (Adresse/Token), dann prüfen
   const b = e.currentTarget, err = $('#dlg-err'), res = $('#ma-res');
@@ -500,7 +513,7 @@ $('#dlg-form').addEventListener('submit', async ev => {
   const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70}));
   try {
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
-    $('#dlg').close(); toast('Gespeichert'); refresh(true);
+    $('#dlg').close(); toast(t('toast.saved')); refresh(true);
   } catch (e) { $('#dlg-err').textContent = e.message; }
 });
 
@@ -513,20 +526,23 @@ function fillUrlTargets() {
 }
 $('#url-go').onclick = e => {
   const text = $('#url-in').value.trim(), key = $('#url-to').value;
-  if (!text) { toast('Adresse eintragen', true); return; }
-  const en = entries().find(x => x.key === key); if (!en) { toast('Ziel wählen', true); return; }
+  if (!text) { toast(t('toast.needUrl'), true); return; }
+  const en = entries().find(x => x.key === key); if (!en) { toast(t('toast.needTarget'), true); return; }
   ui.urlTo = key; saveUi();
   act('/api/url', en.g ? {gid: en.g.id, url: text} : {idx: en.i, url: text}, e.currentTarget);
 };
 window.STShareCheck = () => {            // Android „Teilen" -> Text steht in der Brücke bereit
   try {
     const t = window.STShare && window.STShare.take && window.STShare.take();
-    if (t) { $('#url-in').value = t; $('#urlbox').open = true; $('#urlbox').scrollIntoView(); toast('Link übernommen – Ziel wählen, dann Abspielen'); }
+    if (t) { $('#url-in').value = t; $('#urlbox').open = true; $('#urlbox').scrollIntoView(); toast(t('toast.linkTaken')); }
   } catch (x) { /* nicht in der App */ }
 };
 window.addEventListener('focus', () => window.STShareCheck());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) window.STShareCheck(); });
 setTimeout(() => window.STShareCheck(), 800);
+$('#lang-sel').onchange = e => {       // Sprache sofort umschalten (auto = Systemsprache)
+  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render();
+};
 $('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render(); };
 document.addEventListener('visibilitychange', () => refresh());
 refresh(true);

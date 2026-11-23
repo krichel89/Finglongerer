@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const STCore = require('../www/core.js');
 
-const mocks = [['127.0.0.2', 'Musikzimmer', 'DEV-A'], ['127.0.0.3', 'Bibliothek', 'DEV-B']]
+const mocks = [['127.0.0.2', 'Alpha', 'DEV-A'], ['127.0.0.3', 'Bravo', 'DEV-B']]
   .map(a => spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, ...a], { stdio: 'ignore' }));
 const stop = () => mocks.forEach(m => m.kill());
 process.on('exit', stop);
@@ -27,7 +27,8 @@ function nodeHttp(method, ip, port, path, body, timeout, extra) {
 }
 const mem = {};
 const storage = { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } };
-const core = STCore.createCore({ http: nodeHttp, WebSocket, storage, scanTimeout: 400 }); // wsPorts Standard: 8080 (verweigert) -> 8090
+let LANG = 'de';
+const core = STCore.createCore({ http: nodeHttp, WebSocket, storage, scanTimeout: 400, lang: () => LANG }); // wsPorts Standard: 8080 (verweigert) -> 8090
 
 let n = 0;
 const ok = (name) => console.log('ok', ++n, name);
@@ -36,19 +37,19 @@ const call = (p, b) => core.route(p, b);
 try {
   await assert.rejects(call('/api/config', { speakers: [{ name: 'X', ip: '8.8.8.8' }] }), /Ungültige IP/); ok('öffentliche IP abgelehnt');
 
-  // Übernahme einer Konfiguration der Version 0.2 (Markierung an den Boxen, eine Gruppe)
-  mem['steasyremote.config'] = JSON.stringify({ groupName: 'Gruppe', speakers: [
-    { name: 'Musikzimmer', ip: '127.0.0.2', max: 70, group: true }, { name: 'Bibliothek', ip: '127.0.0.3', max: 60, group: true }] });
-  let st = await call('/api/state');
-  assert.equal(st.config.groups.length, 1); assert.equal(st.config.groups[0].name, 'Beide Boxen'); assert.equal(st.config.groups[0].members.length, 2);
+  // keine Vorgaben: ohne Eintrag gibt es weder Boxen noch Gruppen
+  let st = await call('/api/state'); assert.deepEqual(st.config.speakers, []); assert.deepEqual(st.config.groups, []); ok('Neustart ohne Vorgaben: keine Boxen, keine Gruppen');
+  await call('/api/config', { speakers: [{ id: 'a1', name: 'Alpha', ip: '127.0.0.2', max: 70 }, { id: 'b1', name: 'Bravo', ip: '127.0.0.3', max: 60 }],
+    groups: [{ id: 'gg', name: 'Beide Boxen', members: ['a1', 'b1'] }] });
+  st = await call('/api/state'); assert.equal(st.config.groups.length, 1); assert.equal(st.config.groups[0].members.length, 2);
   const [A, B] = st.config.speakers.map(x => x.id); assert.ok(A && B && A !== B);
-  assert.equal((await call('/api/state')).config.speakers[0].id, A); ok('Übernahme alter Config: Gruppe „Beide Boxen", IDs bleiben stabil');
+  assert.equal((await call('/api/state')).config.speakers[0].id, A); ok('Konfiguration: Gruppe mit zwei Boxen, IDs bleiben stabil');
   const G = st.config.groups[0].id;
 
   assert.equal(st.speakers[0].standby, true); assert.equal(st.speakers[1].group.paired, false); ok('Status: beide im Standby, kein Paar');
   const t0 = Date.now();
   let r = await call('/api/group', { gid: G, action: 'aux' });
-  assert.match(r.message, /Musikzimmer: AUX an/); assert.match(r.message, /Zone mit 1 weiteren/);
+  assert.match(r.message, /Alpha: AUX an/); assert.match(r.message, /Zone mit 1 weiteren/);
   st = await call('/api/state'); assert.equal(st.speakers[0].source, 'AUX'); assert.equal(st.speakers[1].standby, false);
   const zone = await nodeHttp('GET', '127.0.0.2', 8090, '/getZone', null, 2000); assert.match(zone, /master="DEV-A"/); assert.match(zone, /DEV-B/);
   ok('Gruppe: AUX an auf Master + Zone mit Folge-Box (weckt aus Standby, ' + (Date.now() - t0) + ' ms)');
@@ -72,18 +73,18 @@ try {
   r = await call('/api/group', { gid: G, action: 'unpair' }); assert.match(r.message, /aufgelöst/); ok('Stereopaar auflösen');
   r = await call('/api/group', { gid: G, action: 'unpair' }); assert.match(r.message, /Kein Stereopaar/); ok('erneut auflösen: nichts zu tun');
 
-  r = await call('/api/group', { gid: G, action: 'off' }); assert.match(r.message, /Musikzimmer: aus/);
+  r = await call('/api/group', { gid: G, action: 'off' }); assert.match(r.message, /Alpha: aus/);
   r = await call('/api/group', { gid: G, action: 'off' }); assert.match(r.message, /war schon aus/); ok('Gruppe: Aus / erneut Aus');
 
-  r = await call('/api/scan', { prefixes: ['127.0.0'] }); assert.deepEqual(r.found.map(f => f.ip + '|' + f.name + '|' + f.type), ['127.0.0.2|Musikzimmer|SoundTouch 10', '127.0.0.3|Bibliothek|SoundTouch 10']); ok('Auto-Suche findet beide Boxen');
+  r = await call('/api/scan', { prefixes: ['127.0.0'] }); assert.deepEqual(r.found.map(f => f.ip + '|' + f.name + '|' + f.type), ['127.0.0.2|Alpha|SoundTouch 10', '127.0.0.3|Bravo|SoundTouch 10']); ok('Auto-Suche findet beide Boxen');
   await assert.rejects(call('/api/scan', { prefixes: ['8.8.8'] }), /Ungültiger Suchbereich/); ok('Auto-Suche lehnt öffentliche Netze ab');
 
   // 3er-Gruppe, mehrere Gruppen, Gruppe mit einer Box
   const cfg3 = { speakers: [
-    { id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }, { id: 'b', name: 'Bibliothek', ip: '127.0.0.3', max: 60 }, { id: 'c', name: 'Küche', ip: '127.0.0.4', max: 50 }],
+    { id: 'a', name: 'Alpha', ip: '127.0.0.2', max: 70 }, { id: 'b', name: 'Bravo', ip: '127.0.0.3', max: 60 }, { id: 'c', name: 'Charlie', ip: '127.0.0.4', max: 50 }],
     groups: [{ id: 'g1', name: 'Alle drei', members: ['a', 'b', 'c'] }, { id: 'g2', name: 'Nur Musik', members: ['a'] }, { id: 'g3', name: 'Leer', members: ['x'] }] };
   r = await call('/api/config', cfg3); assert.equal(r.config.groups.length, 2); ok('Gruppen ohne gültige Mitglieder werden verworfen');
-  const m3 = spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, '127.0.0.4', 'Küche', 'DEV-C'], { stdio: 'ignore' }); mocks.push(m3);
+  const m3 = spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, '127.0.0.4', 'Charlie', 'DEV-C'], { stdio: 'ignore' }); mocks.push(m3);
   await new Promise(r => setTimeout(r, 800));
   r = await call('/api/group', { gid: 'g1', action: 'aux' }); assert.match(r.message, /Zone mit 2 weiteren/); ok('3er-Gruppe: AUX an, Zone mit 2 weiteren');
   r = await call('/api/group', { gid: 'g1', action: 'volume', master: 65, balance: 0 });
@@ -114,7 +115,7 @@ try {
   assert.equal(st.speakers[0].item, 'LOCAL_INTERNET_RADIO|x'); assert.equal(r.presets[0].item, 'LOCAL_INTERNET_RADIO|x'); assert.notEqual(r.presets[1].item, st.speakers[0].item); ok('laufende Quelle passt zur gewählten Sendertaste');
   // Titelanzeige und Player-Tasten, Umziehen (Mock: /select mit Internetradio übernimmt die Box)
   await call('/api/group', { gid: 'g2', action: 'aux' }); await call('/api/preset', { idx: 0, n: 1 });
-  r = await call('/api/move', { from: { idx: 0 }, to: { idx: 1 } }); assert.match(r.message, /umgezogen auf Bibliothek/);
+  r = await call('/api/move', { from: { idx: 0 }, to: { idx: 1 } }); assert.match(r.message, /umgezogen auf Bravo/);
   st = await call('/api/state'); assert.equal(st.speakers[1].item, 'LOCAL_INTERNET_RADIO|x'); assert.equal(st.speakers[0].standby, true); ok('Umziehen Box → Box: läuft dort, Quelle aus');
   assert.deepEqual([st.speakers[1].title, st.speakers[1].artist, st.speakers[1].station, st.speakers[1].play], ['Titel 1', 'Interpret', 'Radio Eins', 'PLAY_STATE']); ok('Titelanzeige: Titel, Interpret, Sender, Status');
   assert.equal(st.speakers[0].title, ''); ok('Standby: keine Titelanzeige');
@@ -124,14 +125,14 @@ try {
   assert.deepEqual([st.speakers[1].title, st.speakers[1].play], ['Titel 1', 'PLAY_STATE']); ok('Player-Tasten: Weiter, Pause/Play, Zurück');
   await assert.rejects(call('/api/key', { idx: 1, key: 'POWER' }), /Unbekannte Taste/); await assert.rejects(call('/api/key', { idx: 0, key: 'NEXT_TRACK' }), /ist aus/); ok('Player-Tasten: nur Player-Tasten, nicht bei Standby');
   await assert.rejects(call('/api/move', { from: { idx: 0 }, to: { idx: 1 } }), /ist aus - es läuft nichts/); await assert.rejects(call('/api/move', { from: { idx: 1 }, to: { idx: 1 } }), /dasselbe/); ok('Umziehen: Quelle aus bzw. gleiches Ziel abgelehnt');
-  r = await call('/api/move', { from: { idx: 1 }, to: { gid: 'g1' } }); assert.match(r.message, /umgezogen auf Musikzimmer \+ Bibliothek \+ Küche/);
+  r = await call('/api/move', { from: { idx: 1 }, to: { gid: 'g1' } }); assert.match(r.message, /umgezogen auf Alpha \+ Bravo \+ Charlie/);
   st = await call('/api/state'); assert.deepEqual(st.speakers.map(x => x.standby), [false, false, false]); assert.equal(st.speakers[0].item, 'LOCAL_INTERNET_RADIO|x');
   const zg = await nodeHttp('GET', '127.0.0.2', 8090, '/getZone', null, 2000); assert.match(zg, /master="DEV-A"/); assert.match(zg, /DEV-B/); assert.match(zg, /DEV-C/); ok('Umziehen Box → Gruppe (Ziel enthält die Quelle): Zone mit Master des Ziels');
   await call('/api/key', { gid: 'g1', key: 'NEXT_TRACK' }); st = await call('/api/state'); assert.equal(st.speakers[0].title, 'Titel 2'); ok('Player-Taste bei Gruppe geht an die Master-Box');
   r = await call('/api/move', { from: { gid: 'g1' }, to: { idx: 2 } }); st = await call('/api/state');
   assert.deepEqual(st.speakers.map(x => x.standby), [true, true, false]); assert.equal(st.speakers[2].item, 'LOCAL_INTERNET_RADIO|x'); ok('Umziehen Gruppe → Einzelbox: nur die Ziel-Box bleibt an');
   await call('/api/aux', { idx: 0 }); await assert.rejects(call('/api/move', { from: { idx: 0 }, to: { idx: 1 } }), /lässt sich nicht umziehen/); ok('Umziehen: AUX wird abgelehnt (Ton hängt an der Box)');
-  r = await call('/api/move', { from: { idx: 0 }, to: { idx: 1 }, mode: 'add' }); assert.match(r.message, /Bibliothek dazugenommen/);
+  r = await call('/api/move', { from: { idx: 0 }, to: { idx: 1 }, mode: 'add' }); assert.match(r.message, /Bravo dazugenommen/);
   const za = await nodeHttp('GET', '127.0.0.2', 8090, '/getZone', null, 2000); assert.match(za, /master="DEV-A"/); assert.match(za, /DEV-B/); ok('Dazunehmen: Ziel kommt per Zone zur Quelle, Quelle bleibt an');
   await assert.rejects(call('/api/move', { from: { gid: 'g1' }, to: { idx: 0 }, mode: 'add' }), /schon dabei/); ok('Dazunehmen: schon dabei abgelehnt');
   const m5 = spawn('python3', [new URL('./mock_st.py', import.meta.url).pathname, '127.0.0.5', 'Flur', 'DEV-E'], { stdio: 'ignore', env: { ...process.env, MOCK_NO_BT_SELECT: '1' } }); mocks.push(m5);
@@ -146,8 +147,8 @@ try {
   st = await call('/api/state'); assert.equal(st.speakers[0].standby, false); ok('Umziehen: übernimmt das Ziel nicht, bleibt die Quelle an');
   await assert.rejects(call('/api/group', { gid: 'nix', action: 'aux' }), /Unbekannte Gruppe/); ok('unbekannte Gruppe abgelehnt');
   await assert.rejects(call('/api/config', { speakers: [], groups: [], ma: 'http://8.8.8.8:8095' }), /Ungültige Music-Assistant/);
-  r = await call('/api/config', { speakers: [], groups: [], ma: '192.168.178.10' }); assert.equal(r.config.ma, 'http://192.168.178.10:8095');
-  r = await call('/api/config', { speakers: [], groups: [], ma: 'http://192.168.178.10:8095/' }); assert.equal(r.config.ma, 'http://192.168.178.10:8095'); ok('Music-Assistant-Adresse: nur Heimnetz, Port 8095 als Standard');
+  r = await call('/api/config', { speakers: [], groups: [], ma: '192.168.1.10' }); assert.equal(r.config.ma, 'http://192.168.1.10:8095');
+  r = await call('/api/config', { speakers: [], groups: [], ma: 'http://192.168.1.10:8095/' }); assert.equal(r.config.ma, 'http://192.168.1.10:8095'); ok('Music-Assistant-Adresse: nur Heimnetz, Port 8095 als Standard');
   const maLog = []; const maQ = { 'ma-a': 'playing', 'ma-b': 'idle' };
   const maSrv = http.createServer((q, res) => {
     let b = ''; q.on('data', c => b += c);
@@ -157,8 +158,8 @@ try {
       if (q.headers.authorization !== 'Bearer tok-123456789') { res.statusCode = 401; return res.end('{}'); }
       const m = JSON.parse(b); maLog.push(m.command + ':' + JSON.stringify(m.args));
       if (m.command === 'players/all') return res.end(JSON.stringify([
-        { player_id: 'ma-a', name: 'Musikzimmer', available: true, device_info: { address: '127.0.0.2' } },
-        { player_id: 'ma-b', name: 'Bibliothek', available: true, device_info: { address: '127.0.0.3' } }]));
+        { player_id: 'ma-a', name: 'Alpha', available: true, device_info: { address: '127.0.0.2' } },
+        { player_id: 'ma-b', name: 'Bravo', available: true, device_info: { address: '127.0.0.3' } }]));
       if (m.command === 'player_queues/all') return res.end(JSON.stringify([
         { queue_id: 'ma-a', active: true, state: maQ['ma-a'], current_item: { name: 'Nina Simone/Band - Sinnerman', media_item: { name: 'Sinnerman', artists: [{ name: 'Nina Simone' }, { name: 'Band' }], album: { name: 'Sinnerman LP' }, metadata: { images: [{ type: 'thumb', path: 'http://127.0.0.9:8096/Items/1/Images/Primary?api_key=GEHEIMSCHLUESSEL1' }] } } } },
         { queue_id: 'ma-b', active: false, state: maQ['ma-b'], current_item: null }]));
@@ -169,10 +170,10 @@ try {
   r = await call('/api/ma/scan', { prefixes: ['127.0.0'] }); assert.deepEqual(r.found.map(f => f.url + '|' + f.version), ['http://127.0.0.9:8095|2.9.1']); ok('Music Assistant per Port 8095 gefunden');
   // Music Assistant steuert Weiter/Pause selbst (Box-Tasten melden dort "Invalid Source")
   await assert.rejects(call('/api/config', { speakers: [], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'zu kurz' }), /Ungültiger Music-Assistant-Token/); ok('MA-Token: Format geprüft');
-  await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }, { id: 'b', name: 'Bibliothek', ip: '127.0.0.3', max: 70 }],
+  await call('/api/config', { speakers: [{ id: 'a', name: 'Alpha', ip: '127.0.0.2', max: 70 }, { id: 'b', name: 'Bravo', ip: '127.0.0.3', max: 70 }],
     groups: [{ id: 'g1', name: 'Beide', members: ['a', 'b'] }], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
   await call('/api/aux', { idx: 0 }); await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="UPNP" location="http://127.0.0.9:8097/x"/>', 2000);
-  r = await call('/api/ma/test'); assert.match(r.message, /2 Player/); assert.match(r.lines[0], /Musikzimmer: Player ma-a, Warteschlange playing, MA spielt hier/); assert.match(r.lines[1], /Bibliothek: Player ma-b/); assert.ok(!/MA spielt hier/.test(r.lines[1])); ok('MA-Test: Boxen den MA-Playern zugeordnet (Adresse)');
+  r = await call('/api/ma/test'); assert.match(r.message, /2 Player/); assert.match(r.lines[0], /Alpha: Player ma-a, Warteschlange playing, MA spielt hier/); assert.match(r.lines[1], /Bravo: Player ma-b/); assert.ok(!/MA spielt hier/.test(r.lines[1])); ok('MA-Test: Boxen den MA-Playern zugeordnet (Adresse)');
   st = await call('/api/state'); assert.deepEqual([st.speakers[0].ma.active, st.speakers[0].ma.state, st.speakers[0].ma.title, st.speakers[0].ma.artist], [true, 'playing', 'Sinnerman', 'Nina Simone, Band']);
   assert.equal(st.speakers[0].ma.album, 'Sinnerman LP'); assert.match(st.speakers[0].ma.art, /Images\/Primary/); assert.equal(st.speakers[0].art, 'http://127.0.0.1/cover.jpg'); assert.equal(st.speakers[1].ma.active, false); ok('Stand: MA-Titel und -Status der Box, zweite Box nicht aktiv');
   maLog.length = 0; const tBox = st.speakers[0].title;
@@ -182,17 +183,24 @@ try {
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.state, 'paused'); assert.equal(st.speakers[0].title, tBox); ok('Zurück, Play/Pause (Gruppe → Master) über MA; Box-Tasten blieben unberührt');
   await call('/api/aux', { idx: 1 }); await call('/api/preset', { idx: 1, n: 1 }); maLog.length = 0;
   await call('/api/key', { idx: 1, key: 'NEXT_TRACK' }); assert.ok(!maLog.some(x => x.startsWith('player_queues/next'))); ok('Box ohne laufendes MA: Taste geht an die Box');
-  await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'falscher-token-1' });
+  await call('/api/config', { speakers: [{ id: 'a', name: 'Alpha', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'falscher-token-1' });
   st = await call('/api/state'); assert.equal(st.speakers[0].ma, undefined); await assert.rejects(call('/api/ma/test'), /lehnt den Token ab/); ok('Falscher Token: Anzeige läuft ohne MA weiter, Test meldet es');
-  r = await call('/api/config', { speakers: [{ id: 'a', name: 'Musikzimmer', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
+  r = await call('/api/config', { speakers: [{ id: 'a', name: 'Alpha', ip: '127.0.0.2', max: 70 }], groups: [], ma: 'http://127.0.0.9:8095', maToken: 'tok-123456789' });
   await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="UPNP" location="http://127.0.0.9:8096/dlna/x.flac"/>', 2000);   // Jellyfin direkt, nicht über MA
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('Jellyfin-DLNA direkt auf derselben IP wie MA (Port 8096): MA gilt nicht als aktiv');
   await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName>Sinnerman</itemName></ContentItem>', 2000);   // MA streamt per AirPlay
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, true); ok('AirPlay von MA (Titel der Box = Titel der MA-Warteschlange): MA aktiv');
   await nodeHttp('POST', '127.0.0.2', 8090, '/select', '<ContentItem source="AIRPLAY"><itemName>Anderes Lied</itemName></ContentItem>', 2000);   // AirPlay vom Handy
   st = await call('/api/state'); assert.equal(st.speakers[0].ma.active, false); ok('AirPlay mit anderem Titel (z. B. vom Handy): MA nicht aktiv');
-  r = await call('/api/diag'); assert.match(r.text, /== Musikzimmer \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Musikzimmer Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
+  r = await call('/api/diag'); assert.match(r.text, /== Alpha \(127\.0\.0\.2\) \/now_playing\n<nowPlaying/); assert.match(r.text, /Alpha Music Assistant Player ma-a Warteschlange:\n\{"queue_id":"ma-a"/); assert.ok(!r.text.includes('tok-123456789')); assert.ok(!r.text.includes('GEHEIMSCHLUESSEL1') && r.text.includes('api_key=***')); ok('Diagnose: Rohantworten von Box und MA, ohne Token');
   maSrv.closeAllConnections(); maSrv.close();
+  // Englisch: Meldungen der Kernlogik folgen der Spracheinstellung
+  LANG = 'en';
+  await assert.rejects(call('/api/group', { gid: 'nix', action: 'aux' }), /Unknown group/);
+  await assert.rejects(call('/api/config', { speakers: [{ name: 'X', ip: '8.8.8.8' }] }), /Invalid IP for X/);
+  r = await call('/api/volume', { idx: 0, value: 30 }); assert.match(r.message, /Alpha: Volume 30/);
+  r = await call('/api/off', { idx: 0 }); assert.match(r.message, /Alpha: (off|was already off)/);
+  ok('Englisch: Fehler- und Statusmeldungen'); LANG = 'de';
   console.log('\nalle', n, 'Tests bestanden');
 } catch (e) { console.error('FEHLER nach Test', n, '\n', e); process.exitCode = 1; }
 stop();

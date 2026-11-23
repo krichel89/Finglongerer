@@ -1,0 +1,139 @@
+/* Texte der App: Deutsch und Englisch. Sprache = Einstellung (auto/de/en); "auto" folgt der Systemsprache des Geräts. */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.STI18n = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const DE = {
+    // ---- Kernlogik (Meldungen)
+    'err.unknownKey': 'Unbekannte Taste', 'err.timeout': 'Zeitüberschreitung', 'err.connFailed': 'Verbindung fehlgeschlagen',
+    'err.connClosed': 'Verbindung geschlossen', 'err.unexpected': 'Unerwartete Antwort: {0}',
+    'err.balanceFailed': 'Balance setzen fehlgeschlagen ({0})', 'err.balancePort': 'Port {0}{1}: {2}', 'err.noSubprotocol': ' (ohne Subprotokoll)',
+    'err.noIp': 'keine IP eingetragen', 'err.unreachable': 'nicht erreichbar', 'err.noWake': 'Box ist nicht aufgewacht', 'err.noWakeName': '{0} ist nicht aufgewacht',
+    'err.nativeOnly': 'Nur in der Android-App möglich (native HTTP-Schnittstelle fehlt)',
+    'act.auxOn': 'AUX an', 'err.auxFail': 'AUX nicht aktiv (Quelle: {0})', 'act.btOn': 'Bluetooth an', 'err.btFail': 'Bluetooth nicht aktiv (Quelle: {0})',
+    'err.slot': 'Taste 1 bis 12', 'err.noRow2': 'zweite Reihe nicht verfügbar (STR-Agent zu alt oder nicht erreichbar)', 'act.slot': 'Taste {0}', 'act.slotSaved': 'Taste {0} gespeichert',
+    'err.saveOff': 'Box ist aus - es läuft nichts zum Speichern', 'err.saveDup': 'liegt schon auf einer anderen Taste',
+    'err.saveFail': 'Speichern fehlgeschlagen ({0}) - läuft auf der Box ein Sender/Titel über STR?',
+    'err.noUrl': 'Keine Adresse (http:// oder https://) gefunden', 'err.urlLong': 'Adresse zu lang',
+    'err.playFail': 'Abspielen fehlgeschlagen ({0}) - STR-Agent auf Port 8888 erreichbar?', 'act.playing': 'spielt {0}',
+    'act.wasOff': 'war schon aus', 'act.off': 'aus', 'act.volume': 'Lautstärke {0}',
+    'err.deviceIds': 'Geräte-IDs nicht lesbar oder doppelt', 'err.deviceIdsPair': 'Geräte-IDs nicht lesbar oder identisch',
+    'act.zoneWith': 'Zone mit {0} weiteren Boxen', 'err.zone': 'Zone: {0}', 'err.zoneFail': 'Zone nicht zustande gekommen (/getZone zeigt nicht alle Boxen)',
+    'err.maToken': 'Music Assistant lehnt den Token ab', 'err.ma': 'Music Assistant: {0}',
+    'err.moveMissing': 'Quelle oder Ziel fehlt', 'err.moveSame': 'Quelle und Ziel sind dasselbe', 'err.moveOff': '{0} ist aus - es läuft nichts',
+    'err.moveHas': 'Das Ziel ist schon dabei', 'err.moveStereo': 'Stereopaare lassen sich nicht dazunehmen', 'act.added': '{0} dazugenommen',
+    'err.moveSource': 'Quelle {0} lässt sich nicht umziehen - nur "Dazunehmen" geht',
+    'err.moveRefused': '{0} übernimmt die Quelle nicht (Quelle dort: {1}) - {2} bleibt an', 'act.moved': 'umgezogen auf {0}{1}',
+    'err.unknownBox': 'Unbekannte Box', 'err.unknownGroup': 'Unbekannte Gruppe', 'err.unknownAction': 'Unbekannte Aktion', 'err.unknownPath': 'Unbekannter Pfad',
+    'act.pairVol': 'Stereopaar: Lautstärke {0}, Balance {1}', 'act.lrVol': 'Lautstärke links {0}, rechts {1}',
+    'err.pairFail': 'Box meldet nach addGroup kein Stereopaar - Format/Firmware prüfen', 'act.paired': 'Stereopaar gebildet',
+    'act.unpaired': 'Stereopaar aufgelöst', 'act.noPair': 'Kein Stereopaar aktiv', 'err.pairTwo': 'Stereopaar geht nur mit genau zwei Boxen',
+    'err.badRange': 'Ungültiger Suchbereich: {0}', 'err.noBoxIp': 'Keine Box mit IP eingetragen', 'err.noIpEntered': 'Keine IP eingetragen',
+    'err.noIpNames': 'Keine IP eingetragen: {0}', 'err.speakerOff': '{0} ist aus',
+    'key.PLAY_PAUSE': 'Play/Pause', 'key.PREV_TRACK': 'Zurück', 'key.NEXT_TRACK': 'Weiter', 'act.viaMa': '{0} (Music Assistant)',
+    'diag.error': 'Fehler: {0}', 'diag.ma': '{0} Music Assistant {1}', 'diag.player': 'Player {0}', 'diag.noPlayer': '- kein Player',
+    'diag.queue': ' Warteschlange:', 'diag.maErr': 'Music Assistant: {0}',
+    'err.maNeed': 'Adresse und Token eintragen und speichern', 'ma.line': '{0}: Player {1}, Warteschlange {2}{3}{4}', 'ma.empty': 'leer',
+    'ma.here': ', MA spielt hier', 'ma.box': ' (Box: {0})', 'ma.noPlayer': '{0}: kein MA-Player gefunden', 'ma.connected': 'Verbunden, {0} Player',
+    'err.cfgIp': 'Ungültige IP bei {0}: {1} (nur Heimnetz-Adressen)', 'err.cfgMa': 'Ungültige Music-Assistant-Adresse (z. B. http://192.168.1.10:8095)',
+    'err.cfgToken': 'Ungültiger Music-Assistant-Token (nur der Token selbst, ohne Leerzeichen)', 'def.box': 'Box', 'def.group': 'Gruppe',
+    // ---- Oberfläche
+    'ui.sort': 'Sortieren', 'ui.sortTitle': 'Reihenfolge ändern', 'ui.settings': 'Einstellungen', 'ui.urlSummary': 'Stream-URL abspielen', 'ui.play': 'Abspielen',
+    'ui.maOpen': 'Music Assistant öffnen', 'ui.none': 'Noch keine Box. Unter ⚙ Einstellungen kannst du Boxen suchen und Gruppen anlegen.',
+    'ui.sending': 'Sende ...', 'ui.error': 'Fehler', 'ui.ok': 'OK',
+    'badge.unreachable': 'nicht erreichbar', 'badge.nUnreachable': '{0} nicht erreichbar', 'badge.standby': 'Standby', 'badge.mixed': 'gemischt', 'badge.on': 'an',
+    'src.radio': 'Internetradio', 'src.library': 'Musikbibliothek', 'src.input': 'Eingang', 'src.notice': 'Hinweis',
+    'player.prev': 'Zurück', 'player.next': 'Weiter', 'player.pause': 'Pause', 'player.play': 'Abspielen',
+    'move.title': 'Umziehen', 'move.go': 'Umziehen', 'move.add': 'Dazunehmen', 'btn.off': 'Aus',
+    'presets.title': 'Sender (Tasten 1–6)', 'presets.more': 'Weitere Sender (7–12)', 'presets.hint': 'Lang drücken = Laufendes speichern',
+    'presets.confirm': 'Taste {0}{1} mit dem aktuell Laufenden belegen?',
+    'grp.pair': 'Stereopaar bilden', 'grp.unpair': 'Auflösen', 'box.pair': 'Stereopaar', 'box.left': 'links', 'box.right': 'rechts',
+    'toast.saved': 'Gespeichert', 'toast.copied': 'Kopiert', 'toast.copyFirst': 'Erst „Antworten der Boxen zeigen"', 'toast.copyManual': 'Text markieren und von Hand kopieren',
+    'toast.needUrl': 'Adresse eintragen', 'toast.needTarget': 'Ziel wählen', 'toast.linkTaken': 'Link übernommen – Ziel wählen, dann Abspielen',
+    'set.title': 'Einstellungen', 'set.language': 'Sprache', 'lang.auto': 'Automatisch (Systemsprache)', 'set.boxes': 'Boxen', 'set.addBox': '+ Box hinzufügen',
+    'set.scan': 'Automatische Suche', 'set.scanNet': 'Suchbereich (leer = Heimnetz erraten)', 'set.scanGo': 'Boxen suchen',
+    'set.hintBox': 'Die IP einer Box steht auch in der SoundTouch-App unter Einstellungen → Lautsprecher → Info. „Max“ ist die höchste Lautstärke, die diese Fernbedienung einstellt.',
+    'set.ma': 'Music Assistant', 'set.maToken': 'Token (langlebig, aus dem MA-Profil)', 'set.maScan': 'Suchen', 'set.maTest': 'Verbindung testen',
+    'set.diag': 'Diagnose', 'set.diagGo': 'Antworten der Boxen zeigen', 'set.diagCopy': 'Kopieren', 'set.groups': 'Gruppen', 'set.addGroup': '+ Gruppe hinzufügen',
+    'set.hintGroup': 'Eine Gruppe kann aus beliebig vielen Boxen bestehen. Bei genau zwei Boxen gibt es zusätzlich Balance und Stereopaar.',
+    'set.cancel': 'Abbrechen', 'set.save': 'Speichern', 'set.version': 'Version {0}',
+    'ph.name': 'Name', 'ph.max': 'Max', 'ph.groupName': 'Name der Gruppe', 'ph.net': 'z. B. 192.168.1', 'ph.url': 'https://…',
+    'grp.leftRight': 'Links: {0} · Rechts: {1}', 'grp.swap': '⇆ tauschen', 'grp.delete': 'Gruppe löschen', 'grp.defaultName': 'Gruppe {0}',
+    'scan.none': 'Keine Box gefunden (Suchbereich: {0})', 'scan.known': ' (schon eingetragen)', 'scan.all': 'Alle übernehmen',
+    'scan.maNone': 'Kein Music Assistant gefunden (Suchbereich: {0}) - Adresse von Hand eintragen', 'scan.take': 'Übernehmen: {0}'
+  };
+
+  const EN = {
+    'err.unknownKey': 'Unknown key', 'err.timeout': 'Timeout', 'err.connFailed': 'Connection failed',
+    'err.connClosed': 'Connection closed', 'err.unexpected': 'Unexpected response: {0}',
+    'err.balanceFailed': 'Setting the balance failed ({0})', 'err.balancePort': 'Port {0}{1}: {2}', 'err.noSubprotocol': ' (no subprotocol)',
+    'err.noIp': 'no IP entered', 'err.unreachable': 'unreachable', 'err.noWake': 'Speaker did not wake up', 'err.noWakeName': '{0} did not wake up',
+    'err.nativeOnly': 'Only works in the Android app (native HTTP interface missing)',
+    'act.auxOn': 'AUX on', 'err.auxFail': 'AUX not active (source: {0})', 'act.btOn': 'Bluetooth on', 'err.btFail': 'Bluetooth not active (source: {0})',
+    'err.slot': 'Preset 1 to 12', 'err.noRow2': 'second row not available (STR agent too old or unreachable)', 'act.slot': 'Preset {0}', 'act.slotSaved': 'Preset {0} saved',
+    'err.saveOff': 'Speaker is off - nothing playing to save', 'err.saveDup': 'is already stored on another preset',
+    'err.saveFail': 'Saving failed ({0}) - is a station/track playing on the speaker via STR?',
+    'err.noUrl': 'No address (http:// or https://) found', 'err.urlLong': 'Address too long',
+    'err.playFail': 'Playback failed ({0}) - is the STR agent reachable on port 8888?', 'act.playing': 'playing {0}',
+    'act.wasOff': 'was already off', 'act.off': 'off', 'act.volume': 'Volume {0}',
+    'err.deviceIds': 'Device IDs unreadable or duplicated', 'err.deviceIdsPair': 'Device IDs unreadable or identical',
+    'act.zoneWith': 'Zone with {0} more speakers', 'err.zone': 'Zone: {0}', 'err.zoneFail': 'Zone was not created (/getZone does not list all speakers)',
+    'err.maToken': 'Music Assistant rejects the token', 'err.ma': 'Music Assistant: {0}',
+    'err.moveMissing': 'Source or target missing', 'err.moveSame': 'Source and target are the same', 'err.moveOff': '{0} is off - nothing is playing',
+    'err.moveHas': 'The target is already part of it', 'err.moveStereo': 'Stereo pairs cannot be added', 'act.added': '{0} added',
+    'err.moveSource': 'Source {0} cannot be moved - only "Add" works',
+    'err.moveRefused': '{0} does not take over the source (source there: {1}) - {2} stays on', 'act.moved': 'moved to {0}{1}',
+    'err.unknownBox': 'Unknown speaker', 'err.unknownGroup': 'Unknown group', 'err.unknownAction': 'Unknown action', 'err.unknownPath': 'Unknown path',
+    'act.pairVol': 'Stereo pair: volume {0}, balance {1}', 'act.lrVol': 'Volume left {0}, right {1}',
+    'err.pairFail': 'Speaker reports no stereo pair after addGroup - check format/firmware', 'act.paired': 'Stereo pair created',
+    'act.unpaired': 'Stereo pair removed', 'act.noPair': 'No stereo pair active', 'err.pairTwo': 'A stereo pair needs exactly two speakers',
+    'err.badRange': 'Invalid search range: {0}', 'err.noBoxIp': 'No speaker with an IP entered', 'err.noIpEntered': 'No IP entered',
+    'err.noIpNames': 'No IP entered: {0}', 'err.speakerOff': '{0} is off',
+    'key.PLAY_PAUSE': 'Play/Pause', 'key.PREV_TRACK': 'Previous', 'key.NEXT_TRACK': 'Next', 'act.viaMa': '{0} (Music Assistant)',
+    'diag.error': 'Error: {0}', 'diag.ma': '{0} Music Assistant {1}', 'diag.player': 'player {0}', 'diag.noPlayer': '- no player',
+    'diag.queue': ' queue:', 'diag.maErr': 'Music Assistant: {0}',
+    'err.maNeed': 'Enter address and token and save', 'ma.line': '{0}: player {1}, queue {2}{3}{4}', 'ma.empty': 'empty',
+    'ma.here': ', MA plays here', 'ma.box': ' (speaker: {0})', 'ma.noPlayer': '{0}: no MA player found', 'ma.connected': 'Connected, {0} players',
+    'err.cfgIp': 'Invalid IP for {0}: {1} (home network addresses only)', 'err.cfgMa': 'Invalid Music Assistant address (e.g. http://192.168.1.10:8095)',
+    'err.cfgToken': 'Invalid Music Assistant token (the token only, without spaces)', 'def.box': 'Speaker', 'def.group': 'Group',
+    'ui.sort': 'Sort', 'ui.sortTitle': 'Change order', 'ui.settings': 'Settings', 'ui.urlSummary': 'Play stream URL', 'ui.play': 'Play',
+    'ui.maOpen': 'Open Music Assistant', 'ui.none': 'No speakers yet. Use ⚙ Settings to search for speakers and create groups.',
+    'ui.sending': 'Sending ...', 'ui.error': 'Error', 'ui.ok': 'OK',
+    'badge.unreachable': 'unreachable', 'badge.nUnreachable': '{0} unreachable', 'badge.standby': 'Standby', 'badge.mixed': 'mixed', 'badge.on': 'on',
+    'src.radio': 'Internet radio', 'src.library': 'Music library', 'src.input': 'Input', 'src.notice': 'Notice',
+    'player.prev': 'Previous', 'player.next': 'Next', 'player.pause': 'Pause', 'player.play': 'Play',
+    'move.title': 'Move', 'move.go': 'Move', 'move.add': 'Add', 'btn.off': 'Off',
+    'presets.title': 'Presets (keys 1–6)', 'presets.more': 'More presets (7–12)', 'presets.hint': 'Long press = save what is playing',
+    'presets.confirm': 'Assign preset {0}{1} to what is playing now?',
+    'grp.pair': 'Create stereo pair', 'grp.unpair': 'Separate', 'box.pair': 'Stereo pair', 'box.left': 'left', 'box.right': 'right',
+    'toast.saved': 'Saved', 'toast.copied': 'Copied', 'toast.copyFirst': 'First press “Show speaker responses”', 'toast.copyManual': 'Select the text and copy it by hand',
+    'toast.needUrl': 'Enter an address', 'toast.needTarget': 'Choose a target', 'toast.linkTaken': 'Link taken – choose a target, then Play',
+    'set.title': 'Settings', 'set.language': 'Language', 'lang.auto': 'Automatic (system language)', 'set.boxes': 'Speakers', 'set.addBox': '+ Add speaker',
+    'set.scan': 'Automatic search', 'set.scanNet': 'Search range (empty = guess home network)', 'set.scanGo': 'Search for speakers',
+    'set.hintBox': 'A speaker’s IP is also shown in the SoundTouch app under Settings → Speakers → About. “Max” is the highest volume this remote will set.',
+    'set.ma': 'Music Assistant', 'set.maToken': 'Token (long-lived, from the MA profile)', 'set.maScan': 'Search', 'set.maTest': 'Test connection',
+    'set.diag': 'Diagnostics', 'set.diagGo': 'Show speaker responses', 'set.diagCopy': 'Copy', 'set.groups': 'Groups', 'set.addGroup': '+ Add group',
+    'set.hintGroup': 'A group can contain any number of speakers. With exactly two speakers there is also balance and stereo pair.',
+    'set.cancel': 'Cancel', 'set.save': 'Save', 'set.version': 'Version {0}',
+    'ph.name': 'Name', 'ph.max': 'Max', 'ph.groupName': 'Group name', 'ph.net': 'e.g. 192.168.1', 'ph.url': 'https://…',
+    'grp.leftRight': 'Left: {0} · Right: {1}', 'grp.swap': '⇆ swap', 'grp.delete': 'Delete group', 'grp.defaultName': 'Group {0}',
+    'scan.none': 'No speaker found (search range: {0})', 'scan.known': ' (already added)', 'scan.all': 'Take all',
+    'scan.maNone': 'No Music Assistant found (search range: {0}) - enter the address by hand', 'scan.take': 'Use: {0}'
+  };
+
+  const DICT = {de: DE, en: EN};
+  // Einstellung "auto" folgt der Systemsprache (navigator.language); alles außer Deutsch -> Englisch
+  function resolve(pref, nav) {
+    if (pref === 'de' || pref === 'en') return pref;
+    return /^de(\b|-|_)/i.test(String(nav || '')) ? 'de' : 'en';
+  }
+  function t(lang, key) {
+    const d = DICT[lang] || DE;
+    const s = d[key] !== undefined ? d[key] : (DE[key] !== undefined ? DE[key] : key);
+    const args = Array.prototype.slice.call(arguments, 2);
+    return s.replace(/\{(\d+)\}/g, (m, i) => (args[+i] === undefined || args[+i] === null ? '' : String(args[+i])));
+  }
+  return {t, resolve, DICT};
+});

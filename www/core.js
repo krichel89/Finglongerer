@@ -1,22 +1,22 @@
 /* Kernlogik: spricht die SoundTouch-Boxen direkt an (HTTP :8090, WebSocket für Balance).
    Läuft in der Android-WebView (Capacitor) und – mit eingesetztem Transport – in Node (Tests).
-   Port der Server-Version (server/soundtouch_fernbedienung.py). */
+   Meldungen kommen aus i18n.js (Deutsch/Englisch, env.lang liefert die Sprache). */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.STCore = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./i18n.js'));
+  else root.STCore = factory(root.STI18n);
+})(typeof self !== 'undefined' ? self : this, function (I18N) {
   'use strict';
+  let LANG = () => 'de';                            // wird von createCore(env.lang) gesetzt
+  const T = (key, ...a) => I18N.t(LANG(), key, ...a);
 
   const KEYS = new Set(['POWER', 'AUX_INPUT', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE',
     'PRESET_1', 'PRESET_2', 'PRESET_3', 'PRESET_4', 'PRESET_5', 'PRESET_6',
     'PLAY_PAUSE', 'PREV_TRACK', 'NEXT_TRACK']);
-  const PLAYER_KEYS = {PLAY_PAUSE: 'Play/Pause', PREV_TRACK: 'Zurück', NEXT_TRACK: 'Weiter'};
+  const PLAYER_KEYS = new Set(['PLAY_PAUSE', 'PREV_TRACK', 'NEXT_TRACK']);
   // Quellen, die sich nicht per /select auf eine andere Box übergeben lassen (Ton hängt an der Box bzw. kommt vom Gerät)
   const NO_MOVE = new Set(['AUX', 'BLUETOOTH', 'STANDBY', 'PRODUCT', 'AIRPLAY', 'NOTIFICATION']);
-  const DEFAULT_CONFIG = {
-    speakers: [{id: 'b1', name: 'Musikzimmer', ip: '', max: 70}, {id: 'b2', name: 'Bibliothek', ip: '', max: 70}],
-    groups: [{id: 'g1', name: 'Beide Boxen', members: ['b1', 'b2']}]};
-  const CFG_KEY = 'steasyremote.config';
+  const DEFAULT_CONFIG = {speakers: [], groups: []};     // keine Vorgaben: Boxen und Gruppen legt man in den Einstellungen an
+  const CFG_KEY = 'finglongerer.config';
 
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const unesc = s => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
@@ -56,46 +56,41 @@
   function cleanMa(v) {
     const raw = String(v || '').trim(); if (!raw) return '';
     const m = /^(?:https?:\/\/)?(\d{1,3}(?:\.\d{1,3}){3})(?::(\d{1,5}))?\/?$/.exec(raw), ip = m && validIp(m[1]);
-    if (!ip || (m[2] && +m[2] > 65535)) throw new Error('Ungültige Music-Assistant-Adresse (z. B. http://192.168.178.10:8095)');
+    if (!ip || (m[2] && +m[2] > 65535)) throw new Error(T('err.cfgMa'));
     return 'http://' + ip + ':' + (m[2] || '8095');
   }
   function cleanToken(v) {
     const t = String(v || '').trim(); if (!t) return '';
-    if (!/^[\w.~+\/=-]{8,4000}$/.test(t)) throw new Error('Ungültiger Music-Assistant-Token (nur der Token selbst, ohne Leerzeichen)');
+    if (!/^[\w.~+\/=-]{8,4000}$/.test(t)) throw new Error(T('err.cfgToken'));
     return t;
   }
   function sanitize(cfg) {
     cfg = cfg || {};
     const speakers = [], used = new Set();
     for (const sp of (cfg.speakers || []).slice(0, 8)) {
-      const name = String(sp.name || '').trim().slice(0, 40) || 'Box';
+      const name = String(sp.name || '').trim().slice(0, 40) || T('def.box');
       const raw = String(sp.ip || '').trim();
       const ip = raw ? validIp(raw) : '';
-      if (raw && !ip) throw new Error('Ungültige IP bei ' + name + ': ' + raw.slice(0, 40) + ' (nur Heimnetz-Adressen)');
+      if (raw && !ip) throw new Error(T('err.cfgIp', name, raw.slice(0, 40)));
       let mx = parseInt(sp.max, 10);
       if (!Number.isFinite(mx)) mx = 70;
-      speakers.push({id: uniqueId(sp.id, used), name, ip, max: Math.max(10, Math.min(100, mx)), _flag: !!sp.group});
+      speakers.push({id: uniqueId(sp.id, used), name, ip, max: Math.max(10, Math.min(100, mx))});
     }
-    let groups = cfg.groups;
-    if (!Array.isArray(groups)) { // Übernahme der Version 0.2 (eine Gruppe über Markierungen an den Boxen)
-      const flagged = speakers.filter(sp => sp._flag), m = (flagged.length ? flagged : speakers).map(sp => sp.id);
-      const gn = String(cfg.groupName || '').trim();
-      groups = m.length ? [{name: (!gn || gn === 'Gruppe') && m.length === 2 ? 'Beide Boxen' : (gn || 'Gruppe'), members: m}] : [];
-    }
+    const groups = Array.isArray(cfg.groups) ? cfg.groups : [];
     const ids = new Set(speakers.map(sp => sp.id)), gused = new Set(), outG = [];
     for (const g of groups.slice(0, 8)) {
       const members = [];
       for (const id of (g.members || [])) if (ids.has(id) && !members.includes(id)) members.push(id);
       if (!members.length) continue;
-      outG.push({id: uniqueId(g.id, gused), name: String(g.name || '').trim().slice(0, 30) || 'Gruppe', members});
+      outG.push({id: uniqueId(g.id, gused), name: String(g.name || '').trim().slice(0, 30) || T('def.group'), members});
     }
-    speakers.forEach(sp => { delete sp._flag; });
     return {speakers, groups: outG, ma: cleanMa(cfg.ma), maToken: cleanToken(cfg.maToken)};
   }
 
   /* env: {http(method, ip, port, path, body, timeoutMs) -> Promise<string>,
            WebSocket, storage, stPort, wsPorts} */
   function createCore(env) {
+    LANG = env.lang || (() => 'de');
     const ST_PORT = env.stPort || 8090;
     const WS_PORTS = env.wsPorts || [8080, 8090];
     const TIMEOUT = 3000;
@@ -124,7 +119,7 @@
     const stPost = (ip, path, xml) => env.http('POST', ip, ST_PORT, path, xml, TIMEOUT);
 
     async function pressKey(ip, name) {
-      if (!KEYS.has(name)) throw new Error('Unbekannte Taste');
+      if (!KEYS.has(name)) throw new Error(T('err.unknownKey'));
       for (const state of ['press', 'release'])
         await stPost(ip, '/key', '<key state="' + state + '" sender="Gabbo">' + name + '</key>');
     }
@@ -183,17 +178,17 @@
           try { ws && ws.close(); } catch (e) { /* egal */ }
           err ? reject(err) : resolve(true);
         };
-        timer = setTimeout(() => finish(new Error('Zeitüberschreitung')), timeout);
+        timer = setTimeout(() => finish(new Error(T('err.timeout'))), timeout);
         try { ws = protocols.length ? new env.WebSocket(url, protocols) : new env.WebSocket(url); }
         catch (e) { return finish(e); }
         ws.onopen = () => { try { ws.send(msg); } catch (e) { finish(e); } };
-        ws.onerror = () => finish(new Error('Verbindung fehlgeschlagen'));
-        ws.onclose = () => finish(new Error('Verbindung geschlossen'));
+        ws.onerror = () => finish(new Error(T('err.connFailed')));
+        ws.onclose = () => finish(new Error(T('err.connClosed')));
         ws.onmessage = ev => {
           const txt = String(ev.data);
           if (txt.includes('requestID="' + rid + '"') && txt.includes('RESPONSE')) {
             if (/<targetBalance>|<actualBalance>/.test(txt)) finish(null);
-            else finish(new Error('Unerwartete Antwort: ' + txt.slice(0, 120)));
+            else finish(new Error(T('err.unexpected', txt.slice(0, 120))));
           }
         };
       });
@@ -208,10 +203,10 @@
             '<request requestID="' + rid + '"><info mainNode="balanceSet" type="new"/></request></header>' +
             '<body><balance><targetBalance>' + Math.round(value) + '</targetBalance></balance></body></msg>';
           try { await wsOnce('ws://' + ip + ':' + port + '/', protocols, msg, rid, 4000); return; }
-          catch (e) { last = 'Port ' + port + (protocols.length ? '' : ' (ohne Subprotokoll)') + ': ' + e.message; }
+          catch (e) { last = T('err.balancePort', port, protocols.length ? '' : T('err.noSubprotocol'), e.message); }
         }
       }
-      throw new Error('Balance setzen fehlgeschlagen (' + last + ')');
+      throw new Error(T('err.balanceFailed', last));
     }
 
     async function waitAwake(ip, seconds) {
@@ -225,10 +220,11 @@
 
     async function speakerState(sp) {
       const out = {name: sp.name, ip: sp.ip, max: sp.max, online: false};
-      if (!sp.ip) { out.error = 'keine IP eingetragen'; return out; }
+      if (!sp.ip) { out.error = T('err.noIp'); return out; }
       let f;
       try { f = await nowFull(sp.ip); }
-      catch (e) { out.error = 'nicht erreichbar'; return out; }
+      catch (e) { out.error = T('err.unreachable'); return out; }
+      Object.defineProperty(out, '_f', {value: f});          // für die MA-Zuordnung wiederverwenden (nicht in der Antwort): spart pro Box eine Anfrage je Aktualisierung
       Object.assign(out, {online: true, source: f.source, standby: f.source === 'STANDBY', deviceID: f.deviceID,
         item: f.ci.location ? f.ci.source + '|' + f.ci.location : '', title: f.track, artist: f.artist, album: f.album, station: f.station, play: f.play, art: f.art});
       try { const [v, m] = await getVolume(sp.ip); out.volume = v; out.mute = m; } catch (e) { /* egal */ }
@@ -244,35 +240,35 @@
     async function doAuxOn(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
-        if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
+        if (!(await waitAwake(sp.ip))) throw new Error(T('err.noWake'));
         await sleep(1000);
       }
-      if ((await nowPlaying(sp.ip))[0] === 'AUX') return 'AUX an';
+      if ((await nowPlaying(sp.ip))[0] === 'AUX') return T('act.auxOn');
       await stPost(sp.ip, '/select', '<ContentItem source="AUX" sourceAccount="AUX"></ContentItem>');
       for (let i = 0; i < 4; i++) {
         await sleep(700);
-        if ((await nowPlaying(sp.ip))[0] === 'AUX') return 'AUX an';
+        if ((await nowPlaying(sp.ip))[0] === 'AUX') return T('act.auxOn');
       }
-      throw new Error('AUX nicht aktiv (Quelle: ' + (await nowPlaying(sp.ip))[0] + ')');
+      throw new Error(T('err.auxFail', (await nowPlaying(sp.ip))[0]));
     }
     // Bluetooth: direkt wählen (/select); Ersatzweg: AUX_INPUT schaltete bei der Box von AUX auf Bluetooth um
     async function doBluetoothOn(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
-        if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
+        if (!(await waitAwake(sp.ip))) throw new Error(T('err.noWake'));
         await sleep(1000);
       }
       const is = async () => (await nowPlaying(sp.ip))[0] === 'BLUETOOTH';
-      if (await is()) return 'Bluetooth an';
+      if (await is()) return T('act.btOn');
       try { await stPost(sp.ip, '/select', '<ContentItem source="BLUETOOTH" sourceAccount=""></ContentItem>'); } catch (e) { /* Ersatzweg */ }
-      for (let i = 0; i < 4; i++) { await sleep(700); if (await is()) return 'Bluetooth an'; }
+      for (let i = 0; i < 4; i++) { await sleep(700); if (await is()) return T('act.btOn'); }
       if ((await nowPlaying(sp.ip))[0] !== 'AUX') {
         try { await stPost(sp.ip, '/select', '<ContentItem source="AUX" sourceAccount="AUX"></ContentItem>'); } catch (e) { /* egal */ }
         await sleep(1200);
       }
       await pressKey(sp.ip, 'AUX_INPUT');
-      for (let i = 0; i < 4; i++) { await sleep(700); if (await is()) return 'Bluetooth an'; }
-      throw new Error('Bluetooth nicht aktiv (Quelle: ' + (await nowPlaying(sp.ip))[0] + ')');
+      for (let i = 0; i < 4; i++) { await sleep(700); if (await is()) return T('act.btOn'); }
+      throw new Error(T('err.btFail', (await nowPlaying(sp.ip))[0]));
     }
     async function getPresets(ip) {
       try {
@@ -317,60 +313,60 @@
       return {rows: 2, row2};
     }
     async function doPreset(sp, n) {
-      if (!(n >= 1 && n <= 12)) throw new Error('Taste 1 bis 12');
+      if (!(n >= 1 && n <= 12)) throw new Error(T('err.slot'));
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
-        if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
+        if (!(await waitAwake(sp.ip))) throw new Error(T('err.noWake'));
         await sleep(1000);
       }
       if (n > 6) {
-        if ((await agentRows(sp.ip)) < 2) throw new Error('zweite Reihe nicht verfügbar (STR-Agent zu alt oder nicht erreichbar)');
+        if ((await agentRows(sp.ip)) < 2) throw new Error(T('err.noRow2'));
         await env.http('POST', sp.ip, AGENT_PORT, '/api/play/' + n, null, 5000);
-        return 'Taste ' + n;
+        return T('act.slot', n);
       }
       await pressKey(sp.ip, 'PRESET_' + n);
-      return 'Taste ' + n;
+      return T('act.slot', n);
     }
     // "Was gerade läuft" auf eine Sendertaste speichern (STR-Agent, wie der lange Druck in der STR-Oberfläche; Slots 1-12)
     async function doSave(sp, n) {
-      if (!(n >= 1 && n <= 12)) throw new Error('Taste 1 bis 12');
-      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') throw new Error('Box ist aus - es läuft nichts zum Speichern');
+      if (!(n >= 1 && n <= 12)) throw new Error(T('err.slot'));
+      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') throw new Error(T('err.saveOff'));
       try { await env.http('POST', sp.ip, AGENT_PORT, '/api/box/save-playing', JSON.stringify({slot: n}), 8000); }
       catch (e) {
-        if (/409/.test(e.message)) throw new Error('liegt schon auf einer anderen Taste');
-        throw new Error('Speichern fehlgeschlagen (' + e.message + ') - läuft auf der Box ein Sender/Titel über STR?');
+        if (/409/.test(e.message)) throw new Error(T('err.saveDup'));
+        throw new Error(T('err.saveFail', e.message));
       }
-      return 'Taste ' + n + ' gespeichert';
+      return T('act.slotSaved', n);
     }
     // Beliebige Stream-Adresse abspielen lassen (STR-Agent: POST /api/play) - die Box holt sich den Stream selbst
     function extractUrl(text) {
       const m = /https?:\/\/[^\s<>"']+/i.exec(String(text || ''));
-      if (!m) throw new Error('Keine Adresse (http:// oder https://) gefunden');
+      if (!m) throw new Error(T('err.noUrl'));
       const u = m[0].replace(/[),.;]+$/, '');
-      if (u.length > 2000) throw new Error('Adresse zu lang');
+      if (u.length > 2000) throw new Error(T('err.urlLong'));
       return u;
     }
     async function doUrl(sp, url, title) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
-        if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
+        if (!(await waitAwake(sp.ip))) throw new Error(T('err.noWake'));
         await sleep(1000);
       }
       try { await env.http('POST', sp.ip, AGENT_PORT, '/api/play', JSON.stringify({url, title}), 8000); }
-      catch (e) { throw new Error('Abspielen fehlgeschlagen (' + e.message + ') - STR-Agent auf Port 8888 erreichbar?'); }
-      return 'spielt ' + title;
+      catch (e) { throw new Error(T('err.playFail', e.message)); }
+      return T('act.playing', title);
     }
     async function doOff(sp) {
-      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') return 'war schon aus';
+      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') return T('act.wasOff');
       await pressKey(sp.ip, 'POWER');
-      return 'aus';
+      return T('act.off');
     }
     async function doVolume(sp, delta, value) {
       const [cur] = await getVolume(sp.ip);
       let nv = value !== undefined && value !== null ? parseInt(value, 10) : cur + parseInt(delta, 10);
       nv = Math.max(0, Math.min(sp.max, nv));
       await setVolume(sp.ip, nv);
-      return 'Lautstärke ' + nv;
+      return T('act.volume', nv);
     }
     // Multiroom-Zone: Master-Box spielt, die anderen folgen synchron (/setZone). Stereopaare sind keine Zone.
     async function getZoneIds(ip) {
@@ -384,11 +380,11 @@
     async function makeZone(m) {
       const infos = await Promise.all(m.map(sp => getInfo(sp.ip)));
       const ids = infos.map(i => i[0]);
-      if (ids.some(i => !i) || new Set(ids).size !== ids.length) throw new Error('Geräte-IDs nicht lesbar oder doppelt');
+      if (ids.some(i => !i) || new Set(ids).size !== ids.length) throw new Error(T('err.deviceIds'));
       for (let i = 1; i < m.length; i++) {            // Folge-Boxen aus dem Standby holen
         if ((await nowPlaying(m[i].ip))[0] === 'STANDBY') {
           await pressKey(m[i].ip, 'POWER');
-          if (!(await waitAwake(m[i].ip))) throw new Error(m[i].name + ' ist nicht aufgewacht');
+          if (!(await waitAwake(m[i].ip))) throw new Error(T('err.noWakeName', m[i].name));
         }
       }
       let body = '<zone master="' + esc(ids[0]) + '" senderIPAddress="' + esc(m[0].ip) + '">';
@@ -401,7 +397,7 @@
         try { z = await getZoneIds(m[0].ip); } catch (e) { /* nochmal */ }
         if (ids.every(i => z.includes(i))) return true;
       }
-      throw new Error('Zone nicht zustande gekommen (/getZone zeigt nicht alle Boxen)');
+      throw new Error(T('err.zoneFail'));
     }
     async function isStereoPair(m) { return m.length === 2 && (await getGroup(m[0].ip)).paired; }
     // Quelle auf der Master-Box setzen, dann alle Boxen als Zone koppeln; einzelne Box / Stereopaar wie bisher
@@ -410,8 +406,8 @@
       if (await isStereoPair(m)) return runMany(pairMasterOnly ? [m[0]] : m, fn);
       const master = await runMany([m[0]], fn);
       if (master.errs.length) return master;
-      try { await makeZone(m); master.oks.push('Zone mit ' + (m.length - 1) + ' weiteren Boxen'); }
-      catch (e) { master.errs.push('Zone: ' + e.message); }
+      try { await makeZone(m); master.oks.push(T('act.zoneWith', m.length - 1)); }
+      catch (e) { master.errs.push(T('err.zone', e.message)); }
       return master;
     }
     // ---- Music Assistant (HTTP-API: POST /api mit Bearer-Token; Befehle laut MA-Doku/Clients, Antwortformen tolerant gelesen)
@@ -428,12 +424,12 @@
         t = await env.http('POST', conf.ip, conf.port, '/api', JSON.stringify({message_id: String(ridCounter++), command, args: args || {}}), timeout || 2500,
           {Authorization: 'Bearer ' + conf.token});
       } catch (e) {
-        if (/401|403/.test(e.message)) throw new Error('Music Assistant lehnt den Token ab');
-        throw new Error('Music Assistant: ' + e.message);
+        if (/401|403/.test(e.message)) throw new Error(T('err.maToken'));
+        throw new Error(T('err.ma', e.message));
       }
       let j = null; try { j = t && t.trim() ? JSON.parse(t) : null; } catch (e) { return t; }
       if (j && typeof j === 'object' && !Array.isArray(j) && (j.error_code !== undefined || j.error !== undefined))
-        throw new Error('Music Assistant: ' + String(j.details || j.error || j.error_code).slice(0, 120));
+        throw new Error(T('err.ma', String(j.details || j.error || j.error_code).slice(0, 120)));
       return j;
     }
     const asList = j => Array.isArray(j) ? j : (j && Array.isArray(j.items) ? j.items : []);
@@ -485,7 +481,7 @@
     async function wake(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
-        if (!(await waitAwake(sp.ip))) throw new Error(sp.name + ' ist nicht aufgewacht');
+        if (!(await waitAwake(sp.ip))) throw new Error(T('err.noWakeName', sp.name));
         await sleep(1000);
       }
     }
@@ -493,21 +489,21 @@
     // mode "add": Quelle bleibt Master, Ziel-Boxen kommen per Zone dazu (Musik läuft weiter).
     // mode "move": gleichen Inhalt auf der Ziel-Box starten (/select), erst wenn er dort läuft, die Quell-Boxen ausschalten.
     async function doMove(src, dst, mode) {
-      if (!src.length || !dst.length) throw new Error('Quelle oder Ziel fehlt');
+      if (!src.length || !dst.length) throw new Error(T('err.moveMissing'));
       const dstIds = new Set(dst.map(b => b.id)), srcIds = new Set(src.map(b => b.id));
-      if (src.length === dst.length && src.every(b => dstIds.has(b.id))) throw new Error('Quelle und Ziel sind dasselbe');
+      if (src.length === dst.length && src.every(b => dstIds.has(b.id))) throw new Error(T('err.moveSame'));
       const now = await nowFull(src[0].ip);
-      if (now.source === 'STANDBY') throw new Error(src[0].name + ' ist aus - es läuft nichts');
+      if (now.source === 'STANDBY') throw new Error(T('err.moveOff', src[0].name));
       if (mode === 'add') {
         const extra = dst.filter(b => !srcIds.has(b.id));
-        if (!extra.length) throw new Error('Das Ziel ist schon dabei');
-        if (await isStereoPair(src) || await isStereoPair(dst)) throw new Error('Stereopaare lassen sich nicht dazunehmen');
+        if (!extra.length) throw new Error(T('err.moveHas'));
+        if (await isStereoPair(src) || await isStereoPair(dst)) throw new Error(T('err.moveStereo'));
         await makeZone(src.concat(extra));
-        return names(extra) + ' dazugenommen';
+        return T('act.added', names(extra));
       }
       const ci = now.ci;
       if (!ci.source || !ci.location || NO_MOVE.has(ci.source))
-        throw new Error('Quelle ' + (ci.source || now.source) + ' lässt sich nicht umziehen - nur "Dazunehmen" geht');
+        throw new Error(T('err.moveSource', ci.source || now.source));
       const d0 = dst[0];
       await wake(d0);
       const before = await nowFull(d0.ip);
@@ -520,20 +516,20 @@
         const changed = n.ci.source !== before.ci.source || n.ci.location !== before.ci.location;
         ok = n.source !== 'STANDBY' && n.ci.source === ci.source && (n.ci.location === ci.location || changed);
       }
-      if (!ok) throw new Error(d0.name + ' übernimmt die Quelle nicht (Quelle dort: ' + (n.ci.source || n.source) + ') - ' + names(src) + ' bleibt an');
+      if (!ok) throw new Error(T('err.moveRefused', d0.name, n.ci.source || n.source, names(src)));
       const warn = [];
       if (dst.length > 1) {
-        try { if (!(await isStereoPair(dst))) await makeZone(dst); } catch (e) { warn.push('Zone: ' + e.message); }
+        try { if (!(await isStereoPair(dst))) await makeZone(dst); } catch (e) { warn.push(T('err.zone', e.message)); }
       }
       const leaving = src.filter(b => !dstIds.has(b.id));
       for (let i = 0; i < leaving.length; i++) {      // wie Gruppe aus: Master zuerst, dann Pause (sonst weckt der zweite POWER die Folge-Box)
         try { await doOff(leaving[i]); } catch (e) { warn.push(leaving[i].name + ': ' + e.message); }
         if (i === 0 && leaving.length > 1) await sleep(1500);
       }
-      return 'umgezogen auf ' + names(dst) + (warn.length ? ' (' + warn.join('; ') + ')' : '');
+      return T('act.moved', names(dst), warn.length ? ' (' + warn.join('; ') + ')' : '');
     }
     function refBoxes(ref) {
-      if (!ref || ref.idx === 'all') throw new Error('Unbekannte Box');
+      if (!ref || ref.idx === 'all') throw new Error(T('err.unknownBox'));
       return ref.gid ? groupMembers(ref) : targets(ref);
     }
 
@@ -574,7 +570,7 @@
         const rng = (await getBalanceRange(box.ip)) || [-7, 7, null];
         const target = balance >= 0 ? Math.round(balance / 100 * rng[1]) : Math.round(balance / 100 * -rng[0]);
         await wsSetBalance(box.ip, dev, target);
-        return 'Stereopaar: Lautstärke ' + master + ', Balance ' + (target > 0 ? '+' : '') + target;
+        return T('act.pairVol', master, (target > 0 ? '+' : '') + target);
       }
       const lv = Math.round(master * (1 - Math.max(0, balance) / 100));
       const rv = Math.round(master * (1 - Math.max(0, -balance) / 100));
@@ -583,13 +579,13 @@
         try { await setVolume(sp.ip, v); } catch (e) { errs.push(sp.name + ': ' + e.message); }
       }));
       if (errs.length) throw new Error(errs.join('; '));
-      return 'Lautstärke links ' + lv + ', rechts ' + rv;
+      return T('act.lrVol', lv, rv);
     }
 
     async function pairSpeakers(left, right) {
       const [lid] = await getInfo(left.ip);
       const [rid] = await getInfo(right.ip);
-      if (!lid || !rid || lid === rid) throw new Error('Geräte-IDs nicht lesbar oder identisch');
+      if (!lid || !rid || lid === rid) throw new Error(T('err.deviceIdsPair'));
       const body = '<group><name>' + esc(left.name + ' + ' + right.name) + '</name><masterDeviceId>' + esc(lid) +
         '</masterDeviceId><roles>' +
         '<groupRole><deviceId>' + esc(lid) + '</deviceId><role>LEFT</role><ipAddress>' + esc(left.ip) + '</ipAddress></groupRole>' +
@@ -598,8 +594,8 @@
       await stPost(left.ip, '/addGroup', body);
       await sleep(2000);
       if (!(await getGroup(left.ip)).paired)
-        throw new Error('Box meldet nach addGroup kein Stereopaar - Format/Firmware prüfen');
-      return 'Stereopaar gebildet';
+        throw new Error(T('err.pairFail'));
+      return T('act.paired');
     }
     async function unpairSpeakers(a, b) {
       for (const sp of [a, b]) {
@@ -607,17 +603,17 @@
           if ((await getGroup(sp.ip)).paired) {
             await stGet(sp.ip, '/removeGroup');
             await sleep(1500);
-            return 'Stereopaar aufgelöst';
+            return T('act.unpaired');
           }
         } catch (e) { /* nächste Box */ }
       }
-      return 'Kein Stereopaar aktiv';
+      return T('act.noPair');
     }
 
     // ---- Automatische Suche: /info auf allen Adressen der angegebenen /24-Netze
     function netPrefix(text) {
       const m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})(?:\.\d{1,3}(?:\/\d{1,2})?)?$/.exec(String(text).trim());
-      if (!m || !validIp(m[1] + '.1')) throw new Error('Ungültiger Suchbereich: ' + String(text).slice(0, 30));
+      if (!m || !validIp(m[1] + '.1')) throw new Error(T('err.badRange', String(text).slice(0, 30)));
       return m[1];
     }
     function guessPrefixes() {
@@ -674,20 +670,20 @@
       const cfg = loadConfig().speakers;
       if (data.idx === 'all') {
         const t = cfg.filter(s => s.ip);
-        if (!t.length) throw new Error('Keine Box mit IP eingetragen');
+        if (!t.length) throw new Error(T('err.noBoxIp'));
         return t;
       }
       const sp = Number.isInteger(data.idx) ? cfg[data.idx] : null;
-      if (!sp) throw new Error('Unbekannte Box');
-      if (!sp.ip) throw new Error('Keine IP eingetragen');
+      if (!sp) throw new Error(T('err.unknownBox'));
+      if (!sp.ip) throw new Error(T('err.noIpEntered'));
       return [sp];
     }
     function groupMembers(data) {
       const cfg = loadConfig(), g = cfg.groups.find(x => x.id === data.gid);
-      if (!g) throw new Error('Unbekannte Gruppe');
+      if (!g) throw new Error(T('err.unknownGroup'));
       const m = g.members.map(id => cfg.speakers.find(sp => sp.id === id)).filter(Boolean);
       const miss = m.filter(sp => !sp.ip);
-      if (miss.length) throw new Error('Keine IP eingetragen: ' + miss.map(sp => sp.name).join(', '));
+      if (miss.length) throw new Error(T('err.noIpNames', miss.map(sp => sp.name).join(', ')));
       return m;
     }
 
@@ -696,11 +692,10 @@
       if (path === '/api/state') {
         const cfg = loadConfig();
         const [speakers, snap] = await Promise.all([Promise.all(cfg.speakers.map(speakerState)), maSnapshot()]);
-        if (snap) await Promise.all(cfg.speakers.map(async (sp, i) => {
+        if (snap) cfg.speakers.forEach((sp, i) => {
           const st = speakers[i]; if (!st.online) return;
-          let f = null; try { f = await nowFull(sp.ip); } catch (e) { /* ohne Box-Stand */ }
-          const info = maInfo(snap.conf, snap.players, snap.queues, sp, f); if (info) st.ma = info;
-        }));
+          const info = maInfo(snap.conf, snap.players, snap.queues, sp, st._f || null); if (info) st.ma = info;
+        });
         return {ok: true, config: cfg, speakers};
       }
       if (path === '/api/config') return {ok: true, config: saveConfig(data)};
@@ -724,17 +719,17 @@
         return summarize(await runMany([t[0]], sp => doSave(sp, n)));   // Gruppe: speichert, was auf der Master-Box läuft
       }
       if (path === '/api/key') {       // Player-Tasten; bei Gruppen an die Master-Box (die Zone folgt)
-        const key = String(data.key || ''); if (!PLAYER_KEYS[key]) throw new Error('Unbekannte Taste');
+        const key = String(data.key || ''); if (!PLAYER_KEYS.has(key)) throw new Error(T('err.unknownKey'));
         const sp = (data.gid ? groupMembers(data) : targets(data))[0];
         const f = await nowFull(sp.ip);
-        if (f.source === 'STANDBY') throw new Error(sp.name + ' ist aus');
+        if (f.source === 'STANDBY') throw new Error(T('err.speakerOff', sp.name));
         const snap = await maSnapshot(), info = snap && maInfo(snap.conf, snap.players, snap.queues, sp, f);
         if (info && info.active) {         // spielt Music Assistant, überspringt/pausiert MA selbst (die Box-Tasten melden dort "Invalid Source")
           await maCall(snap.conf, MA_CMD[key], {queue_id: info.queueId}, 4000);
-          return {ok: true, message: PLAYER_KEYS[key] + ' (Music Assistant)'};
+          return {ok: true, message: T('act.viaMa', T('key.' + key))};
         }
         await pressKey(sp.ip, key);
-        return {ok: true, message: PLAYER_KEYS[key]};
+        return {ok: true, message: T('key.' + key)};
       }
       if (path === '/api/move') {
         const mode = data.mode === 'add' ? 'add' : 'move';
@@ -764,7 +759,7 @@
         if (action === 'preset') {
           const n = parseInt(data.n, 10);
           // Stereopaar: Taste nur an der ersten (linken/Master-)Box; sonst Zone mit der ersten Box als Master
-          if (!(n >= 1 && n <= 12)) throw new Error('Taste 1 bis 12');
+          if (!(n >= 1 && n <= 12)) throw new Error(T('err.slot'));
           return summarize(await zoneRun(m, sp => doPreset(sp, n), true));
         }
         if (action === 'read') return Object.assign({ok: true}, n === 2 ? await duoRead(m[0]) : {mode: 'none', balance: null});
@@ -774,15 +769,15 @@
           return summarize(await runMany(m, sp => doVolume(sp, null, Math.min(master, sp.max))));
         }
         if (action === 'pair' || action === 'unpair') {
-          if (n !== 2) throw new Error('Stereopaar geht nur mit genau zwei Boxen');
+          if (n !== 2) throw new Error(T('err.pairTwo'));
           return {ok: true, message: action === 'pair' ? await pairSpeakers(m[0], m[1]) : await unpairSpeakers(m[0], m[1])};
         }
-        throw new Error('Unbekannte Aktion');
+        throw new Error(T('err.unknownAction'));
       }
       if (path === '/api/diag') {            // Rohantworten zum Weitergeben (kein Token, keine Zugangsdaten)
         const cfg = loadConfig(), parts = [];
         for (const sp of cfg.speakers.filter(x => x.ip)) {
-          let raw; try { raw = await stGet(sp.ip, '/now_playing'); } catch (e) { raw = 'Fehler: ' + e.message; }
+          let raw; try { raw = await stGet(sp.ip, '/now_playing'); } catch (e) { raw = T('diag.error', e.message); }
           parts.push('== ' + sp.name + ' (' + sp.ip + ') /now_playing\n' + String(raw).slice(0, 4000));
         }
         const conf = maConf();
@@ -791,24 +786,24 @@
             const players = await maPlayers(conf), queues = asList(await maCall(conf, 'player_queues/all', {}, 2500));
             for (const sp of cfg.speakers.filter(x => x.ip)) {
               const pl = maMatch(players, sp)[0], q = pl && queues.find(x => x && x.queue_id === pl.player_id);
-              parts.push('== ' + sp.name + ' Music Assistant ' + (pl ? 'Player ' + pl.player_id : '- kein Player') + (q ? ' Warteschlange:\n' + JSON.stringify(q).slice(0, 3500) : ''));
+              parts.push('== ' + T('diag.ma', sp.name, pl ? T('diag.player', pl.player_id) : T('diag.noPlayer')) + (q ? T('diag.queue') + '\n' + JSON.stringify(q).slice(0, 3500) : ''));
             }
-          } catch (e) { parts.push('== Music Assistant: ' + e.message); }
+          } catch (e) { parts.push('== ' + T('diag.maErr', e.message)); }
         }
         const redact = t => t.replace(/(api_key|apikey|access_token|token)=([^&"\s<]+)/gi, '$1=***');
-        return {ok: true, text: redact(parts.join('\n\n')) || 'Keine Box mit IP eingetragen'};
+        return {ok: true, text: redact(parts.join('\n\n')) || T('err.noBoxIp')};
       }
       if (path === '/api/ma/test') {        // Verbindung prüfen und Boxen den MA-Playern zuordnen (zugleich Diagnose)
-        const conf = maConf(); if (!conf) throw new Error('Adresse und Token eintragen und speichern');
+        const conf = maConf(); if (!conf) throw new Error(T('err.maNeed'));
         maCache = {key: '', at: 0, players: null}; maDownUntil = 0;
         const players = await maPlayers(conf), queues = asList(await maCall(conf, 'player_queues/all', {}, 2500)), lines = [];
         for (const sp of loadConfig().speakers.filter(x => x.ip)) {
           let f = null; try { f = await nowFull(sp.ip); } catch (e) { /* aus/nicht erreichbar */ }
           const i = maInfo(conf, players, queues, sp, f);
-          lines.push(sp.name + ': ' + (i ? 'Player ' + i.playerId + ', Warteschlange ' + (i.state || 'leer') + (i.active ? ', MA spielt hier' : '') +
-            (f ? ' (Box: ' + (f.ci.source || f.source) + (f.ci.location ? ' ' + f.ci.location.slice(0, 60) : '') + ')' : '') : 'kein MA-Player gefunden'));
+          lines.push(i ? T('ma.line', sp.name, i.playerId, i.state || T('ma.empty'), i.active ? T('ma.here') : '',
+            f ? T('ma.box', (f.ci.source || f.source) + (f.ci.location ? ' ' + f.ci.location.slice(0, 60) : '')) : '') : T('ma.noPlayer', sp.name));
         }
-        return {ok: true, message: 'Verbunden, ' + players.length + ' Player', lines};
+        return {ok: true, message: T('ma.connected', players.length), lines};
       }
       if (path === '/api/ma/scan') {
         const prefixes = (data.prefixes && data.prefixes.length ? data.prefixes : guessPrefixes()).slice(0, 4).map(netPrefix);
@@ -818,7 +813,7 @@
         const prefixes = (data.prefixes && data.prefixes.length ? data.prefixes : guessPrefixes()).slice(0, 4).map(netPrefix);
         return {ok: true, prefixes, found: await scanNet(prefixes)};
       }
-      throw new Error('Unbekannter Pfad');
+      throw new Error(T('err.unknownPath'));
     }
 
     return {route, sanitize, validIp};

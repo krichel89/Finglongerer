@@ -1,4 +1,4 @@
-/* Transport der Android-App: native HTTP-Anfragen (keine CORS-/Mixed-Content-Sperre) und WebSocket der WebView. */
+/* Transport der Android-App: native HTTP-Anfragen (keine CORS-/Mixed-Content-Sperre), WebSocket der WebView, Spracheinstellung. */
 (function () {
   'use strict';
   function plugin() {
@@ -10,7 +10,7 @@
   }
   async function http(method, ip, port, path, body, timeout, extra) {
     const call = plugin();
-    if (!call) throw new Error('Nur in der Android-App möglich (native HTTP-Schnittstelle fehlt)');
+    if (!call) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
     const opts = {
       url: 'http://' + ip + ':' + port + path, method,
       headers: Object.assign(body ? {'Content-Type': /^\s*[{\[]/.test(body) ? 'application/json' : 'text/xml'} : {}, extra || {}),
@@ -24,5 +24,10 @@
   let storage;
   try { window.localStorage.getItem('x'); storage = window.localStorage; }
   catch (e) { const mem = {}; storage = {getItem: k => mem[k] || null, setItem: (k, v) => { mem[k] = v; }}; }
-  window.STNative = {http, WebSocket: window.WebSocket, storage};
+  // Sprache: gespeicherte Wahl (auto/de/en); "auto" folgt der Systemsprache des Geräts
+  const LANG_KEY = 'finglongerer.lang';
+  const langPref = () => { try { const v = storage.getItem(LANG_KEY); return v === 'de' || v === 'en' ? v : 'auto'; } catch (e) { return 'auto'; } };
+  const lang = () => window.STI18n.resolve(langPref(), (navigator.languages && navigator.languages[0]) || navigator.language);
+  const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
+  window.STNative = {http, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();

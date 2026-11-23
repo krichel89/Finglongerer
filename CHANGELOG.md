@@ -4,6 +4,13 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.16.0
+- **Zwei Sprachen:** Deutsch und Englisch. Standard folgt der Systemsprache des Geräts (andere Sprachen → Englisch); umschaltbar unter ⚙ Einstellungen → Sprache, wirkt sofort. Alle Texte stehen in `www/i18n.js`; ein Test prüft, dass beide Sprachen vollständig sind.
+- **Keine Vorgaben mehr:** keine voreingetragenen Boxen und keine Standardgruppe; Platzhalter-Adressen sind neutral (192.168.1.x). Der alte Server-Ordner `server/` (Version 0.1) ist entfernt. Die Übernahme der Version-0.2-Einstellungen entfällt.
+- Neuer Test `test/hygiene.test.mjs` bricht ab, wenn Persönliches (Namen, eigene Heimnetz-Adressen, Schlüssel) in versionierten Dateien steht; CI führt ihn und den Übersetzungstest aus.
+- Quelltextprüfung (QK): Android-Cloud-Backup abgeschaltet (der Music-Assistant-Token läge sonst im Backup); pro Aktualisierung wird jede Box nur noch einmal abgefragt (vorher zweimal, wenn Music Assistant eingerichtet war). Speicherschlüssel heißen jetzt `finglongerer.*`.
+- README zweisprachig.
+
 ## 0.15.1
 - App-ID geändert auf `de.krichel.finglongerer` (Android-Paket, Namespace, Capacitor). Das ist eine neue App neben der alten: die alte Installation (`de.krichel.steasyremote`) deinstallieren und neu einrichten, Boxen und Einstellungen neu eintragen. Repository heißt jetzt `Finglongerer`.
 

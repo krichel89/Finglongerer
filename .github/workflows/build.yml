@@ -31,6 +31,8 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$V" ]; then
             echo "Tag ${GITHUB_REF_NAME} passt nicht zur Version $V"; exit 1
           fi
+      - name: Übersetzungen und Persönliches prüfen
+        run: node test/i18n.test.mjs && node test/hygiene.test.mjs
       - run: node test/core.test.mjs
         continue-on-error: true
       - run: npx cap sync android
