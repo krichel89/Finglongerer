@@ -1,6 +1,8 @@
 package de.krichel.finglongerer;
 
+import android.app.UiModeManager;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 
@@ -42,11 +44,21 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    /** Meldet der Oberfläche, ob die App auf einem Fernseher (Google TV / Android TV) läuft: window.STDevice.isTv(). */
+    public class DeviceBridge {
+        @JavascriptInterface
+        public boolean isTv() {
+            UiModeManager m = (UiModeManager) getSystemService(UI_MODE_SERVICE);
+            return m != null && m.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getBridge().getWebView().addJavascriptInterface(new ShareBridge(), "STShare");
         getBridge().getWebView().addJavascriptInterface(new TcpBridge(), "STTcp");
+        getBridge().getWebView().addJavascriptInterface(new DeviceBridge(), "STDevice");
         remember(getIntent());
     }
 

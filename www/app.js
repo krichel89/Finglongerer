@@ -340,8 +340,7 @@ function gSend(card, volOverride) {
 // Langer Druck auf eine Sendertaste: speichert, was gerade läuft
 let holdTimer = null, held = false;
 const holdEnd = () => { clearTimeout(holdTimer); holdTimer = null; };
-document.addEventListener('pointerdown', ev => {
-  const b = ev.target.closest('button[data-act=preset]'); if (!b) return;
+function holdStart(b) {
   held = false; holdEnd();
   holdTimer = setTimeout(() => {
     held = true; holdTimer = null;
@@ -351,9 +350,26 @@ document.addEventListener('pointerdown', ev => {
     act('/api/save', ecard.dataset.gid ? {gid: ecard.dataset.gid, n} : {idx: +ecard.dataset.i, n}, b)
       .then(() => { delete presetNames[ekey]; if (ui.open['p:' + ekey]) loadPresetNames(ekey); });
   }, 700);
+}
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target.closest('button[data-act=preset]'); if (!b) return;
+  holdStart(b);
 });
 ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(t => document.addEventListener(t, holdEnd, true));
 document.addEventListener('contextmenu', ev => { if (ev.target.closest('button[data-act=preset]')) ev.preventDefault(); });
+// Fernbedienung (Google TV): OK kurz = Sendertaste, OK gehalten = speichern. Der Klick wird erst beim Loslassen ausgelöst.
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || !document.documentElement.classList.contains('tv')) return;
+  const b = ev.target.closest && ev.target.closest('button[data-act=preset]'); if (!b) return;
+  ev.preventDefault();
+  if (!ev.repeat) holdStart(b);
+});
+document.addEventListener('keyup', ev => {
+  if (ev.key !== 'Enter' || !document.documentElement.classList.contains('tv')) return;
+  const b = ev.target.closest && ev.target.closest('button[data-act=preset]'); if (!b) return;
+  ev.preventDefault();
+  if (holdTimer) { holdEnd(); held = false; b.click(); }
+});
 document.addEventListener('click', async ev => {
   if (held && ev.target.closest('button[data-act=preset]')) { held = false; return; }   // Klick nach langem Druck ignorieren
   const b = ev.target.closest('button[data-act]'); if (!b) return;

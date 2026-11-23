@@ -99,3 +99,15 @@ button.pwr{display:flex;align-items:center;justify-content:center;width:100%;min
 button.pwr.lit{color:var(--orange)}
 button.pairbtn{width:100%;margin-top:8px}
 .soff{grid-column:1/-1;display:flex;gap:10px}.soff label{flex:1;font-size:.8rem;display:flex;align-items:center;gap:6px}.soff input{width:64px}
+
+/* Google TV: Bedienung per Fernbedienung (Steuerkreuz). Fokus immer sichtbar, größere Schrift, Platz für Überscan. */
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.tv :focus{outline:4px solid var(--orange);outline-offset:3px}
+.tv body{font-size:20px;padding:3vh 4vw}
+.tv main{max-width:1280px}
+.tv #groups{grid-template-columns:repeat(auto-fill,minmax(440px,1fr));align-items:start}
+.tv button{min-height:60px}
+.tv button.icon{min-height:56px;min-width:56px}
+.tv .enp img{width:88px;height:88px}
+.tv input[type=range]{height:48px}
+.tv dialog{width:min(80vw,760px)}
