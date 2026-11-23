@@ -10,6 +10,8 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 const UI_KEY = 'steasyremote.ui';
 const ui = {order: [], open: {}, sort: false};
 try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; } } catch (e) { /* neu anfangen */ }
+{ const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
+  Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open})); } catch (e) { /* egal */ } };
 const presetNames = {}, presetLoc = {}, presetRows = {}, presetRow2 = {};
 
@@ -274,7 +276,11 @@ document.addEventListener('click', async ev => {
   const a = b.dataset.act, card = b.closest('[data-gid]'), gid = card && card.dataset.gid;
   const ecard = b.closest('[data-ekey]'), ekey = ecard && ecard.dataset.ekey;
   const idx = +(b.dataset.i !== undefined ? b.dataset.i : (ecard && ecard.dataset.i));
-  if (a === 'toggle') { ui.open[ekey] = !ui.open[ekey]; saveUi(); dragging = false; render(); }
+  if (a === 'toggle') {
+    const was = !!ui.open[ekey];
+    entries().forEach(e => { ui.open[e.key] = false; });      // immer nur ein Eintrag offen
+    ui.open[ekey] = !was; saveUi(); dragging = false; render();
+  }
   else if (a === 'eup' || a === 'edown') {
     const keys = entries().map(e => e.key), p = keys.indexOf(ekey), q = p + (a === 'eup' ? -1 : 1);
     if (q >= 0 && q < keys.length) { [keys[p], keys[q]] = [keys[q], keys[p]]; ui.order = keys; saveUi(); render(); }
@@ -306,6 +312,16 @@ document.addEventListener('input', ev => {
   if (role === 'slider') v.textContent = t.value;
   else if (role === 'gvol') v.textContent = volText(t.value, t.max);
   else if (role === 'gbal') v.textContent = balText(+t.value);
+});
+// Doppeltipp auf den Balanceregler setzt ihn in die Mitte
+let lastBalTap = 0;
+document.addEventListener('pointerup', ev => {
+  const t = ev.target; if (!t.dataset || t.dataset.role !== 'gbal') return;
+  const now = Date.now();
+  if (now - lastBalTap < 400) {
+    lastBalTap = 0; t.value = 0; t.parentElement.querySelector('.v').textContent = balText(0);
+    const card = t.closest('[data-gid]'); if (card) setTimeout(() => gSend(card), 60);
+  } else lastBalTap = now;
 });
 document.addEventListener('change', ev => {
   const t = ev.target, role = t.dataset && t.dataset.role; if (!role) return;

@@ -38,13 +38,13 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
       - name: APK benennen
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk "Boxen-$VERSION.apk"
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "STEasy-$VERSION.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Boxen-${{ env.VERSION }}-apk
-          path: Boxen-${{ env.VERSION }}.apk
+          name: STEasy-${{ env.VERSION }}-apk
+          path: STEasy-${{ env.VERSION }}.apk
       - name: Release erstellen (nur bei Tag)
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "Boxen-$VERSION.apk" --title "Boxen $VERSION" --notes-file CHANGELOG.md
+        run: gh release create "$GITHUB_REF_NAME" "STEasy-$VERSION.apk" --title "Boxen $VERSION" --notes-file CHANGELOG.md

@@ -1,6 +1,6 @@
 {
   "appId": "de.krichel.steasyremote",
-  "appName": "Boxen",
+  "appName": "STEasy",
   "webDir": "www",
   "server": {
     "androidScheme": "http",

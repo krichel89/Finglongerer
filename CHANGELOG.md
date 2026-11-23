@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.10.0
+- App heißt jetzt **STEasy** (Name unter dem Icon, Titel, Kopfzeile, APK-Dateiname `STEasy-<Version>.apk`). Die App-ID bleibt, Updates laufen weiter über die alte Installation.
+- Immer nur ein Eintrag (Box oder Gruppe) ist aufgeklappt; ein anderer öffnet, der vorherige schließt.
+- Doppeltipp auf den Balanceregler setzt ihn in die Mitte.
+
 ## 0.9.0
 - Stream-URL: ganz unten „Stream-URL abspielen" – Adresse eintragen, Box oder Gruppe wählen, Abspielen (`POST :8888/api/play` am STR-Agenten; die Box holt den Stream selbst). Bei Gruppen spielt die Master-Box, die anderen folgen per Zone.
 - „Teilen" aus anderen Android-Apps: Text/Link an „Boxen" teilen füllt das Feld (Adresse wird aus dem Text gezogen); gespielt wird erst nach Auswahl des Ziels.
