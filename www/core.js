@@ -257,12 +257,25 @@
         return out;
       } catch (e) { return []; }
     }
+    // STR-Agent (Port 8888): zweite Reihe (Slots 7-12 = Taste doppelt gedrückt) gibt es nur dort; meldet "presetRows":"2"
+    const AGENT_PORT = 8888;
+    async function agentRows(ip) {
+      try {
+        const x = await env.http('GET', ip, AGENT_PORT, '/api/agent/version', null, 2000);
+        return /"presetRows"\s*:\s*"?2"?/.test(x) ? 2 : 1;
+      } catch (e) { return 1; }
+    }
     async function doPreset(sp, n) {
-      if (!(n >= 1 && n <= 6)) throw new Error('Taste 1 bis 6');
+      if (!(n >= 1 && n <= 12)) throw new Error('Taste 1 bis 12');
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') {
         await pressKey(sp.ip, 'POWER');
         if (!(await waitAwake(sp.ip))) throw new Error('Box ist nicht aufgewacht');
         await sleep(1000);
+      }
+      if (n > 6) {
+        if ((await agentRows(sp.ip)) < 2) throw new Error('zweite Reihe nicht verfügbar (STR-Agent zu alt oder nicht erreichbar)');
+        await env.http('POST', sp.ip, AGENT_PORT, '/api/play/' + n, null, 5000);
+        return 'Taste ' + (n - 6) + ' (2×)';
       }
       await pressKey(sp.ip, 'PRESET_' + n);
       return 'Taste ' + n;
@@ -467,7 +480,7 @@
         const n = parseInt(data.n, 10);
         return summarize(await runMany(targets(data), sp => doPreset(sp, n)));
       }
-      if (path === '/api/presets') return {ok: true, presets: await getPresets(targets(data)[0].ip)};
+      if (path === '/api/presets') { const ip = targets(data)[0].ip; return {ok: true, presets: await getPresets(ip), rows: await agentRows(ip)}; }
       if (path === '/api/volume') {
         const t = targets(data);
         if ('value' in data) return summarize(await runMany(t, sp => doVolume(sp, null, data.value)));
@@ -487,11 +500,11 @@
           }
           return summarize({oks, errs});
         }
-        if (action === 'presets') return {ok: true, presets: await getPresets(m[0].ip)};
+        if (action === 'presets') return {ok: true, presets: await getPresets(m[0].ip), rows: await agentRows(m[0].ip)};
         if (action === 'preset') {
           const n = parseInt(data.n, 10);
           // Stereopaar: Taste nur an der ersten (linken/Master-)Box; sonst Zone mit der ersten Box als Master
-          if (!(n >= 1 && n <= 6)) throw new Error('Taste 1 bis 6');
+          if (!(n >= 1 && n <= 12)) throw new Error('Taste 1 bis 12');
           return summarize(await zoneRun(m, sp => doPreset(sp, n), true));
         }
         if (action === 'read') return Object.assign({ok: true}, n === 2 ? await duoRead(m[0]) : {mode: 'none', balance: null});

@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.6.0
+- Zweite Sender-Reihe (STR: Taste doppelt gedrückt, Slots 7–12): erscheint unter den Tasten 1–6 als „1 · 2×" … „6 · 2×", wenn der STR-Agent der Box (Port 8888, `/api/agent/version`) `presetRows: 2` meldet. Abgespielt wird über `POST /api/play/<slot>` am Agenten. Namen der Slots 7–12 werden noch nicht angezeigt (Lese-Schnittstelle unbekannt).
+
 ## 0.5.2
 - Hauptseite aufgeräumt: Links/Rechts-Tausch wandert in die Einstellungen (Gruppen → „⇆ tauschen" bei Gruppen mit zwei Boxen), die Erläuterungen zur Balance und der Mitte-Knopf entfallen.
 

@@ -32,6 +32,8 @@ class H(BaseHTTPRequestHandler):
         p = self.path
         if self.headers.get("Upgrade", "").lower() == "websocket":
             return self.ws()
+        if p == "/api/agent/version":
+            return self.send('{"version":"mock","presetRows":"2"}')
         if p == "/_dbg":
             return self.send(str(S["preset"]))
         if p == "/presets":
@@ -62,6 +64,8 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0)); body = self.rfile.read(n).decode()
         sys.stderr.write("[%s] POST %s %s\n" % (NAME, self.path, body))
+        if self.path.startswith("/api/play/"):
+            S["preset"] = int(self.path.rsplit("/", 1)[1]); return self.send("{}")
         if self.path == "/key":
             if 'state="release"' in body:
                 if ">POWER<" in body:
@@ -88,4 +92,6 @@ class H(BaseHTTPRequestHandler):
             self.send("nope", 404)
 
 
+if os.environ.get("MOCK_NO_AGENT") != "1":
+    threading.Thread(target=ThreadingHTTPServer((HOST, 8888), H).serve_forever, daemon=True).start()
 ThreadingHTTPServer((HOST, 8090), H).serve_forever()

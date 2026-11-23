@@ -11,7 +11,7 @@ const UI_KEY = 'steasyremote.ui';
 const ui = {order: [], open: {}, sort: false};
 try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; } } catch (e) { /* neu anfangen */ }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open})); } catch (e) { /* egal */ } };
-const presetNames = {}, presetLoc = {};
+const presetNames = {}, presetLoc = {}, presetRows = {};
 
 async function api(path, body) {
   // Direkt an die Boxen (kein Server): Kernlogik aus core.js, Transport aus native.js
@@ -116,16 +116,24 @@ async function loadPresetNames(ekey) {
   try {
     const j = await api(card.dataset.gid ? '/api/group' : '/api/presets', body);
     const names = {}, locs = {}; (j.presets || []).forEach(p => { if (p.name) names[p.n] = p.name; if (p.item) locs[p.n] = p.item; });
-    presetNames[ekey] = names; presetLoc[ekey] = locs; paint();
+    presetNames[ekey] = names; presetLoc[ekey] = locs; presetRows[ekey] = j.rows || 1; paint();
+    document.querySelectorAll('[data-ekey="' + ekey + '"] details.presets').forEach(d => addRow2(d, ekey));
     document.querySelectorAll('[data-ekey="' + ekey + '"] [data-act=preset]').forEach(b => {
       b.textContent = b.dataset.n + (names[b.dataset.n] ? ' · ' + names[b.dataset.n] : ''); });
   } catch (e) { /* ohne Namen */ }
+}
+// zweite Reihe (Taste doppelt gedrückt, Slots 7-12): nur wenn der STR-Agent sie meldet
+function addRow2(d, ekey) {
+  if (presetRows[ekey] !== 2 || d.querySelector('.pgrid2')) return;
+  const g2 = el('div', {class: 'pgrid pgrid2'});
+  for (let n = 1; n <= 6; n++) g2.append(el('button', {text: n + ' · 2×', 'data-act': 'preset', 'data-n': n + 6}));
+  d.append(g2);
 }
 function presetBlock(ekey) {
   const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6)'}));
   const names = presetNames[ekey] || {}, grid = el('div', {class: 'pgrid'});
   for (let n = 1; n <= 6; n++) grid.append(el('button', {text: n + (names[n] ? ' · ' + names[n] : ''), 'data-act': 'preset', 'data-n': n, 'data-key': 'p:' + ekey + ':' + n}));
-  d.append(grid);
+  d.append(grid); addRow2(d, ekey);
   d.open = !!ui.open['p:' + ekey];
   d.addEventListener('toggle', () => {
     if (!!ui.open['p:' + ekey] === d.open) return;

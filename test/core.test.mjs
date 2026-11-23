@@ -97,7 +97,8 @@ try {
   const dbg = ip => nodeHttp('GET', ip, 8090, '/_dbg', null, 2000);
   r = await call('/api/preset', { idx: 1, n: 4 }); assert.equal(await dbg('127.0.0.3'), '4'); ok('einzelne Box: Taste 4');
   r = await call('/api/group', { gid: 'g1', action: 'preset', n: 2 }); assert.deepEqual([await dbg('127.0.0.2'), await dbg('127.0.0.3'), await dbg('127.0.0.4')], ['2', '4', '0']); ok('Gruppe: Taste 2 nur am Master, Folge-Boxen per Zone');
-  await assert.rejects(call('/api/preset', { idx: 0, n: 9 }), /Taste 1 bis 6/); ok('Taste 9 abgelehnt');
+  await assert.rejects(call('/api/preset', { idx: 0, n: 13 }), /Taste 1 bis 12/); ok('Taste 13 abgelehnt');
+  await call('/api/preset', { idx: 1, n: 9 }); assert.equal(await dbg('127.0.0.3'), '9'); r = await call('/api/presets', { idx: 1 }); assert.equal(r.rows, 2); ok('zweite Reihe (Slot 9) über STR-Agent :8888');
   r = await call('/api/presets', { idx: 0 }); assert.deepEqual(r.presets.map(p => [p.n, p.name]), [[1, 'Radio Eins'], [3, 'Klassik']]); ok('Sendernamen aus /presets');
   await call('/api/preset', { idx: 0, n: 1 }); st = await call('/api/state'); r = await call('/api/presets', { idx: 0 });
   assert.equal(st.speakers[0].item, 'LOCAL_INTERNET_RADIO|x'); assert.equal(r.presets[0].item, 'LOCAL_INTERNET_RADIO|x'); assert.notEqual(r.presets[1].item, st.speakers[0].item); ok('laufende Quelle passt zur gewählten Sendertaste');
