@@ -130,7 +130,7 @@ function addRow2(d, ekey) {
   d.append(g2);
 }
 function presetBlock(ekey) {
-  const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6)'}));
+  const d = el('details', {class: 'presets'}, el('summary', {text: 'Sender (Tasten 1–6) · lang drücken = speichern'}));
   const names = presetNames[ekey] || {}, grid = el('div', {class: 'pgrid'});
   for (let n = 1; n <= 6; n++) grid.append(el('button', {text: n + (names[n] ? ' · ' + names[n] : ''), 'data-act': 'preset', 'data-n': n, 'data-key': 'p:' + ekey + ':' + n}));
   d.append(grid); addRow2(d, ekey);
@@ -244,7 +244,25 @@ function gSend(card, volOverride) {
   const balance = bal ? +bal.value : 0; balCache[gid] = balance;
   return act('/api/group', {gid, action: 'volume', master: volOverride === undefined ? +vol.value : volOverride, balance});
 }
+// Langer Druck auf eine Sendertaste: speichert, was gerade läuft
+let holdTimer = null, held = false;
+const holdEnd = () => { clearTimeout(holdTimer); holdTimer = null; };
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target.closest('button[data-act=preset]'); if (!b) return;
+  held = false; holdEnd();
+  holdTimer = setTimeout(() => {
+    held = true; holdTimer = null;
+    const ecard = b.closest('[data-ekey]'), n = +b.dataset.n, ekey = ecard.dataset.ekey;
+    const label = n > 6 ? (n - 6) + ' · 2×' : String(n), old = (presetNames[ekey] || {})[n];
+    if (!confirm('Taste ' + label + (old ? ' (' + old + ')' : '') + ' mit dem aktuell Laufenden belegen?')) return;
+    act('/api/save', ecard.dataset.gid ? {gid: ecard.dataset.gid, n} : {idx: +ecard.dataset.i, n}, b)
+      .then(() => { delete presetNames[ekey]; if (ui.open['p:' + ekey]) loadPresetNames(ekey); });
+  }, 700);
+});
+['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(t => document.addEventListener(t, holdEnd, true));
+document.addEventListener('contextmenu', ev => { if (ev.target.closest('button[data-act=preset]')) ev.preventDefault(); });
 document.addEventListener('click', async ev => {
+  if (held && ev.target.closest('button[data-act=preset]')) { held = false; return; }   // Klick nach langem Druck ignorieren
   const b = ev.target.closest('button[data-act]'); if (!b) return;
   const a = b.dataset.act, card = b.closest('[data-gid]'), gid = card && card.dataset.gid;
   const ecard = b.closest('[data-ekey]'), ekey = ecard && ecard.dataset.ekey;

@@ -280,6 +280,17 @@
       await pressKey(sp.ip, 'PRESET_' + n);
       return 'Taste ' + n;
     }
+    // "Was gerade läuft" auf eine Sendertaste speichern (STR-Agent, wie der lange Druck in der STR-Oberfläche; Slots 1-12)
+    async function doSave(sp, n) {
+      if (!(n >= 1 && n <= 12)) throw new Error('Taste 1 bis 12');
+      if ((await nowPlaying(sp.ip))[0] === 'STANDBY') throw new Error('Box ist aus - es läuft nichts zum Speichern');
+      try { await env.http('POST', sp.ip, AGENT_PORT, '/api/box/save-playing', JSON.stringify({slot: n}), 8000); }
+      catch (e) {
+        if (/409/.test(e.message)) throw new Error('liegt schon auf einer anderen Taste');
+        throw new Error('Speichern fehlgeschlagen (' + e.message + ') - läuft auf der Box ein Sender/Titel über STR?');
+      }
+      return (n > 6 ? 'Taste ' + (n - 6) + ' (2×)' : 'Taste ' + n) + ' gespeichert';
+    }
     async function doOff(sp) {
       if ((await nowPlaying(sp.ip))[0] === 'STANDBY') return 'war schon aus';
       await pressKey(sp.ip, 'POWER');
@@ -479,6 +490,10 @@
       if (path === '/api/preset') {
         const n = parseInt(data.n, 10);
         return summarize(await runMany(targets(data), sp => doPreset(sp, n)));
+      }
+      if (path === '/api/save') {
+        const n = parseInt(data.n, 10), t = data.gid ? groupMembers(data) : targets(data);
+        return summarize(await runMany([t[0]], sp => doSave(sp, n)));   // Gruppe: speichert, was auf der Master-Box läuft
       }
       if (path === '/api/presets') { const ip = targets(data)[0].ip; return {ok: true, presets: await getPresets(ip), rows: await agentRows(ip)}; }
       if (path === '/api/volume') {

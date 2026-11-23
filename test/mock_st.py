@@ -34,6 +34,8 @@ class H(BaseHTTPRequestHandler):
             return self.ws()
         if p == "/api/agent/version":
             return self.send('{"version":"mock","presetRows":"2"}')
+        if p == "/_saved":
+            return self.send(S.get("saved", ""))
         if p == "/_dbg":
             return self.send(str(S["preset"]))
         if p == "/presets":
@@ -64,6 +66,8 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0)); body = self.rfile.read(n).decode()
         sys.stderr.write("[%s] POST %s %s\n" % (NAME, self.path, body))
+        if self.path == "/api/box/save-playing":
+            S["saved"] = body; return self.send("{}")
         if self.path.startswith("/api/play/"):
             S["preset"] = int(self.path.rsplit("/", 1)[1]); return self.send("{}")
         if self.path == "/key":

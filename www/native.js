@@ -13,7 +13,7 @@
     if (!call) throw new Error('Nur in der Android-App möglich (native HTTP-Schnittstelle fehlt)');
     const opts = {
       url: 'http://' + ip + ':' + port + path, method,
-      headers: body ? {'Content-Type': 'text/xml'} : {},
+      headers: body ? {'Content-Type': /^\s*[{\[]/.test(body) ? 'application/json' : 'text/xml'} : {},
       responseType: 'text', connectTimeout: timeout, readTimeout: timeout
     };
     if (body) opts.data = body;
