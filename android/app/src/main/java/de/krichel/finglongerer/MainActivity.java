@@ -136,7 +136,7 @@ public class MainActivity extends BridgeActivity {
             if (!on) {
                 voiceRun = false;
                 Thread t = voiceThread;
-                if (t != null) { try { t.join(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
+                if (t != null) { try { t.join(1500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
                 return "ok";
             }
             if (voiceThread != null) return "ok";
@@ -145,7 +145,8 @@ public class MainActivity extends BridgeActivity {
                 return "ERR:other:Mikrofon erlauben und dann nochmal drücken";
             }
             try {
-                final int id = remote().voiceStart(ip);
+                final TvRemote r = remote();         // einmal holen: remote() ist synchronisiert, der Aufnahme-Thread darf die Sperre nicht brauchen
+                final int id = r.voiceStart(ip);
                 voiceRun = true;
                 Thread t = new Thread(() -> {
                     AudioRecord rec = null;
@@ -162,14 +163,14 @@ public class MainActivity extends BridgeActivity {
                                 if (n <= 0) break;
                                 got += n;
                             }
-                            if (got > 0) remote().voiceChunk(ip, id, buf, got);
+                            if (got > 0) r.voiceChunk(ip, id, buf, got);
                             if (got < buf.length) break;
                         }
                     } catch (Exception e) {
                         /* Verbindung weg: Sitzung endet */
                     } finally {
                         if (rec != null) { try { rec.stop(); } catch (Exception e) { /* egal */ } rec.release(); }
-                        try { remote().voiceEnd(ip, id); } catch (Exception e) { /* egal */ }
+                        try { r.voiceEnd(ip, id); } catch (Exception e) { /* egal */ }
                         voiceRun = false;
                         voiceThread = null;
                     }
@@ -186,7 +187,7 @@ public class MainActivity extends BridgeActivity {
         public String text(String ip, String text) {
             if (!lan(ip)) return "ERR:ip";
             if (text == null || text.length() > 200) return "ERR:other:Text";
-            try { remote().text(ip, text); return "ok"; } catch (Exception e) { return fail(e); }
+            try { return remote().text(ip, text) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
         }
 
         @JavascriptInterface

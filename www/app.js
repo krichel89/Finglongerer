@@ -642,7 +642,8 @@ function buildTv() {
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
     play: '<path d="M4 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/>',
     prev: '<path d="M6 5v14M19 5l-10 7 10 7z"/>',
-    next: '<path d="M18 5v14M5 5l10 7-10 7z"/>'
+    next: '<path d="M18 5v14M5 5l10 7-10 7z"/>',
+    kbd: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'
   };
   const icon = n => '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[n] + '</svg>';
   const k = (label, key, title, cls) => {
@@ -654,19 +655,23 @@ function buildTv() {
   off.innerHTML = icon('power');
   const skip = (n, tip) => { const b = el('button', {type: 'button', title: tip, 'aria-label': tip, 'data-tvskip': n}); b.innerHTML = icon(n); return b; };
   const gap = () => el('span');
+  // Tastatur: Taste öffnet die Handy-Tastatur über ein unsichtbares Feld; der Text erscheint in der Taste und live auf dem Fernseher
+  const kb = el('button', {type: 'button', class: 'kbd', title: t('tv.kbd'), 'aria-label': t('tv.kbd'), 'data-tvkbd': '1'});
+  kb.innerHTML = icon('kbd'); kb.append(el('span', {class: 'kbtxt', text: t('tv.kbd')}));
   const form = el('form', {class: 'tvq', autocomplete: 'off'},
-    el('input', {type: 'text', id: 'tv-q', name: 'tvq', placeholder: t('tv.query'), enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false'}));
+    el('input', {type: 'text', id: 'tv-q', name: 'tvq', enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', 'aria-hidden': 'true', tabindex: '-1'}));
   body.append(
     el('div', {class: 'tvrow two'}, off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
     el('div', {class: 'tvrow'}, skip('prev', t('tv.prev')), k('play', 85, t('tv.play')), skip('next', t('tv.next'))),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
-    form);
+    kb, form);
 }
 function setTab(name) {
   ui.tab = name === 'tv' ? 'tv' : 'bose'; saveUi();
   $('#boseview').hidden = ui.tab === 'tv'; $('#tvview').hidden = ui.tab !== 'tv';
   $('#btn-sort').hidden = ui.tab === 'tv';
+  document.documentElement.classList.toggle('tvmode', ui.tab === 'tv');
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
 }
 // Einstellungen: Reiter ein-/ausblenden; bei nur einem Reiter entfällt die Symbolreihe, mindestens einer bleibt
@@ -681,12 +686,36 @@ function applyTabs() {
 ['bose', 'tv'].forEach(n => $('#tab-' + n).addEventListener('change', e => { ui.tabs[n] = e.target.checked; applyTabs(); }));
 $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
 // Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
+// Texteingabe: jede Änderung wird als ganzer Feldinhalt an das Eingabefeld des Fernsehers geschickt (wie die Google-TV-App).
+// Meldet der Fernseher kein Eingabefeld, wird beim Senden ersatzweise Taste für Taste getippt.
+const KEYS = ch => /[a-z]/.test(ch) ? 29 + ch.charCodeAt(0) - 97 : /[0-9]/.test(ch) ? 7 + ch.charCodeAt(0) - 48 : ch === ' ' ? 62 : ch === '.' ? 56 : ch === '-' ? 69 : 0;
+const tvText = {live: true, timer: 0, chain: Promise.resolve()};
+function kbShow() {
+  const inp = $('#tv-q'), span = $('#tvbody .kbtxt'); if (!span) return;
+  span.textContent = inp.value || t('tv.kbd'); $('#tvbody .kbd').classList.toggle('typing', document.activeElement === inp);
+}
+const tvSend = v => { tvText.chain = tvText.chain.then(async () => {
+  if (!tvText.live) return;
+  const r = await STNative.tv.text(tvLoad().ip, v);
+  if (r === 'nofield') { tvText.live = false; toast(t('tv.noField')); }
+}).catch(e => toast(e.message, true)); return tvText.chain; };
+$('#tvbody').addEventListener('input', ev => {
+  if (ev.target.id !== 'tv-q') return;
+  kbShow(); clearTimeout(tvText.timer);
+  const v = ev.target.value; tvText.timer = setTimeout(() => tvSend(v), 150);
+});
+$('#tvbody').addEventListener('focusin', ev => { if (ev.target.id === 'tv-q') { tvText.live = true; kbShow(); } });
+$('#tvbody').addEventListener('focusout', ev => { if (ev.target.id === 'tv-q') setTimeout(kbShow, 0); });
 $('#tvbody').addEventListener('submit', ev => {
   ev.preventDefault();
-  const inp = ev.target.querySelector('#tv-q'), ip = tvLoad().ip, q = inp.value.trim(); if (!q) return;
-  inp.readOnly = true;
-  (async () => { await STNative.tv.text(ip, q); await STNative.tv.key(ip, 66); inp.value = ''; })()
-    .catch(e => toast(e.message, true)).finally(() => { inp.readOnly = false; });
+  const inp = $('#tv-q'), ip = tvLoad().ip, v = inp.value;
+  clearTimeout(tvText.timer); inp.blur();
+  (async () => {
+    if (tvText.live) { await tvSend(v); }
+    if (!tvText.live) { for (const ch of v.toLowerCase()) { const c = KEYS(ch); if (c) await STNative.tv.key(ip, c); } }
+    await STNative.tv.key(ip, 66);
+    inp.value = ''; kbShow();
+  })().catch(e => toast(e.message, true));
 });
 // Sprachsuche: Mikrofon des Handys wird an den Fernseher gestreamt; erster Druck startet, zweiter beendet (nach 20 s automatisch)
 let voiceOn = false, voiceTimer = 0;
@@ -716,7 +745,8 @@ const skipEnd = ev => {
 $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
-  if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
+  if (b.dataset.tvskip) return;
+  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); return; }      // läuft über Zeiger-Ereignisse (kurz/lang)
   const c = tvLoad();
   tvBusy(b, async () => {
     if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);

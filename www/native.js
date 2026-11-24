@@ -32,7 +32,7 @@
   function tvCall(fn, ...args) {
     if (!window.STTv) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
     const r = String(window.STTv[fn](...args));
-    if (r === 'ok' || (fn === 'scan' && !r.startsWith('ERR:'))) return r;
+    if (r === 'ok' || r === 'nofield' || (fn === 'scan' && !r.startsWith('ERR:'))) return r;
     const m = /^ERR:(\w+)(?::([\s\S]*))?$/.exec(r) || [], T = (k, a) => window.STI18n.t(lang(), k, a);
     if (m[1] === 'net') throw new Error(T('err.tvNet'));
     if (m[1] === 'auth') throw new Error(T('err.tvAuth'));

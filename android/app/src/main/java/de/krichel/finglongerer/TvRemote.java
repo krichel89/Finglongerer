@@ -441,10 +441,12 @@ final class TvRemote {
         sendTo(ip, keyInject(code, DIRECTION_SHORT));
     }
 
-    synchronized void text(String ip, String text) throws IOException {
-        if (text == null || text.isEmpty()) return;
+    /** Inhalt des Eingabefelds auf dem Fernseher setzen. false = der Fernseher hat (noch) kein Eingabefeld gemeldet, nichts gesendet. */
+    synchronized boolean text(String ip, String text) throws IOException {
         Conn c = ensure(ip);
-        sendTo(ip, textEdit(c.imeCounter, c.imeFieldCounter, text));
+        if (c.imeCounter == 0 && c.imeFieldCounter == 0) return false;
+        sendTo(ip, textEdit(c.imeCounter, c.imeFieldCounter, text == null ? "" : text));
+        return true;
     }
 
     void keyDir(String ip, int code, int direction) throws IOException {

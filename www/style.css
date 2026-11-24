@@ -121,20 +121,18 @@ button.tab.on{opacity:1;border-color:var(--orange)}
 #boseview[hidden],#tvview[hidden]{display:none}
 #boseview{display:grid;gap:12px}
 /* Fernbedienung für den Google TV */
-#tvbody{display:flex;flex-direction:column;gap:10px;min-height:calc(100dvh - 150px)}
-.tvrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex:1;min-height:64px}
+#tvbody{display:flex;flex-direction:column;gap:10px}
+.tvrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex:1;min-height:44px}
 #tvbody .tvrow button,#tvbody .dpad button{min-height:0;height:100%}
-.dpad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:10px;flex:3;min-height:200px}
+.dpad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:10px;flex:3;min-height:150px}
 .dpad button{font-size:1.6rem}
 .dpad .okb{font-weight:700;color:var(--orange)}
 #tvbody button.tvoff{color:var(--bad)}
 
 button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 
-.tvq{display:flex;gap:8px;align-items:center}.tvq input{flex:1;min-width:0}#tvbody button.small{min-height:36px;padding:4px 12px;font-size:.85rem;width:auto}
 
 #tvbody svg{display:block;margin:auto}
-.tvq{margin:0}
 
 .tvrow.two{grid-template-columns:1fr 1fr}
 #tvbody button{touch-action:manipulation}
@@ -142,3 +140,16 @@ button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 @keyframes recp{50%{opacity:.6}}
 #tabs[hidden],#tabs .tab[hidden]{display:none}
 .tabsel{display:grid;gap:6px}.tabsel label{display:flex;gap:10px;align-items:center;min-height:36px}
+
+/* Fernseher-Ansicht füllt genau die Bildschirmhöhe, ohne Scrollen */
+html.tvmode,html.tvmode body{height:100%;overflow:hidden}
+html.tvmode body{display:flex;flex-direction:column;height:100dvh}
+html.tvmode main{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+html.tvmode #tvview{flex:1;min-height:0;display:flex;flex-direction:column}
+html.tvmode #tvbody{flex:1;min-height:0}
+#tvbody .kbd{display:flex;align-items:center;justify-content:center;gap:10px;flex:1;min-height:44px;max-height:64px;height:auto}
+#tvbody .kbd svg{margin:0;flex:none}
+#tvbody .kbd .kbtxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#tvbody .kbd.typing{border-color:var(--orange);color:var(--orange)}
+.tvq{position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.tvq input{font-size:16px}

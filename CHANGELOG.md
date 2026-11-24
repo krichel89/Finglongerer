@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.21.4
+- Texteingabe neu: Tastatur-Taste öffnet die Handy-Tastatur, der Text steht in der Taste und erscheint live im Eingabefeld des Fernsehers. Enter schickt ab. Meldet der Fernseher kein Eingabefeld, sagt die App das und tippt beim Senden ersatzweise Taste für Taste.
+- Fernbedienung nutzt genau die Bildschirmhöhe, ohne Scrollen.
+- QK: Beenden der Sprachsuche blockierte bis zu 3 Sekunden (Sperre zwischen Aufnahme und Brücke) - behoben.
+
 ## 0.21.3
 - Sprachsuche: Das Mikrofon des Handys wird an den Fernseher gestreamt (Android fragt einmal nach der Mikrofon-Berechtigung). Erster Druck startet, zweiter beendet, nach 20 Sekunden endet es von selbst.
 - Neben Play: Taste Zurück und Taste Vor. Kurz = Titel springen, lang = Zurück-/Vorspulen, solange gehalten.
