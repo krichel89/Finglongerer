@@ -38,6 +38,11 @@
       <select id="lang-sel"><option value="auto" data-i18n="lang.auto"></option><option value="de">Deutsch</option><option value="en">English</option></select></label>
     <h3 data-i18n="set.tabs"></h3>
     <div class="tabsel"><label><input type="checkbox" id="tab-bose"> Bose SoundTouch</label><label><input type="checkbox" id="tab-tv"> Google TV</label><label><input type="checkbox" id="tab-jbl"> Chromecast Lautsprecher</label><label><input type="checkbox" id="tab-ha"> Home Assistant</label></div>
+    <h3 data-i18n="set.backup"></h3>
+    <div class="row2"><button type="button" id="bk-export" data-i18n="set.bkExport"></button><button type="button" id="bk-file" data-i18n="set.bkFile"></button></div>
+    <input type="file" id="bk-pick" accept=".json,application/json,text/plain" hidden>
+    <textarea id="bk-text" rows="4" hidden readonly spellcheck="false" autocomplete="off"></textarea>
+    <p class="hint" data-i18n="set.hintBackup"></p>
     <nav id="stabs" role="tablist"></nav>
     <div class="spane" data-stab="bose">
     <h3 data-i18n="set.boxes"></h3>

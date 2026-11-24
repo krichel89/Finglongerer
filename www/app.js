@@ -932,6 +932,43 @@ function setStab(name) {
   document.querySelectorAll('.spane').forEach(p => { p.hidden = p.dataset.stab !== name; });
 }
 $('#stabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setStab(b.dataset.tab); });
+// ---- Einstellungen sichern: alle Werte der App (Boxen, Gruppen, Reiter, Fernseher, Steckdose, Home Assistant inkl. Token, Lautsprecher) als eine JSON-Datei
+const BK_KEYS = ['config', 'ui', 'tv', 'plug', 'ha', 'cast', 'lang'].map(k => 'finglongerer.' + k);
+function bkBuild() {
+  const data = {};
+  for (const k of BK_KEYS) { const v = STNative.storage.getItem(k); if (typeof v === 'string' && v) data[k] = v; }
+  return JSON.stringify({app: 'Finglongerer', version: window.APP_VERSION || '', exported: new Date().toISOString(), data}, null, 1);
+}
+function bkApply(text) {
+  if (typeof text !== 'string' || text.length > 400000) throw new Error(t('err.bkBad'));
+  let o; try { o = JSON.parse(text); } catch (e) { throw new Error(t('err.bkBad')); }
+  if (!o || o.app !== 'Finglongerer' || !o.data || typeof o.data !== 'object') throw new Error(t('err.bkBad'));
+  const take = {};
+  for (const k of BK_KEYS) {
+    const v = o.data[k]; if (v === undefined) continue;
+    if (typeof v !== 'string' || v.length > 200000) throw new Error(t('err.bkBad'));
+    if (k !== 'finglongerer.lang') { try { JSON.parse(v); } catch (e) { throw new Error(t('err.bkBad')); } }
+    take[k] = v;
+  }
+  if (!Object.keys(take).length) throw new Error(t('err.bkBad'));
+  return take;
+}
+async function bkImport(text) {
+  const take = bkApply(text);
+  if (take['finglongerer.config']) await api('/api/config', JSON.parse(take['finglongerer.config']));   // prüft und bereinigt wie beim Speichern
+  for (const k of Object.keys(take)) if (k !== 'finglongerer.config') STNative.storage.setItem(k, take[k]);
+  toast(t('toast.bkDone')); setTimeout(() => location.reload(), 700);
+}
+$('#bk-export').onclick = async () => {
+  const out = $('#bk-text'); out.value = bkBuild(); out.hidden = false;
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out.value], {type: 'application/json'})); a.download = 'finglongerer-einstellungen.json'; document.body.append(a); a.click(); a.remove(); } catch (e) { /* Textfeld bleibt */ }
+  try { await navigator.clipboard.writeText(out.value); toast(t('toast.bkCopied')); } catch (e) { out.focus(); out.select(); toast(t('toast.copyManual'), true); }
+};
+$('#bk-file').onclick = () => $('#bk-pick').click();
+$('#bk-pick').onchange = async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { await bkImport(await f.text()); } catch (x) { toast(x.message, true); }
+};
 // ---- Home Assistant: Dashboard im dritten Reiter. Ein natives WebView liegt über dem Platzhalter #habox (bleibt angemeldet, keine Frame-Sperre)
 const HA_KEY = 'finglongerer.ha';
 const HA_RE = /^https?:\/\/[^\s\/$.?#][^\s]*$/i;
