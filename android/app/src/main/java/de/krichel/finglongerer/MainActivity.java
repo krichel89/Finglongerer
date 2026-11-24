@@ -152,7 +152,7 @@ public class MainActivity extends BridgeActivity {
             }
             if (voiceThread != null) return "ok";
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 77);
+                runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 77));
                 return "ERR:other:Mikrofon erlauben und dann nochmal drücken";
             }
             try {
@@ -302,6 +302,8 @@ public class MainActivity extends BridgeActivity {
      * Eigener Cookie-/Speicherbereich, bleibt angemeldet, keine Frame-Sperre. Hat selbst keine JS-Brücken;
      * Links auf andere Rechner öffnen im Browser des Handys.
      */
+    private HaBridge haBridge;
+
     public class HaBridge {
         private WebView web;
         private String base;
@@ -345,6 +347,15 @@ public class MainActivity extends BridgeActivity {
         public void hide() {
             shown = false;
             runOnUiThread(() -> { if (web != null) web.setVisibility(View.GONE); });
+        }
+
+        /** Beim Beenden der Activity: das zweite WebView freigeben. */
+        void release() {
+            if (web == null) return;
+            web.stopLoading();
+            if (web.getParent() instanceof ViewGroup) ((ViewGroup) web.getParent()).removeView(web);
+            web.destroy();
+            web = null;
         }
 
         /** true, wenn das Dashboard sichtbar ist und eine Seite zurückgegangen wurde. */
@@ -405,7 +416,7 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new TcpBridge(), "STTcp");
         getBridge().getWebView().addJavascriptInterface(new DeviceBridge(), "STDevice");
         getBridge().getWebView().addJavascriptInterface(new TvBridge(), "STTv");
-        getBridge().getWebView().addJavascriptInterface(new HaBridge(), "STHa");
+        getBridge().getWebView().addJavascriptInterface((haBridge = new HaBridge()), "STHa");
         getBridge().getWebView().addJavascriptInterface(new CastBridge(), "STCast");
         remember(getIntent());
         // Zurück schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche); erst ohne offenes Fenster verlässt es die App
@@ -420,6 +431,12 @@ public class MainActivity extends BridgeActivity {
                 });
             }
         });
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (haBridge != null) haBridge.release();
+        super.onDestroy();
     }
 
     @Override

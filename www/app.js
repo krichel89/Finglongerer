@@ -594,8 +594,8 @@ $('#url-go').onclick = e => {
 };
 window.STShareCheck = () => {            // Android „Teilen" -> Text steht in der Brücke bereit
   try {
-    const t = window.STShare && window.STShare.take && window.STShare.take();
-    if (t) { $('#url-in').value = t; $('#urlbox').open = true; $('#urlbox').scrollIntoView(); toast(t('toast.linkTaken')); }
+    const txt = window.STShare && window.STShare.take && window.STShare.take();
+    if (txt) { $('#url-in').value = txt; $('#urlbox').open = true; $('#urlbox').scrollIntoView(); toast(t('toast.linkTaken')); }
   } catch (x) { /* nicht in der App */ }
 };
 window.addEventListener('focus', () => window.STShareCheck());
