@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.27.1
+- Der JBL-Reiter heißt jetzt „Chromecast Lautsprecher“ (er steuert jedes Gerät mit Chromecast built-in, nichts JBL-Spezifisches); neues neutrales Symbol, Einstellungs-Unterreiter und Standardname „Chromecast“ angepasst. Gespeicherte Listen bleiben erhalten.
+
 ## 0.27.0
 - Zusammenführung: Die Hauptlinie (Bose, Google TV, JBL, Home Assistant – vier Reiter) und der Zweig jbl-tab (0.24.0) sind wieder eine Linie. Der JBL-Reiter nutzt nun den getesteten Chromecast-Teil aus jbl-tab: Cover und Titel, Zurück/Play-Pause/Vor, Lautstärke, Stumm und „Beenden“ (stoppt die laufende App; einen Aus-Schalter gibt es im Protokoll nicht).
 - Einstellungen → JBL: Lautsprecher suchen, per IP von Hand hinzufügen, umbenennen, entfernen. Die Lautsprecherliste aus 0.26.0 wird übernommen.

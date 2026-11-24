@@ -1,4 +1,4 @@
-// Prüft das Chromecast-Modul (JBL-Lautsprecher): Bestandteile vorhanden und CastLink gegen einen simulierten Lautsprecher.
+// Prüft das Chromecast-Modul (Chromecast-Lautsprecher): Bestandteile vorhanden und CastLink gegen einen simulierten Lautsprecher.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';

@@ -923,11 +923,11 @@ function haSync() {
 $('#ha-open').onclick = () => $('#btn-settings').click();
 $('#dlg').addEventListener('close', haSync);
 window.addEventListener('resize', haSync);
-// ---- JBL-Lautsprecher (Chromecast), direkt angesprochen
+// ---- Chromecast-Lautsprecher (z. B. JBL Playlist), direkt angesprochen
 const CAST_KEY = 'finglongerer.cast';
 const castLoad = () => { try { let raw = STNative.storage.getItem(CAST_KEY);
     if (raw === null || raw === undefined) { const o = JSON.parse(STNative.storage.getItem('finglongerer.jbl') || '[]'); raw = JSON.stringify((Array.isArray(o) ? o : []).filter(x => x && x.on !== false)); }   // Liste aus 0.26.0 übernehmen
-    const a = JSON.parse(raw || '[]'); return (Array.isArray(a) ? a : []).filter(x => x && IP_RE.test(x.ip || '')).slice(0, 12).map(x => ({ip: x.ip, name: String(x.name || '').slice(0, 40) || 'JBL'})); } catch (e) { return []; } };
+    const a = JSON.parse(raw || '[]'); return (Array.isArray(a) ? a : []).filter(x => x && IP_RE.test(x.ip || '')).slice(0, 12).map(x => ({ip: x.ip, name: String(x.name || '').slice(0, 40) || 'Chromecast'})); } catch (e) { return []; } };
 const castSave = list => { try { STNative.storage.setItem(CAST_KEY, JSON.stringify(list)); } catch (e) { /* egal */ } };
 const castSt = {};         // ip -> {st: letzter Zustand, err, touch: Zeit der letzten Reglerbewegung, vt: Zeitgeber}
 const CIC = {
@@ -1012,7 +1012,7 @@ function renderCastList() {
   const box = $('#cast-list'); box.textContent = '';
   castLoad().forEach((d, i) => {
     const name = el('input', {type: 'text', value: d.name, maxLength: 40, autocomplete: 'off', title: d.ip});
-    name.addEventListener('change', () => { const l = castLoad(); if (l[i]) { l[i].name = name.value.trim() || 'JBL'; castSave(l); buildCast(); } });
+    name.addEventListener('change', () => { const l = castLoad(); if (l[i]) { l[i].name = name.value.trim() || 'Chromecast'; castSave(l); buildCast(); } });
     const rm = el('button', {type: 'button', title: t('cast.remove'), text: '✕'});
     rm.onclick = () => { const l = castLoad(); l.splice(i, 1); castSave(l); renderCastList(); buildCast(); };
     box.append(el('div', {class: 'crow'}, name, rm, el('span', {class: 'hint cip', text: d.ip})));
