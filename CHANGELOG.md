@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.28.0
+- Grüne Taste, Ausschalten: Erst bekommt der Stick „Schlafen“ (der Projektor geht über SIMPLINK/HDMI-CEC mit), die Taste zählt 20 Sekunden herunter, dann geht der Strom aus. Nochmal drücken während des Countdowns bricht ab. Einschalten unverändert.
+
 ## 0.27.2
 - Steckdosen laden: Die Home-Assistant-Schnittstelle wird jetzt immer unter Schema, Host und Port angesprochen, auch wenn die eingetragene Adresse auf ein Dashboard zeigt (vorher kam die HTML-Seite statt der Steckdosenliste: „Unexpected token '<'“).
 

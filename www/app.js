@@ -654,6 +654,37 @@ function plugShow() {
     b.title = tip; b.setAttribute('aria-label', tip);
   });
 }
+// Steckdose schalten. Aus: erst den Stick schlafen legen (Projektor geht über HDMI-CEC mit), 20 s warten, dann Strom aus.
+// Während des Countdowns bricht ein weiterer Druck ab.
+const PLUG_DELAY = 20;
+let plugCount = null;
+async function plugSwitch(on) {
+  const ent = plugEnt(), dom = ent.split('.')[0];
+  await haCall('POST', '/api/services/' + dom + '/' + (on ? 'turn_on' : 'turn_off'), {entity_id: ent});
+  await new Promise(r => setTimeout(r, 600)); await plugRefresh();
+}
+function plugCountShow(n) {
+  document.querySelectorAll('[data-plug]').forEach(b => {
+    b.classList.toggle('count', n != null);
+    let sp = b.querySelector('.pcount'); if (!sp) { sp = el('span', {class: 'pcount'}); b.append(sp); }
+    sp.textContent = n != null ? n + ' s' : '';
+  });
+}
+async function plugClick(b, c) {
+  if (plugCount) { clearInterval(plugCount.timer); plugCount = null; plugCountShow(null); toast(t('plug.cancel')); return; }
+  if (b.disabled) return;
+  b.disabled = true;
+  try { await plugRefresh(); } finally { b.disabled = false; }
+  if (plugState !== 'on') { b.disabled = true; try { await plugSwitch(true); } catch (e) { toast(e.message, true); } finally { b.disabled = false; } return; }
+  if (c.ip && c.paired) { try { await STNative.tv.key(c.ip, 223); } catch (e) { /* Stick nicht erreichbar: trotzdem nach Ablauf ausschalten */ } }
+  const pc = {n: PLUG_DELAY}; plugCount = pc; plugCountShow(pc.n); toast(t('plug.shutdown', PLUG_DELAY));
+  pc.timer = setInterval(async () => {
+    pc.n--; plugCountShow(pc.n);
+    if (pc.n > 0) return;
+    clearInterval(pc.timer); plugCount = null; plugCountShow(null);
+    try { await plugSwitch(false); } catch (e) { toast(e.message, true); }
+  }, 1000);
+}
 async function plugRefresh() {
   const ent = plugEnt(); if (!ent) return;
   try { const j = await haCall('GET', '/api/states/' + ent); plugState = j && (j.state === 'on' || j.state === 'off') ? j.state : ''; }
@@ -670,6 +701,7 @@ const tvBusy = async (b, fn) => {
 function plugBtn() {
   const b = el('button', {type: 'button', class: 'plug', 'data-plug': '1'});
   b.innerHTML = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>';
+  if (plugCount) setTimeout(() => plugCountShow(plugCount ? plugCount.n : null), 0);
   return b;
 }
 function buildTv() {
@@ -799,16 +831,10 @@ $('#tvbody').addEventListener('click', ev => {
   if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
   if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); return; }
   const c = tvLoad();
-  if (!b.dataset.plug && !(c.ip && c.paired)) return;
+  if (b.dataset.plug) { plugClick(b, c); return; }
+  if (!(c.ip && c.paired)) return;
   tvBusy(b, async () => {
     if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);
-    else if (b.dataset.plug) {
-      // Zustand frisch holen, dann umschalten
-      await plugRefresh();
-      const ent = plugEnt(), dom = ent.split('.')[0];
-      await haCall('POST', '/api/services/' + dom + '/' + (plugState === 'on' ? 'turn_off' : 'turn_on'), {entity_id: ent});
-      await new Promise(r => setTimeout(r, 600)); await plugRefresh();
-    }
     else if (b.dataset.tvvoice) {
       if (!voiceOn) { await STNative.tv.voice(c.ip, true); voiceOn = true; b.classList.add('rec'); toast(t('tv.voiceOff')); voiceTimer = setTimeout(voiceStop, 21000); }
       else await voiceStop();
