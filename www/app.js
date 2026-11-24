@@ -497,7 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#proj-mac').value = projMac(); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   $('#dlg').showModal();
 };
 $('#reboot-go').onclick = async e => {
@@ -622,7 +622,10 @@ const TV_KEY = 'finglongerer.tv';
 const IP_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
 const tvLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(TV_KEY) || '{}'); return {ip: IP_RE.test(o.ip || '') ? o.ip : '', paired: !!o.paired, mac: /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(o.mac || '') ? o.mac : ''}; } catch (e) { return {ip: '', paired: false, mac: ''}; } };
 const tvSave = o => { try { STNative.storage.setItem(TV_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
-let tvMac = '';       // MAC des gerade gesuchten/gekoppelten Fernsehers
+let tvMac = '';
+// Projektor (z. B. LG webOS): wird per Weckruf eingeschaltet und weckt den Stick über HDMI-CEC (SIMPLINK) mit
+const PROJ_KEY = 'finglongerer.proj', MAC_RE = /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/;
+const projMac = () => { try { const m = String(STNative.storage.getItem(PROJ_KEY) || ''); return MAC_RE.test(m) ? m : ''; } catch (e) { return ''; } };       // MAC des gerade gesuchten/gekoppelten Fernsehers
 const tvBusy = async (b, fn) => {
   b.disabled = true; b.classList.add('wait');
   try { await new Promise(r => setTimeout(r, 30)); await fn(); } finally { b.disabled = false; b.classList.remove('wait'); }
@@ -653,6 +656,8 @@ function buildTv() {
   };
   const off = el('button', {type: 'button', class: 'tvoff', title: t('tv.off'), 'aria-label': t('tv.off'), 'data-tvpower': 'off'});
   off.innerHTML = icon('power');
+  const on = el('button', {type: 'button', class: 'tvon', title: t('tv.on'), 'aria-label': t('tv.on'), 'data-projon': '1'});
+  on.innerHTML = icon('power');
   const skip = (n, tip) => { const b = el('button', {type: 'button', title: tip, 'aria-label': tip, 'data-tvskip': n}); b.innerHTML = icon(n); return b; };
   const gap = () => el('span');
   // Tastatur: Taste öffnet die Handy-Tastatur über ein unsichtbares Feld; der Text erscheint in der Taste und live auf dem Fernseher
@@ -661,7 +666,7 @@ function buildTv() {
   const form = el('form', {class: 'tvq', autocomplete: 'off'},
     el('input', {type: 'text', id: 'tv-q', name: 'tvq', enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', 'aria-hidden': 'true', tabindex: '-1'}));
   body.append(
-    el('div', {class: 'tvrow two'}, off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
+    el('div', {class: projMac() ? 'tvrow' : 'tvrow two'}, ...(projMac() ? [on] : []), off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
     el('div', {class: 'tvrow'}, skip('prev', t('tv.prev')), k('play', 85, t('tv.play')), skip('next', t('tv.next'))),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
@@ -750,6 +755,12 @@ $('#tvbody').addEventListener('click', ev => {
   const c = tvLoad();
   tvBusy(b, async () => {
     if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);
+    else if (b.dataset.projon) {
+      // mehrere Weckrufe kurz hintereinander: Geräte im WLAN-Standby verpassen einzelne Pakete leicht
+      const mac = projMac();
+      for (let i = 0; i < 5; i++) { await STNative.tv.wake(mac); await new Promise(r => setTimeout(r, 300)); }
+      toast(t('tv.projOn'));
+    }
     else if (b.dataset.tvvoice) {
       if (!voiceOn) { await STNative.tv.voice(c.ip, true); voiceOn = true; b.classList.add('rec'); toast(t('tv.voiceOff')); voiceTimer = setTimeout(voiceStop, 21000); }
       else await voiceStop();
@@ -775,6 +786,13 @@ async function tvFind(b) {
   box.append(el('p', {class: 'hint', text: t('tv.pick')}), ...list.map(f => el('button', {type: 'button', text: f.name + ' (' + f.ip + ')', onclick: () => take(f)})));
   return list;
 }
+$('#proj-mac').addEventListener('change', e => {
+  const v = e.target.value.trim().toUpperCase().replace(/-/g, ':'); $('#dlg-err').textContent = '';
+  if (v && !MAC_RE.test(v)) { $('#dlg-err').textContent = t('tv.badMac'); return; }
+  e.target.value = v;
+  try { STNative.storage.setItem(PROJ_KEY, v); } catch (ex) { /* egal */ }
+  buildTv();
+});
 $('#tv-find').onclick = e => { tvFind(e.currentTarget).catch(ex => { $('#dlg-err').textContent = ex.message; }); };
 // Ist keine IP eingetragen, wird automatisch gesucht (genau ein Treffer wird übernommen)
 async function tvIpOrFind(b) {

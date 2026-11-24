@@ -153,3 +153,4 @@ html.tvmode #tvbody{flex:1;min-height:0}
 #tvbody .kbd.typing{border-color:var(--orange);color:var(--orange)}
 .tvq{position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .tvq input{font-size:16px}
+#tvbody button.tvon{color:#3fb950}
