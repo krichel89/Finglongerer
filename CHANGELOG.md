@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.21.3
+- Sprachsuche: Das Mikrofon des Handys wird an den Fernseher gestreamt (Android fragt einmal nach der Mikrofon-Berechtigung). Erster Druck startet, zweiter beendet, nach 20 Sekunden endet es von selbst.
+- Neben Play: Taste Zurück und Taste Vor. Kurz = Titel springen, lang = Zurück-/Vorspulen, solange gehalten.
+- Einstellungen: Reiter (Bose, Google TV) einzeln ein-/ausblenden. Ist nur einer sichtbar, entfällt die Symbolreihe.
+
 ## 0.21.2
 - Texteingabe: Absenden per Formular, damit Enter mit jeder Handy-Tastatur funktioniert (manche melden Enter nicht als Taste).
 - Fernbedienung füllt die Bildschirmhöhe; Symbole statt Text: Aus (Kreis mit Strich), Mikrofon (Sprachsuche), Haus (Home), Pfeil (Zurück), Menü (drei Striche), Play/Pause. Die Ein-Taste entfällt.

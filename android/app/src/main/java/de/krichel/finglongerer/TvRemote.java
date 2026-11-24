@@ -27,7 +27,7 @@ import javax.net.ssl.SSLSocketFactory;
  */
 final class TvRemote {
     // Funktionen, die wir beim Fernseher anmelden: Ping, Tasten, Ein/Aus, Lautstärke, App-Links
-    static final int FEATURES = 1 | 2 | 4 | 32 | 64 | 512;   // 4 = IME (Texteingabe)
+    static final int FEATURES = 1 | 2 | 4 | 8 | 32 | 64 | 512;   // 4 = IME (Texteingabe), 8 = Sprache
     static final int DIRECTION_SHORT = 3;
 
     private final SSLSocketFactory factory;
@@ -320,6 +320,7 @@ final class TvRemote {
         volatile boolean closed;
         volatile int started = -1;      // remote_start: 1 = Fernseher an, 0 = Standby, -1 = noch unbekannt
         volatile String error = "";
+        volatile int voiceBegin = -1;                  // Sitzungsnummer, wenn der Fernseher die Sprachsuche öffnet
         volatile int imeCounter, imeFieldCounter;      // vom Fernseher gemeldet, für Texteingabe
 
         Conn(SSLSocket s) throws IOException {
@@ -358,6 +359,9 @@ final class TvRemote {
                             P be = P.parse(p.bytes.get(21));
                             if (imeCounter == 0 && be.ints.get(1) != null) imeCounter = (int) (long) be.ints.get(1);
                             if (imeFieldCounter == 0 && be.ints.get(2) != null) imeFieldCounter = (int) (long) be.ints.get(2);
+                        } else if (p.bytes.containsKey(30)) {               // remote_voice_begin
+                            Long id = P.parse(p.bytes.get(30)).ints.get(1);
+                            voiceBegin = id == null ? 0 : (int) (long) id;
                         } else if (p.bytes.containsKey(3)) {
                             error = "Fernseher meldet Fehler";
                         }
@@ -441,6 +445,42 @@ final class TvRemote {
         if (text == null || text.isEmpty()) return;
         Conn c = ensure(ip);
         sendTo(ip, textEdit(c.imeCounter, c.imeFieldCounter, text));
+    }
+
+    void keyDir(String ip, int code, int direction) throws IOException {
+        sendTo(ip, keyInject(code, direction));
+    }
+
+    /** Sprachsuche öffnen (Such-Taste) und auf die Sitzungsnummer des Fernsehers warten; Antwort mit derselben Nummer. */
+    int voiceStart(String ip) throws IOException {
+        Conn c;
+        synchronized (this) {
+            c = ensure(ip);
+            c.voiceBegin = -1;
+            sendTo(ip, keyInject(84, DIRECTION_SHORT));
+        }
+        long end = System.currentTimeMillis() + 3000;
+        while (c.voiceBegin < 0 && !c.closed && System.currentTimeMillis() < end) {
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        if (c.voiceBegin < 0) throw new IOException("Der Fernseher öffnet keine Sprachsuche");
+        int id = c.voiceBegin;
+        sendTo(ip, new W().m(30, new W().v(1, id)).bytes());
+        return id;
+    }
+
+    /** Ton (16 Bit, mono, 8000 Hz) senden: Stücke zu höchstens 20 KB, kürzere werden auf 8 KB aufgefüllt. */
+    void voiceChunk(String ip, int id, byte[] pcm, int len) throws IOException {
+        for (int i = 0; i < len; i += 20 * 1024) {
+            int n = Math.min(20 * 1024, len - i);
+            byte[] part = new byte[Math.max(n, 8 * 1024)];
+            System.arraycopy(pcm, i, part, 0, n);
+            sendTo(ip, new W().m(31, new W().v(1, id).b(2, part)).bytes());
+        }
+    }
+
+    void voiceEnd(String ip, int id) throws IOException {
+        sendTo(ip, new W().m(32, new W().v(1, id)).bytes());
     }
 
     void launch(String ip, String link) throws IOException {

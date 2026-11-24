@@ -3,6 +3,11 @@ package de.krichel.finglongerer;
 import android.app.UiModeManager;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.JavascriptInterface;
@@ -112,6 +117,69 @@ public class MainActivity extends BridgeActivity {
             if (!lan(ip)) return "ERR:ip";
             if (code < 1 || code > 400) return "ERR:other:Taste";
             try { remote().key(ip, code); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        @JavascriptInterface
+        public String keyd(String ip, int code, int dir) {
+            if (!lan(ip)) return "ERR:ip";
+            if (code < 1 || code > 400 || dir < 1 || dir > 3) return "ERR:other:Taste";
+            try { remote().keyDir(ip, code, dir); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        private volatile Thread voiceThread;
+        private volatile boolean voiceRun;
+
+        /** Sprachsuche: on = Mikrofon aufnehmen und an den Fernseher senden (höchstens 20 s), off = beenden. */
+        @JavascriptInterface
+        public synchronized String voice(String ip, boolean on) {
+            if (!lan(ip)) return "ERR:ip";
+            if (!on) {
+                voiceRun = false;
+                Thread t = voiceThread;
+                if (t != null) { try { t.join(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
+                return "ok";
+            }
+            if (voiceThread != null) return "ok";
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 77);
+                return "ERR:other:Mikrofon erlauben und dann nochmal drücken";
+            }
+            try {
+                final int id = remote().voiceStart(ip);
+                voiceRun = true;
+                Thread t = new Thread(() -> {
+                    AudioRecord rec = null;
+                    try {
+                        int min = AudioRecord.getMinBufferSize(8000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+                        rec = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 8000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(min, 16384));
+                        rec.startRecording();
+                        byte[] buf = new byte[8192];
+                        long end = System.currentTimeMillis() + 20000;
+                        while (voiceRun && System.currentTimeMillis() < end) {
+                            int got = 0;
+                            while (got < buf.length && voiceRun) {
+                                int n = rec.read(buf, got, buf.length - got);
+                                if (n <= 0) break;
+                                got += n;
+                            }
+                            if (got > 0) remote().voiceChunk(ip, id, buf, got);
+                            if (got < buf.length) break;
+                        }
+                    } catch (Exception e) {
+                        /* Verbindung weg: Sitzung endet */
+                    } finally {
+                        if (rec != null) { try { rec.stop(); } catch (Exception e) { /* egal */ } rec.release(); }
+                        try { remote().voiceEnd(ip, id); } catch (Exception e) { /* egal */ }
+                        voiceRun = false;
+                        voiceThread = null;
+                    }
+                }, "tv-voice");
+                voiceThread = t;
+                t.start();
+                return "ok";
+            } catch (Exception e) {
+                return fail(e);
+            }
         }
 
         @JavascriptInterface

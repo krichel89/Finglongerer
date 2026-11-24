@@ -21,11 +21,11 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
 const UI_KEY = 'finglongerer.ui';
-const ui = {order: [], open: {}, sort: false, tab: 'bose'};
-try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' ? 'tv' : 'bose'; } } catch (e) { /* neu anfangen */ }
+const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true}};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' ? 'tv' : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false}; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
   Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
-const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab})); } catch (e) { /* egal */ } };
+const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab, tabs: ui.tabs})); } catch (e) { /* egal */ } };
 const presetNames = {}, presetLoc = {}, presetRows = {}, presetRow2 = {};
 
 async function api(path, body) {
@@ -497,7 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
-  $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   $('#dlg').showModal();
 };
 $('#reboot-go').onclick = async e => {
@@ -640,7 +640,9 @@ function buildTv() {
     home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
     back: '<path d="M20 12H5M11 6l-6 6 6 6"/>',
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-    play: '<path d="M4 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/>'
+    play: '<path d="M4 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/>',
+    prev: '<path d="M6 5v14M19 5l-10 7 10 7z"/>',
+    next: '<path d="M18 5v14M5 5l10 7-10 7z"/>'
   };
   const icon = n => '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[n] + '</svg>';
   const k = (label, key, title, cls) => {
@@ -650,11 +652,13 @@ function buildTv() {
   };
   const off = el('button', {type: 'button', class: 'tvoff', title: t('tv.off'), 'aria-label': t('tv.off'), 'data-tvpower': 'off'});
   off.innerHTML = icon('power');
+  const skip = (n, tip) => { const b = el('button', {type: 'button', title: tip, 'aria-label': tip, 'data-tvskip': n}); b.innerHTML = icon(n); return b; };
   const gap = () => el('span');
   const form = el('form', {class: 'tvq', autocomplete: 'off'},
     el('input', {type: 'text', id: 'tv-q', name: 'tvq', placeholder: t('tv.query'), enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false'}));
   body.append(
-    el('div', {class: 'tvrow'}, off, k('mic', 84, t('tv.searchTip')), k('play', 85, t('tv.play'))),
+    el('div', {class: 'tvrow two'}, off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
+    el('div', {class: 'tvrow'}, skip('prev', t('tv.prev')), k('play', 85, t('tv.play')), skip('next', t('tv.next'))),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
     form);
@@ -665,6 +669,16 @@ function setTab(name) {
   $('#btn-sort').hidden = ui.tab === 'tv';
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
 }
+// Einstellungen: Reiter ein-/ausblenden; bei nur einem Reiter entfällt die Symbolreihe, mindestens einer bleibt
+function applyTabs() {
+  if (!ui.tabs.bose && !ui.tabs.tv) ui.tabs.bose = true;
+  if (!ui.tabs[ui.tab]) ui.tab = ui.tabs.bose ? 'bose' : 'tv';
+  document.querySelectorAll('#tabs .tab').forEach(b => { b.hidden = !ui.tabs[b.dataset.tab]; });
+  $('#tabs').hidden = !(ui.tabs.bose && ui.tabs.tv);
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv;
+  setTab(ui.tab);
+}
+['bose', 'tv'].forEach(n => $('#tab-' + n).addEventListener('change', e => { ui.tabs[n] = e.target.checked; applyTabs(); }));
 $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
 // Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
 $('#tvbody').addEventListener('submit', ev => {
@@ -674,12 +688,42 @@ $('#tvbody').addEventListener('submit', ev => {
   (async () => { await STNative.tv.text(ip, q); await STNative.tv.key(ip, 66); inp.value = ''; })()
     .catch(e => toast(e.message, true)).finally(() => { inp.readOnly = false; });
 });
+// Sprachsuche: Mikrofon des Handys wird an den Fernseher gestreamt; erster Druck startet, zweiter beendet (nach 20 s automatisch)
+let voiceOn = false, voiceTimer = 0;
+async function voiceStop() {
+  clearTimeout(voiceTimer); voiceOn = false;
+  document.querySelectorAll('[data-tvvoice]').forEach(x => x.classList.remove('rec'));
+  try { await STNative.tv.voice(tvLoad().ip, false); } catch (e) { /* egal */ }
+}
+// Vor/Zurück: kurzer Druck = Titel springen, langer Druck = Vor-/Zurückspulen solange gehalten
+const SKIP = {prev: [88, 89], next: [87, 90]};
+let skipHold = null;
+$('#tvbody').addEventListener('pointerdown', ev => {
+  const b = ev.target.closest('[data-tvskip]'); if (!b) return;
+  const ip = tvLoad().ip, keys = SKIP[b.dataset.tvskip];
+  try { b.setPointerCapture(ev.pointerId); } catch (e) { /* egal */ }
+  const h = {ip, skip: keys[0], seek: keys[1], long: false};
+  h.timer = setTimeout(() => { h.long = true; STNative.tv.keyd(ip, h.seek, 1).catch(e => toast(e.message, true)); }, 450);
+  skipHold = h;
+});
+const skipEnd = ev => {
+  if (!skipHold) return;
+  const h = skipHold; skipHold = null; clearTimeout(h.timer);
+  const p = h.long ? STNative.tv.keyd(h.ip, h.seek, 2) : ev.type === 'pointerup' ? STNative.tv.key(h.ip, h.skip) : Promise.resolve();
+  p.catch(e => toast(e.message, true));
+};
+['pointerup', 'pointercancel'].forEach(n => $('#tvbody').addEventListener(n, skipEnd));
 $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
+  if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
   const c = tvLoad();
   tvBusy(b, async () => {
     if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);
+    else if (b.dataset.tvvoice) {
+      if (!voiceOn) { await STNative.tv.voice(c.ip, true); voiceOn = true; b.classList.add('rec'); toast(t('tv.voiceOff')); voiceTimer = setTimeout(voiceStop, 21000); }
+      else await voiceStop();
+    }
     else if (b.dataset.tvpower) {
       const on = b.dataset.tvpower === 'on';
       // Ein: erst Weckruf (Wake-on-LAN) an die MAC-Adresse, dann Einschalttaste über die Verbindung
@@ -744,4 +788,4 @@ $('#tv-test').onclick = async e => {
     });
   } catch (ex) { err.textContent = ex.message; }
 };
-buildTv(); setTab(ui.tab);
+buildTv(); applyTabs();
