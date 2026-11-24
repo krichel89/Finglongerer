@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.21.2
+- Texteingabe: Absenden per Formular, damit Enter mit jeder Handy-Tastatur funktioniert (manche melden Enter nicht als Taste).
+- Fernbedienung füllt die Bildschirmhöhe; Symbole statt Text: Aus (Kreis mit Strich), Mikrofon (Sprachsuche), Haus (Home), Pfeil (Zurück), Menü (drei Striche), Play/Pause. Die Ein-Taste entfällt.
+
 ## 0.21.1
 - Texteingabe neu: Der Text wird über die Eingabemethode des Fernsehers eingefügt (wie in der Google-TV-App), nicht mehr als einzelne Tastendrücke. Umlaute und Sonderzeichen gehen jetzt. Enter am Handy schickt den Text und drückt dann Enter am Fernseher.
 - Sprachsuche als kleine Taste neben dem Textfeld.

@@ -633,15 +633,31 @@ function buildTv() {
     body.append(el('p', {class: 'hint', text: t('tv.notPaired')}), el('button', {type: 'button', text: t('tv.openSettings'), 'data-tvsettings': '1'}));
     return;
   }
-  const k = (label, key, title, cls) => el('button', {type: 'button', text: label, title: title || '', class: cls || '', 'data-tvkey': key});
+  // Symbole als Linienzeichnung (Farbe folgt dem Text)
+  const ICON = {
+    power: '<path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+    home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+    back: '<path d="M20 12H5M11 6l-6 6 6 6"/>',
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    play: '<path d="M4 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/>'
+  };
+  const icon = n => '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[n] + '</svg>';
+  const k = (label, key, title, cls) => {
+    const b = el('button', {type: 'button', title: title || '', 'aria-label': title || label, class: cls || '', 'data-tvkey': key});
+    if (ICON[label]) b.innerHTML = icon(label); else b.textContent = label;
+    return b;
+  };
+  const off = el('button', {type: 'button', class: 'tvoff', title: t('tv.off'), 'aria-label': t('tv.off'), 'data-tvpower': 'off'});
+  off.innerHTML = icon('power');
   const gap = () => el('span');
+  const form = el('form', {class: 'tvq', autocomplete: 'off'},
+    el('input', {type: 'text', id: 'tv-q', name: 'tvq', placeholder: t('tv.query'), enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false'}));
   body.append(
-    el('div', {class: 'row2'}, el('button', {type: 'button', text: t('tv.on'), 'data-tvpower': 'on'}), el('button', {type: 'button', text: t('tv.off'), class: 'tvoff', 'data-tvpower': 'off'})),
-    el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), k('⏯', 85, t('tv.play'))),
-    el('div', {class: 'row3'}, k(t('tv.back'), 4), k(t('tv.home'), 3), k(t('tv.menu'), 82)),
-    el('div', {class: 'tvq'},
-      el('input', {type: 'text', id: 'tv-q', placeholder: t('tv.query'), enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off'}),
-      el('button', {type: 'button', class: 'small', text: t('tv.search'), title: t('tv.searchTip'), 'data-tvkey': 84})));
+    el('div', {class: 'tvrow'}, off, k('mic', 84, t('tv.searchTip')), k('play', 85, t('tv.play'))),
+    el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
+    el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
+    form);
 }
 function setTab(name) {
   ui.tab = name === 'tv' ? 'tv' : 'bose'; saveUi();
@@ -651,13 +667,12 @@ function setTab(name) {
 }
 $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
 // Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
-$('#tvbody').addEventListener('keydown', ev => {
-  if (ev.key !== 'Enter' || ev.target.id !== 'tv-q') return;
+$('#tvbody').addEventListener('submit', ev => {
   ev.preventDefault();
-  const inp = ev.target, q = inp.value.trim(), ip = tvLoad().ip; if (!q) return;
-  inp.disabled = true;
-  (async () => { await STNative.tv.text(ip, inp.value.trim()); await STNative.tv.key(ip, 66); inp.value = ''; })()
-    .catch(e => toast(e.message, true)).finally(() => { inp.disabled = false; });
+  const inp = ev.target.querySelector('#tv-q'), ip = tvLoad().ip, q = inp.value.trim(); if (!q) return;
+  inp.readOnly = true;
+  (async () => { await STNative.tv.text(ip, q); await STNative.tv.key(ip, 66); inp.value = ''; })()
+    .catch(e => toast(e.message, true)).finally(() => { inp.readOnly = false; });
 });
 $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
