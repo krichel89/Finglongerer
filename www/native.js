@@ -25,13 +25,17 @@
   async function haApi(method, base, path, token, body) {
     const call = plugin();
     if (!call) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
-    const opts = {url: base.replace(/\/+$/, '') + path, method, responseType: 'text', connectTimeout: 5000, readTimeout: 8000,
+    // nur Schema + Host + Port: die eingetragene Adresse kann auf ein Dashboard zeigen (/lovelace/…)
+    const origin = (String(base).match(/^https?:\/\/[^\/?#]+/i) || [''])[0];
+    const opts = {url: origin + path, method, responseType: 'text', connectTimeout: 5000, readTimeout: 8000,
       headers: Object.assign({Authorization: 'Bearer ' + token}, body ? {'Content-Type': 'application/json'} : {})};
     if (body) opts.data = body;
     const res = await call(opts);
         if (res.status >= 400) throw new Error('Home Assistant: HTTP ' + res.status);
     const d = res.data;
-    return typeof d === 'string' ? (d ? JSON.parse(d) : null) : d;
+    if (typeof d !== 'string') return d;
+    if (/^\s*</.test(d)) throw new Error('Home Assistant: keine API-Antwort unter ' + origin + path);
+    return d ? JSON.parse(d) : null;
   }
   // Rohe TCP-Zeile (nur Box-Neustart, Port 17000): läuft in einem Android-Thread, der Aufruf blockiert kurz
   async function tcp(ip, port, line, timeout) {
