@@ -47,6 +47,12 @@
     scan: async prefix => tvCall('scan', prefix || '').split('\n').filter(Boolean).map(l => { const f = l.split('\t'); return {ip: f[0], name: f[1] || 'Google TV', mac: f[2] || ''}; }),
     info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), text: async (ip, txt) => tvCall('text', ip, txt), keyd: async (ip, code, dir) => tvCall('keyd', ip, code, dir), voice: async (ip, on) => tvCall('voice', ip, !!on), projFind: async prefix => tvCall('projFind', prefix || ''), projPoll: () => (window.STTv ? String(window.STTv.projPoll()) : ''), launch: async (ip, link) => tvCall('launch', ip, link)
   };
+  // Home Assistant: natives WebView über dem Platzhalter des Reiters (window.STHa); Ort in CSS-Pixeln
+  const ha = {
+    show: (url, x, y, w, h, clean) => { if (!window.STHa) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly')); const r = String(window.STHa.show(url, x, y, w, h, !!clean)); if (r !== 'ok') throw new Error(r); },
+    hide: () => { try { if (window.STHa) window.STHa.hide(); } catch (e) { /* egal */ } },
+    back: () => { try { return !!(window.STHa && window.STHa.back()); } catch (e) { return false; } }
+  };
   let storage;
   try { window.localStorage.getItem('x'); storage = window.localStorage; }
   catch (e) { const mem = {}; storage = {getItem: k => mem[k] || null, setItem: (k, v) => { mem[k] = v; }}; }
@@ -57,5 +63,5 @@
   const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
   // Fernseher (Google TV): Klasse "tv" für größere Oberfläche und sichtbaren Fokus; ?tv=1 zum Ansehen im Browser
   try { if ((window.STDevice && window.STDevice.isTv()) || /[?&]tv=1\b/.test(location.search)) document.documentElement.classList.add('tv'); } catch (e) { /* kein Fernseher */ }
-  window.STNative = {http, tcp, tv, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
+  window.STNative = {http, tcp, tv, ha, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();

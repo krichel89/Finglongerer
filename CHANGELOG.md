@@ -4,6 +4,17 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.24.0
+- Home-Assistant-Reiter und Einstellungen mit Unterreitern (bisher nur auf dem Zweig ha-tab als 0.22.0/0.22.1) in die Hauptlinie übernommen, zusammen mit allem aus 0.21.4–0.23.0. Die Projektor-Einstellungen stehen im Unterreiter Google TV.
+### ha-tab 0.22.1
+- Home-Assistant-Reiter: Seitenleiste und obere Leiste werden ausgeblendet, sodass nur das Dashboard zu sehen ist. Einstellungen → Home Assistant → „Leiste und Seitenleiste ausblenden" (standardmäßig an). Zum Bearbeiten des Dashboards die Option ausschalten oder im Browser arbeiten.
+
+### ha-tab 0.22.0
+- Dritter Reiter „Home Assistant" (rundes blaues Symbol mit dem Haus-Zeichen aus dem Material-Design-Icon-Satz): Das Dashboard von Home Assistant erscheint in der App, ohne Frame-Sperre und angemeldet bleibend. Adresse unter Einstellungen → Home Assistant (http:// oder https:// mit Port).
+- Zurück-Taste geht zuerst im Dashboard zurück. Links auf andere Rechner öffnen im Browser des Handys. Bei Fehler zeigt das Dashboard die Meldung mit Neu-laden-Pfeil.
+- Einstellungen: „Reiter anzeigen" mit drei Reitern einzeln ein-/ausblendbar.
+- Einstellungen in Unterreiter geteilt (Bose, Google TV, Home Assistant) mit denselben runden Symbolen wie die Hauptansicht; beim Öffnen steht der Reiter der aktuellen Hauptansicht vorn. Sprache und „Reiter anzeigen" bleiben oben für alle.
+
 ## 0.23.0
 - „Projektor suchen": findet LG-webOS-Geräte im Heimnetz (Steuerschnittstelle Port 3000/3001), meldet sich an (Anfrage am Projektor bestätigen) und trägt die MAC-Adresse automatisch ein.
 

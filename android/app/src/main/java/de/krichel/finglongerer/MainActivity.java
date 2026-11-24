@@ -8,7 +8,17 @@ import android.content.pm.PackageManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.CookieManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.JavascriptInterface;
 
@@ -18,6 +28,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -267,6 +278,107 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    /**
+     * Home Assistant: zweites WebView über dem Platzhalter des dritten Reiters (Ort in CSS-Pixeln).
+     * Eigener Cookie-/Speicherbereich, bleibt angemeldet, keine Frame-Sperre. Hat selbst keine JS-Brücken;
+     * Links auf andere Rechner öffnen im Browser des Handys.
+     */
+    public class HaBridge {
+        private WebView web;
+        private String base;
+        private String host;
+        private volatile boolean canBack;
+        private volatile boolean shown;
+        private boolean cleanOn;
+        /** Blendet in der Home-Assistant-Oberfläche Seitenleiste und obere Leiste aus (Stile in die offenen Shadow-Roots). */
+        private static final String CLEAN_JS = "(function(){if(window.__fglClean)return;window.__fglClean=true;var css={main:\":host{--mdc-drawer-width:0px!important}ha-sidebar{display:none!important}\",root:\":host{--header-height:0px!important}.header,.toolbar{display:none!important}#view{min-height:100vh!important;padding-top:0!important}\"};function add(r,k){if(!r||r.querySelector('style[data-fgl=\"'+k+'\"]'))return;var s=document.createElement(\"style\");s.setAttribute(\"data-fgl\",k);s.textContent=css[k];r.appendChild(s)}function sr(e){return e&&e.shadowRoot}function tick(){var h=document.querySelector(\"home-assistant\"),m=sr(h)&&sr(h).querySelector(\"home-assistant-main\"),ms=sr(m);if(!ms)return;add(ms,\"main\");var p=ms.querySelector(\"ha-panel-lovelace\"),ps=sr(p),r=ps&&ps.querySelector(\"hui-root\");add(sr(r),\"root\")}tick();setInterval(tick,700)})();";
+
+        private boolean valid(String url) {
+            return url != null && url.length() < 300 && url.matches("^https?://[^\\s/$.?#][^\\s]*$");
+        }
+
+        @JavascriptInterface
+        public String show(String url, double x, double y, double w, double h, boolean clean) {
+            if (!valid(url)) return "ERR:url";
+            final float d = getResources().getDisplayMetrics().density;
+            final int px = Math.round((float) x * d), py = Math.round((float) y * d);
+            final int pw = Math.max(1, Math.round((float) w * d)), ph = Math.max(1, Math.round((float) h * d));
+            runOnUiThread(() -> {
+                if (web == null) create();
+                CoordinatorLayout.LayoutParams lp = new CoordinatorLayout.LayoutParams(pw, ph);
+                lp.leftMargin = px;
+                lp.topMargin = py;
+                web.setLayoutParams(lp);
+                if (!url.equals(base) || clean != cleanOn) {
+                    base = url;
+                    cleanOn = clean;
+                    host = Uri.parse(url).getHost();
+                    canBack = false;
+                    web.loadUrl(url);
+                }
+                web.setVisibility(View.VISIBLE);
+                shown = true;
+            });
+            return "ok";
+        }
+
+        @JavascriptInterface
+        public void hide() {
+            shown = false;
+            runOnUiThread(() -> { if (web != null) web.setVisibility(View.GONE); });
+        }
+
+        /** true, wenn das Dashboard sichtbar ist und eine Seite zurückgegangen wurde. */
+        @JavascriptInterface
+        public boolean back() {
+            if (!shown || !canBack) return false;
+            runOnUiThread(() -> { if (web != null && web.canGoBack()) web.goBack(); });
+            return true;
+        }
+
+        private void create() {
+            web = new WebView(MainActivity.this);
+            web.setBackgroundColor(0xFF14161A);
+            WebSettings st = web.getSettings();
+            st.setJavaScriptEnabled(true);
+            st.setDomStorageEnabled(true);
+            st.setAllowFileAccess(false);
+            st.setAllowContentAccess(false);
+            st.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+            CookieManager.getInstance().setAcceptCookie(true);
+            web.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                    Uri u = r.getUrl();
+                    String sc = u.getScheme();
+                    if (("http".equals(sc) || "https".equals(sc)) && host != null && host.equalsIgnoreCase(u.getHost())) return false;
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { /* kein Browser */ }
+                    return true;
+                }
+
+                @Override
+                public void onPageFinished(WebView v, String url) {
+                    String h = Uri.parse(String.valueOf(url)).getHost();
+                    if (cleanOn && host != null && host.equalsIgnoreCase(h)) v.evaluateJavascript(CLEAN_JS, null);
+                }
+
+                @Override
+                public void doUpdateVisitedHistory(WebView v, String url, boolean isReload) {
+                    canBack = v.canGoBack();
+                }
+
+                @Override
+                public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
+                    if (!r.isForMainFrame()) return;
+                    String msg = TextUtils.htmlEncode(String.valueOf(e.getDescription()));
+                    String link = TextUtils.htmlEncode(String.valueOf(base));
+                    v.loadDataWithBaseURL(null, "<html><body style=\"background:#14161a;color:#e8eaed;font:16px sans-serif;padding:24px\"><p>" + msg + "</p><p><a style=\"color:#18bcf2\" href=\"" + link + "\">&#8635;</a></p></body></html>", "text/html", "utf-8", null);
+                }
+            });
+            ((ViewGroup) getBridge().getWebView().getParent()).addView(web);
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -274,6 +386,7 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new TcpBridge(), "STTcp");
         getBridge().getWebView().addJavascriptInterface(new DeviceBridge(), "STDevice");
         getBridge().getWebView().addJavascriptInterface(new TvBridge(), "STTv");
+        getBridge().getWebView().addJavascriptInterface(new HaBridge(), "STHa");
         remember(getIntent());
         // Zurück schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche); erst ohne offenes Fenster verlässt es die App
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
