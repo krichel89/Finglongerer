@@ -5,6 +5,11 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release veröffentlichen (Tag v<Version> auf main + APK)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -49,4 +54,23 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "Finglongerer-$VERSION.apk" --title "Finglongerer $VERSION" --notes-file CHANGELOG.md
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "Finglongerer-$VERSION.apk" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "Finglongerer-$VERSION.apk" --title "Finglongerer $VERSION" --notes-file CHANGELOG.md
+          fi
+      - name: Release per Knopfdruck (Run workflow mit Haken bei „release“)
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "Release nur von main aus"; exit 1; fi
+          TAG="v$VERSION"
+          awk -v v="## $VERSION" '$0==v{f=1;next} f&&/^## /{exit} f' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "Kein Changelog-Eintrag für $VERSION"; exit 1; }
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "Finglongerer-$VERSION.apk" --clobber
+          else
+            gh release create "$TAG" "Finglongerer-$VERSION.apk" --target "$GITHUB_SHA" --title "Finglongerer $VERSION" --notes-file notes.md
+          fi
