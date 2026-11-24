@@ -21,8 +21,8 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
 const UI_KEY = 'finglongerer.ui';
-const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true}};
-try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' ? 'tv' : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false}; } } catch (e) { /* neu anfangen */ }
+const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, cast: true}};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' || o.tab === 'cast' ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, cast: o.tabs.cast !== false}; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
   Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab, tabs: ui.tabs})); } catch (e) { /* egal */ } };
@@ -497,7 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#proj-mac').value = projMac(); $('#proj-res').textContent = ''; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-cast').checked = ui.tabs.cast; $('#cast-found').textContent = ''; $('#cast-ip').value = ''; renderCastList(); $('#proj-mac').value = projMac(); $('#proj-res').textContent = ''; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   $('#dlg').showModal();
 };
 $('#reboot-go').onclick = async e => {
@@ -595,7 +595,7 @@ window.addEventListener('focus', () => window.STShareCheck());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) window.STShareCheck(); });
 setTimeout(() => window.STShareCheck(), 800);
 $('#lang-sel').onchange = e => {       // Sprache sofort umschalten (auto = Systemsprache)
-  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render(); buildTv();
+  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render(); buildTv(); buildCast(); renderCastList();
 };
 $('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render(); };
 document.addEventListener('visibilitychange', () => refresh());
@@ -672,23 +672,25 @@ function buildTv() {
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
     kb, form);
 }
+const TABS = ['bose', 'tv', 'cast'];
 function setTab(name) {
-  ui.tab = name === 'tv' ? 'tv' : 'bose'; saveUi();
-  $('#boseview').hidden = ui.tab === 'tv'; $('#tvview').hidden = ui.tab !== 'tv';
-  $('#btn-sort').hidden = ui.tab === 'tv';
+  ui.tab = TABS.includes(name) ? name : 'bose'; saveUi();
+  $('#boseview').hidden = ui.tab !== 'bose'; $('#tvview').hidden = ui.tab !== 'tv'; $('#castview').hidden = ui.tab !== 'cast';
+  $('#btn-sort').hidden = ui.tab !== 'bose';
   document.documentElement.classList.toggle('tvmode', ui.tab === 'tv');
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  if (ui.tab === 'cast') castPoll();
 }
 // Einstellungen: Reiter ein-/ausblenden; bei nur einem Reiter entfällt die Symbolreihe, mindestens einer bleibt
 function applyTabs() {
-  if (!ui.tabs.bose && !ui.tabs.tv) ui.tabs.bose = true;
-  if (!ui.tabs[ui.tab]) ui.tab = ui.tabs.bose ? 'bose' : 'tv';
+  if (!TABS.some(n => ui.tabs[n])) ui.tabs.bose = true;
+  if (!ui.tabs[ui.tab]) ui.tab = TABS.find(n => ui.tabs[n]);
   document.querySelectorAll('#tabs .tab').forEach(b => { b.hidden = !ui.tabs[b.dataset.tab]; });
-  $('#tabs').hidden = !(ui.tabs.bose && ui.tabs.tv);
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv;
+  $('#tabs').hidden = TABS.filter(n => ui.tabs[n]).length < 2;
+  TABS.forEach(n => { $('#tab-' + n).checked = ui.tabs[n]; });
   setTab(ui.tab);
 }
-['bose', 'tv'].forEach(n => $('#tab-' + n).addEventListener('change', e => { ui.tabs[n] = e.target.checked; applyTabs(); }));
+TABS.forEach(n => $('#tab-' + n).addEventListener('change', e => { ui.tabs[n] = e.target.checked; applyTabs(); }));
 $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
 // Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
 // Texteingabe: jede Änderung wird als ganzer Feldinhalt an das Eingabefeld des Fernsehers geschickt (wie die Google-TV-App).
@@ -857,4 +859,116 @@ $('#tv-test').onclick = async e => {
     });
   } catch (ex) { err.textContent = ex.message; }
 };
-buildTv(); applyTabs();
+// ---- JBL-Lautsprecher (Chromecast), direkt angesprochen
+const CAST_KEY = 'finglongerer.cast';
+const castLoad = () => { try { const a = JSON.parse(STNative.storage.getItem(CAST_KEY) || '[]'); return (Array.isArray(a) ? a : []).filter(x => x && IP_RE.test(x.ip || '')).slice(0, 12).map(x => ({ip: x.ip, name: String(x.name || '').slice(0, 40) || 'JBL'})); } catch (e) { return []; } };
+const castSave = list => { try { STNative.storage.setItem(CAST_KEY, JSON.stringify(list)); } catch (e) { /* egal */ } };
+const castSt = {};         // ip -> {st: letzter Zustand, err, touch: Zeit der letzten Reglerbewegung, vt: Zeitgeber}
+const CIC = {
+  play: '<path d="M7 4l12 8-12 8z"/>', pause: '<path d="M8 5v14M16 5v14"/>',
+  prev: '<path d="M6 5v14M19 5l-10 7 10 7z"/>', next: '<path d="M18 5v14M5 5l10 7-10 7z"/>',
+  vol: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6"/>', mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/>'
+};
+const cicon = n => '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + CIC[n] + '</svg>';
+function castCard(d) {
+  const b = (name, tip, act) => { const x = el('button', {type: 'button', title: tip, 'data-cact': act}); x.setAttribute('aria-label', tip); x.innerHTML = cicon(name); return x; };
+  return el('div', {class: 'card cast', 'data-ip': d.ip},
+    el('div', {class: 'head'}, el('span', {class: 'ename', text: d.name}), el('span', {class: 'badge', 'data-f': 'badge'})),
+    el('div', {class: 'enp', 'data-f': 'now', hidden: true}, el('img', {alt: '', hidden: true, 'data-f': 'img'}), el('div', {class: 'enl'}, el('div', {class: 'l1', 'data-f': 'l1'}), el('div', {class: 'l2', 'data-f': 'l2'}))),
+    el('div', {class: 'player'}, b('prev', t('player.prev'), 'prev'), b('play', t('player.play'), 'toggle'), b('next', t('player.next'), 'next')),
+    el('div', {class: 'cvol'}, b('vol', t('cast.mute'), 'mute'), el('input', {type: 'range', min: 0, max: 100, step: 1, value: 0, title: d.name, 'data-cact': 'vol'}), el('span', {class: 'cv', 'data-f': 'cv'})),
+    el('button', {type: 'button', class: 'cstop', text: t('cast.stop'), 'data-cact': 'stop'}));
+}
+function buildCast() {
+  const body = $('#castbody'), list = castLoad(); body.textContent = '';
+  if (!list.length) { body.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: t('cast.empty')}), el('button', {type: 'button', text: t('cast.openSettings'), 'data-castsettings': '1'}))); return; }
+  list.forEach(d => { body.append(castCard(d)); castPaint(d.ip); });
+}
+function castPaint(ip) {
+  const card = document.querySelector('#castbody [data-ip="' + ip + '"]'); if (!card) return;
+  const s = castSt[ip] || {}, st = s.st, f = n => card.querySelector('[data-f=' + n + ']'), a = n => card.querySelector('[data-cact=' + n + ']');
+  const playing = !!st && (st.state === 'PLAYING' || st.state === 'BUFFERING');
+  const badge = f('badge');
+  badge.textContent = !st ? (s.err ? t('badge.unreachable') : '…') : playing ? t('cast.playing') : st.state === 'PAUSED' ? t('player.pause') : st.app || t('cast.idle');
+  badge.className = 'badge' + (playing ? ' on' : !st && s.err ? ' err' : '');
+  const has = !!st && !!(st.title || st.artist || st.app);
+  f('now').hidden = !has;
+  if (has) {
+    f('l1').textContent = st.title || st.app;
+    f('l2').textContent = [st.artist, st.album, st.title ? st.app : ''].filter(Boolean).join(' · ');
+    const img = f('img'), ok = /^https?:\/\//.test(st.image || ''); img.hidden = !ok;
+    if (ok && img.getAttribute('src') !== st.image) img.src = st.image;
+  }
+  ['prev', 'next', 'toggle'].forEach(n => { a(n).disabled = !(st && st.state); });
+  a('toggle').innerHTML = cicon(playing ? 'pause' : 'play'); const tip = playing ? t('player.pause') : t('player.play'); a('toggle').title = tip; a('toggle').setAttribute('aria-label', tip);
+  a('stop').disabled = !(st && st.app);
+  const sl = a('vol'), mu = a('mute'), known = !!st && st.volume >= 0;
+  if (known && !(s.touch && Date.now() - s.touch < 2500)) sl.value = Math.round(st.volume * 100);
+  sl.disabled = mu.disabled = !st;
+  f('cv').textContent = known ? sl.value : '';
+  mu.classList.toggle('lit', !!(st && st.muted)); mu.innerHTML = cicon(st && st.muted ? 'mute' : 'vol');
+}
+async function castRefresh(ip) {
+  const s = castSt[ip] = castSt[ip] || {};
+  try { s.st = await STNative.cast.status(ip); s.err = ''; } catch (e) { s.st = null; s.err = e.message; }
+  castPaint(ip);
+}
+let castPolling = false;
+async function castPoll() {            // nur solange der Reiter sichtbar ist; die Lautsprecher werden nacheinander abgefragt
+  if (castPolling || document.hidden || ui.tab !== 'cast' || $('#dlg').open) return;
+  castPolling = true;
+  try { for (const d of castLoad()) await castRefresh(d.ip); } finally { castPolling = false; }
+}
+setInterval(castPoll, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) castPoll(); });
+$('#castbody').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.castsettings) { $('#btn-settings').click(); return; }
+  const card = b.closest('[data-ip]'); if (!card || b.dataset.busy) return;
+  const ip = card.dataset.ip, st = (castSt[ip] || {}).st || {}, act = b.dataset.cact;
+  const cmd = {toggle: () => STNative.cast.media(ip, st.state === 'PLAYING' || st.state === 'BUFFERING' ? 'PAUSE' : 'PLAY'), prev: () => STNative.cast.media(ip, 'PREV'),
+    next: () => STNative.cast.media(ip, 'NEXT'), mute: () => STNative.cast.mute(ip, !st.muted), stop: () => STNative.cast.stop(ip)}[act];
+  if (!cmd) return;
+  b.dataset.busy = '1'; b.classList.add('wait');
+  (async () => { try { await cmd(); await new Promise(r => setTimeout(r, 500)); } catch (e) { toast(e.message, true); } await castRefresh(ip); })()
+    .finally(() => { delete b.dataset.busy; b.classList.remove('wait'); });
+});
+// Lautstärke: während des Ziehens nur die Anzeige, 200 ms nach der letzten Bewegung wird gesendet
+$('#castbody').addEventListener('input', ev => {
+  const r = ev.target; if (r.dataset.cact !== 'vol') return;
+  const card = r.closest('[data-ip]'), ip = card.dataset.ip, s = castSt[ip] = castSt[ip] || {};
+  s.touch = Date.now(); card.querySelector('[data-f=cv]').textContent = r.value;
+  clearTimeout(s.vt);
+  s.vt = setTimeout(() => { s.touch = Date.now(); STNative.cast.volume(ip, +r.value).catch(e => toast(e.message, true)); }, 200);
+});
+// Einstellungen: Lautsprecherliste (suchen, von Hand hinzufügen, umbenennen, entfernen)
+function renderCastList() {
+  const box = $('#cast-list'); box.textContent = '';
+  castLoad().forEach((d, i) => {
+    const name = el('input', {type: 'text', value: d.name, maxLength: 40, autocomplete: 'off', title: d.ip});
+    name.addEventListener('change', () => { const l = castLoad(); if (l[i]) { l[i].name = name.value.trim() || 'JBL'; castSave(l); buildCast(); } });
+    const rm = el('button', {type: 'button', title: t('cast.remove'), text: '✕'});
+    rm.onclick = () => { const l = castLoad(); l.splice(i, 1); castSave(l); renderCastList(); buildCast(); };
+    box.append(el('div', {class: 'crow'}, name, rm, el('span', {class: 'hint cip', text: d.ip})));
+  });
+}
+function castAdd(ip, name) {
+  const l = castLoad(); if (l.some(x => x.ip === ip) || l.length >= 12) return;
+  l.push({ip, name: name || t('cast.defName', l.length + 1)}); castSave(l); renderCastList(); buildCast();
+}
+$('#cast-find').onclick = async e => {
+  const b = e.currentTarget, err = $('#dlg-err'), box = $('#cast-found'); err.textContent = ''; box.textContent = '';
+  let found = [];
+  try { await tvBusy(b, async () => { found = await STNative.cast.scan($('#scan-net').value.trim()); }); } catch (ex) { err.textContent = ex.message; return; }
+  if (!found.length) { err.textContent = t('cast.none'); return; }
+  const known = new Set(castLoad().map(x => x.ip));
+  found.forEach(f => box.append(el('button', {type: 'button', text: '+ ' + f.name + ' · ' + f.ip + (known.has(f.ip) ? t('scan.known') : ''), disabled: known.has(f.ip),
+    onclick: ev => { castAdd(f.ip, f.name); ev.currentTarget.disabled = true; }})));
+};
+$('#cast-add').onclick = async e => {
+  const ip = $('#cast-ip').value.trim(), err = $('#dlg-err'); err.textContent = '';
+  if (!IP_RE.test(ip)) { err.textContent = t('err.tvIp'); return; }
+  try { await tvBusy(e.currentTarget, async () => { await STNative.cast.status(ip); }); castAdd(ip, ''); $('#cast-ip').value = ''; }
+  catch (ex) { err.textContent = ex.message; }
+};
+buildTv(); buildCast(); applyTabs();

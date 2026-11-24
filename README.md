@@ -12,6 +12,7 @@ Languages: English and German (follows the system language, switchable under ⚙
 - Play any stream URL (also via Android "Share")
 - Automatic search for speakers and Music Assistant on your network
 - Google TV / Android TV remote: controls the TV directly from the phone (automatic search, pairing code, keys, on/off, volume, apps); remotes are tabs with round icons - nothing to install on the TV
+- JBL / Chromecast speakers (Chromecast built-in, e.g. JBL Playlist): own tab with now playing, play/pause/skip, volume, mute, stop app; found automatically (port 8009)
 - Google TV / Android TV: same APK, appears in the launcher, remote-control navigation (OK held on a preset = save)
 - Nothing is preconfigured: add your speakers and groups under ⚙ Settings
 
@@ -45,6 +46,7 @@ Android-Fernbedienung für **Bose SoundTouch** mit SoundTouch Reborn (STR) und o
 - Beliebige Stream-URL abspielen (auch über „Teilen“)
 - Automatische Suche nach Boxen und Music Assistant im Netz
 - Google TV / Android TV als Fernbedienung: steuert den Fernseher direkt vom Handy (automatische Suche, Kopplung per Code, Tasten, Ein/Aus, Lautstärke, Apps); die Fernbedienungen liegen in Reitern mit runden Symbolen - auf dem Fernseher wird nichts installiert
+- JBL-/Chromecast-Lautsprecher (Chromecast built-in, z. B. JBL Playlist): eigener Reiter mit laufendem Titel, Play/Pause/Weiter, Lautstärke, Stumm, App beenden; automatische Suche (Port 8009)
 - Google TV / Android TV: dieselbe APK, erscheint in der Programmübersicht, Bedienung per Fernbedienung (OK gehalten auf einer Sendertaste = speichern)
 - Nichts vorbelegt: Boxen und Gruppen unter ⚙ Einstellungen anlegen
 

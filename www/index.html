@@ -12,6 +12,7 @@
 <nav id="tabs" role="tablist">
   <button type="button" class="tab on" role="tab" data-tab="bose" aria-label="Bose" title="Bose"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#000" stroke="#8a8f98" stroke-width="2"/><text x="24" y="34" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="28" fill="#fff">B</text></svg></button>
   <button type="button" class="tab" role="tab" data-tab="tv" aria-label="Google TV" title="Google TV"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="23" fill="#fff"/><g fill="none" stroke-width="5"><path d="M24 4.5A19.5 19.5 0 0 1 43.5 24" stroke="#34a853"/><path d="M43.5 24A19.5 19.5 0 0 1 24 43.5" stroke="#4285f4"/><path d="M24 43.5A19.5 19.5 0 0 1 4.5 24" stroke="#fbbc05"/><path d="M4.5 24A19.5 19.5 0 0 1 24 4.5" stroke="#ea4335"/></g><text x="24" y="33" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="26" fill="#000">g</text></svg></button>
+  <button type="button" class="tab" role="tab" data-tab="cast" aria-label="JBL" title="JBL / Chromecast"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#1d2026" stroke="#8a8f98" stroke-width="2"/><path d="M14 20h5l7-6v20l-7-6h-5z" fill="#ff8c1a"/><path d="M30 19a7 7 0 0 1 0 10M34 15a12 12 0 0 1 0 18" fill="none" stroke="#ff8c1a" stroke-width="2.5" stroke-linecap="round"/></svg></button>
 </nav>
 <main>
   <div id="boseview">
@@ -25,6 +26,7 @@
   <a id="ma-open" class="btnlink" target="_blank" rel="noopener" hidden data-i18n="ui.maOpen"></a>
   </div>
   <section id="tvview" hidden><div id="tvbody" class="card"></div></section>
+  <section id="castview" hidden><div id="castbody"></div></section>
 </main>
 <div id="toast" role="status"></div>
 <dialog id="dlg">
@@ -33,7 +35,7 @@
     <label class="lbl"><span data-i18n="set.language"></span>
       <select id="lang-sel"><option value="auto" data-i18n="lang.auto"></option><option value="de">Deutsch</option><option value="en">English</option></select></label>
     <h3 data-i18n="set.tabs"></h3>
-    <div class="tabsel"><label><input type="checkbox" id="tab-bose"> Bose SoundTouch</label><label><input type="checkbox" id="tab-tv"> Google TV</label></div>
+    <div class="tabsel"><label><input type="checkbox" id="tab-bose"> Bose SoundTouch</label><label><input type="checkbox" id="tab-tv"> Google TV</label><label><input type="checkbox" id="tab-cast"> JBL / Chromecast</label></div>
     <h3 data-i18n="set.boxes"></h3>
     <div id="set-rows"></div>
     <button type="button" id="set-add" data-i18n="set.addBox"></button>
@@ -59,6 +61,12 @@
     <div class="row2" id="tv-code-row" hidden><input id="tv-code" data-i18n-ph="ph.tvCode" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" id="tv-code-go" data-i18n="set.tvCodeGo"></button></div>
     <p class="hint" id="tv-res"></p>
     <p class="hint" data-i18n="set.hintTv"></p>
+    <h3 data-i18n="set.cast"></h3>
+    <button type="button" id="cast-find" data-i18n="set.castFind"></button>
+    <div id="cast-found" class="found"></div>
+    <div id="cast-list"></div>
+    <div class="row2"><input id="cast-ip" data-i18n-ph="ph.castIp" inputmode="decimal" autocomplete="off" spellcheck="false"><button type="button" id="cast-add" data-i18n="set.castAdd"></button></div>
+    <p class="hint" data-i18n="set.hintCast"></p>
     <h3 data-i18n="set.reboot"></h3>
     <div class="row2"><select id="reboot-sel"></select><button type="button" id="reboot-go" data-i18n="set.rebootGo"></button></div>
     <h3 data-i18n="set.diag"></h3>

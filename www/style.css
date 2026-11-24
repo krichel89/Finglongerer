@@ -154,3 +154,18 @@ html.tvmode #tvbody{flex:1;min-height:0}
 .tvq{position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .tvq input{font-size:16px}
 #tvbody button.tvon{color:#3fb950}
+
+/* JBL / Chromecast-Lautsprecher */
+#castview[hidden]{display:none}
+#castbody{display:grid;gap:12px}
+.cast .cvol{display:grid;grid-template-columns:56px 1fr 44px;gap:10px;align-items:center}
+.cast .cvol .cv{text-align:right;color:var(--dim);font-size:.9rem}
+.cast .cvol button{min-height:46px;padding:4px}
+.cast .cvol button.lit{color:var(--orange)}
+.cast .player button svg{display:block;margin:auto}
+.cast button.cstop{color:var(--dim)}
+#cast-list{display:grid;gap:8px}
+#cast-list .crow{display:grid;grid-template-columns:1fr 44px;gap:6px;align-items:center}
+#cast-list .crow button{min-height:46px;padding:4px}
+#cast-list .cip{grid-column:1/-1;margin-top:-4px}
+.cast [hidden]{display:none!important}

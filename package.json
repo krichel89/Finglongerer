@@ -1,12 +1,12 @@
 {
   "name": "finglongerer",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "private": true,
   "license": "MIT",
   "description": "Remote control for Bose SoundTouch speakers (ST Reborn, Music Assistant) - Android app, no server",
   "scripts": {
     "sync": "cap sync android",
-    "test": "node test/version.test.mjs && node test/i18n.test.mjs && node test/hygiene.test.mjs && node test/tv.test.mjs && node test/core.test.mjs",
+    "test": "node test/version.test.mjs && node test/i18n.test.mjs && node test/hygiene.test.mjs && node test/tv.test.mjs && node test/cast.test.mjs && node test/core.test.mjs",
     "version": "node scripts/set-version.mjs"
   },
   "dependencies": {

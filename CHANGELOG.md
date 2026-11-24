@@ -4,6 +4,12 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.24.0
+- Neuer Reiter „JBL / Chromecast" (Testversion): steuert Lautsprecher mit „Chromecast built-in" (z. B. JBL Playlist) direkt vom Handy, ohne etwas zu installieren. Pro Lautsprecher: laufender Titel mit Cover, Play/Pause, Zurück/Weiter, Lautstärke, Stumm und „Beenden" (stoppt die laufende App auf dem Lautsprecher; einen Aus-Schalter gibt es im Protokoll nicht).
+- Einstellungen → JBL-Lautsprecher (Chromecast): Lautsprecher im Heimnetz suchen (Port 8009, Name aus der Geräte-Info), von Hand per IP hinzufügen, umbenennen, entfernen. Die Suche findet auch Google-TV-Geräte.
+- Reiter „JBL / Chromecast" lässt sich unter „Fernbedienungen anzeigen" ein-/ausblenden.
+- Prüfung: Das Chromecast-Modul wird in `npm test` gegen einen simulierten Lautsprecher getestet (TLS, Heartbeat, Lautstärke, Wiedergabe, Fehlerfälle).
+
 ## 0.23.0
 - „Projektor suchen": findet LG-webOS-Geräte im Heimnetz (Steuerschnittstelle Port 3000/3001), meldet sich an (Anfrage am Projektor bestätigen) und trägt die MAC-Adresse automatisch ein.
 
