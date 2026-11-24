@@ -65,6 +65,26 @@
     hide: () => { try { if (window.STHa) window.STHa.hide(); } catch (e) { /* egal */ } },
     back: () => { try { return !!(window.STHa && window.STHa.back()); } catch (e) { return false; } }
   };
+  // Chromecast-Lautsprecher (z. B. JBL): Aufträge laufen im Handy im Hintergrund, hier wird auf das Ergebnis gewartet
+  async function castCall(op, ip, arg) {
+    if (!window.STCast) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
+    const T = (k, a) => window.STI18n.t(lang(), k, a);
+    let r = String(window.STCast.start(op, ip || '', arg == null ? '' : String(arg)));
+    if (/^\d+$/.test(r)) {
+      const id = r, end = Date.now() + 40000;
+      for (r = ''; r === '' && Date.now() < end; ) { await new Promise(res => setTimeout(res, 60)); r = String(window.STCast.poll(id)); }
+      if (r === '') throw new Error(T('err.castNet'));
+    }
+    const m = /^ERR:(\w+)(?::([\s\S]*))?$/.exec(r);
+    if (m) throw new Error(m[1] === 'net' ? T('err.castNet') : m[1] === 'ip' ? T('err.tvIp') : T('err.castOther', m[2] || r));
+    return r === '-' ? '' : r;
+  }
+  const cast = {
+    // Zeilen "ip TAB name" -> [{ip, name}]
+    scan: async prefix => (await castCall('scan', '', prefix || '')).split('\n').filter(Boolean).map(l => { const f = l.split('\t'); return {ip: f[0], name: f[1] || 'Chromecast'}; }),
+    status: async ip => JSON.parse(await castCall('status', ip)), volume: async (ip, pct) => castCall('volume', ip, Math.round(pct)),
+    mute: async (ip, on) => castCall('mute', ip, on ? 1 : 0), media: async (ip, cmd) => castCall('media', ip, cmd), stop: async ip => castCall('stop', ip)
+  };
   let storage;
   try { window.localStorage.getItem('x'); storage = window.localStorage; }
   catch (e) { const mem = {}; storage = {getItem: k => mem[k] || null, setItem: (k, v) => { mem[k] = v; }}; }
@@ -75,17 +95,5 @@
   const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
   // Fernseher (Google TV): Klasse "tv" für größere Oberfläche und sichtbaren Fokus; ?tv=1 zum Ansehen im Browser
   try { if ((window.STDevice && window.STDevice.isTv()) || /[?&]tv=1\b/.test(location.search)) document.documentElement.classList.add('tv'); } catch (e) { /* kein Fernseher */ }
-  // Chromecast-Lautsprecher (JBL): Antworten "ok", Text oder "ERR:…"
-  function castCall(fn, ...args) {
-    if (!window.STCast) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
-    const r = String(window.STCast[fn](...args));
-    if (r.startsWith('ERR:')) { const e = new Error(r.slice(4)); e.code = r.slice(4); throw e; }
-    return r;
-  }
-  const cast = {
-    scan: async prefix => castCall('scan', prefix || '').split('\n').filter(Boolean),
-    status: async ip => { const [r, m] = castCall('status', ip).split('\n'); return {recv: JSON.parse(r || '{}'), media: m ? JSON.parse(m) : null}; },
-    cmd: async (ip, c, v) => castCall('cmd', ip, c, v | 0)
-  };
   window.STNative = {http, haApi, cast, tcp, tv, ha, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();

@@ -498,7 +498,7 @@ $('#btn-settings').onclick = () => {
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
   if (!$('#scan-net').value.trim()) $('#scan-net').value = netPrefix();
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#tab-jbl').checked = ui.tabs.jbl; jblList(); $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#tab-jbl').checked = ui.tabs.jbl; $('#cast-found').textContent = ''; $('#cast-ip').value = ''; renderCastList(); $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
@@ -602,7 +602,7 @@ window.addEventListener('focus', () => window.STShareCheck());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) window.STShareCheck(); });
 setTimeout(() => window.STShareCheck(), 800);
 $('#lang-sel').onchange = e => {       // Sprache sofort umschalten (auto = Systemsprache)
-  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render(); buildTv();
+  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render(); buildTv(); buildCast(); renderCastList();
 };
 $('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render(); };
 document.addEventListener('visibilitychange', () => refresh());
@@ -723,7 +723,7 @@ function setTab(name) {
   document.documentElement.classList.toggle('tvmode', ui.tab === 'tv');
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   haSync();
-  if (ui.tab === 'jbl') { buildJbl(); jblRefresh(); }
+  if (ui.tab === 'jbl') castPoll();
 }
 // Einstellungen: Reiter ein-/ausblenden; bei nur einem Reiter entfällt die Symbolreihe, mindestens einer bleibt
 function applyTabs() {
@@ -923,102 +923,118 @@ function haSync() {
 $('#ha-open').onclick = () => $('#btn-settings').click();
 $('#dlg').addEventListener('close', haSync);
 window.addEventListener('resize', haSync);
-buildTv(); applyTabs();
-
-// ---- JBL-Lautsprecher (Chromecast): eigener Reiter mit Lautstärke, Stumm und Wiedergabe-Tasten
-const JBL_KEY = 'finglongerer.jbl';
-const jblLoad = () => { try { const a = JSON.parse(STNative.storage.getItem(JBL_KEY) || '[]'); return Array.isArray(a) ? a.filter(x => x && IP_RE.test(x.ip || '')).map(x => ({ip: x.ip, name: String(x.name || x.ip), model: String(x.model || ''), on: x.on !== false})) : []; } catch (e) { return []; } };
-const jblSave = a => { try { STNative.storage.setItem(JBL_KEY, JSON.stringify(a)); } catch (e) { /* egal */ } };
-const jblIcon = n => {
-  const P = {mute: '<path d="M11 5L6 9H3v6h3l5 4z"/><path d="M16 9l5 6M21 9l-5 6"/>', vol: '<path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 6a9 9 0 0 1 0 12"/>',
-    prev: '<path d="M6 5v14M19 5l-10 7 10 7z"/>', next: '<path d="M18 5v14M5 5l10 7-10 7z"/>', play: '<path d="M7 5l12 7-12 7z"/>', pause: '<path d="M8 5v14M16 5v14"/>'};
-  return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P[n] + '</svg>';
+// ---- JBL-Lautsprecher (Chromecast), direkt angesprochen
+const CAST_KEY = 'finglongerer.cast';
+const castLoad = () => { try { let raw = STNative.storage.getItem(CAST_KEY);
+    if (raw === null || raw === undefined) { const o = JSON.parse(STNative.storage.getItem('finglongerer.jbl') || '[]'); raw = JSON.stringify((Array.isArray(o) ? o : []).filter(x => x && x.on !== false)); }   // Liste aus 0.26.0 übernehmen
+    const a = JSON.parse(raw || '[]'); return (Array.isArray(a) ? a : []).filter(x => x && IP_RE.test(x.ip || '')).slice(0, 12).map(x => ({ip: x.ip, name: String(x.name || '').slice(0, 40) || 'JBL'})); } catch (e) { return []; } };
+const castSave = list => { try { STNative.storage.setItem(CAST_KEY, JSON.stringify(list)); } catch (e) { /* egal */ } };
+const castSt = {};         // ip -> {st: letzter Zustand, err, touch: Zeit der letzten Reglerbewegung, vt: Zeitgeber}
+const CIC = {
+  play: '<path d="M7 4l12 8-12 8z"/>', pause: '<path d="M8 5v14M16 5v14"/>',
+  prev: '<path d="M6 5v14M19 5l-10 7 10 7z"/>', next: '<path d="M18 5v14M5 5l10 7-10 7z"/>',
+  vol: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6"/>', mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/>'
 };
-const jblState = {};      // ip -> {vol, muted, state, title, ok}
-function buildJbl() {
-  const body = $('#jblbody'), list = jblLoad().filter(x => x.on); body.textContent = '';
-  if (!list.length) { body.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: t('jbl.empty')}), el('button', {type: 'button', text: t('tv.openSettings'), 'data-jblsettings': '1'}))); return; }
-  list.forEach(sp => {
-    const btn = (n, cmd, tip) => { const b = el('button', {type: 'button', title: tip || '', 'aria-label': tip || n, 'data-jcmd': cmd}); b.innerHTML = jblIcon(n); return b; };
-    body.append(el('div', {class: 'card jbl', 'data-ip': sp.ip},
-      el('div', {class: 'jhead'}, el('strong', {text: sp.name}), el('span', {class: 'jnow hint', text: '…'})),
-      el('div', {class: 'jvol'}, btn('vol', 'mute', t('jbl.mute')), el('input', {type: 'range', min: 0, max: 100, value: 0, 'data-role': 'jvol'}), el('span', {class: 'jval', text: ''})),
-      el('div', {class: 'tvrow'}, btn('prev', 'prev', t('tv.prev')), btn('play', 'toggle', t('tv.play')), btn('next', 'next', t('tv.next')))));
-  });
-  jblShow();
+const cicon = n => '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + CIC[n] + '</svg>';
+function castCard(d) {
+  const b = (name, tip, act) => { const x = el('button', {type: 'button', title: tip, 'data-cact': act}); x.setAttribute('aria-label', tip); x.innerHTML = cicon(name); return x; };
+  return el('div', {class: 'card cast', 'data-ip': d.ip},
+    el('div', {class: 'head'}, el('span', {class: 'ename', text: d.name}), el('span', {class: 'badge', 'data-f': 'badge'})),
+    el('div', {class: 'enp', 'data-f': 'now', hidden: true}, el('img', {alt: '', hidden: true, 'data-f': 'img'}), el('div', {class: 'enl'}, el('div', {class: 'l1', 'data-f': 'l1'}), el('div', {class: 'l2', 'data-f': 'l2'}))),
+    el('div', {class: 'player'}, b('prev', t('player.prev'), 'prev'), b('play', t('player.play'), 'toggle'), b('next', t('player.next'), 'next')),
+    el('div', {class: 'cvol'}, b('vol', t('cast.mute'), 'mute'), el('input', {type: 'range', min: 0, max: 100, step: 1, value: 0, title: d.name, 'data-cact': 'vol'}), el('span', {class: 'cv', 'data-f': 'cv'})),
+    el('button', {type: 'button', class: 'cstop', text: t('cast.stop'), 'data-cact': 'stop'}));
 }
-function jblShow() {
-  document.querySelectorAll('#jblbody .jbl').forEach(c => {
-    const st = jblState[c.dataset.ip]; if (!st) return;
-    c.classList.toggle('offline', !st.ok);
-    c.querySelector('.jnow').textContent = !st.ok ? t('jbl.off') : st.title || (st.app ? st.app : t('jbl.idle'));
-    const r = c.querySelector('[data-role=jvol]');
-    if (document.activeElement !== r && !r.dataset.drag) r.value = st.vol;
-    c.querySelector('.jval').textContent = r.value;
-    const m = c.querySelector('[data-jcmd=mute]'); m.innerHTML = jblIcon(st.muted ? 'mute' : 'vol'); m.classList.toggle('on', !!st.muted);
-    c.querySelector('[data-jcmd=toggle]').innerHTML = jblIcon(st.state === 'PLAYING' || st.state === 'BUFFERING' ? 'pause' : 'play');
-  });
+function buildCast() {
+  const body = $('#jblbody'), list = castLoad(); body.textContent = '';
+  if (!list.length) { body.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: t('cast.empty')}), el('button', {type: 'button', text: t('cast.openSettings'), 'data-castsettings': '1'}))); return; }
+  list.forEach(d => { body.append(castCard(d)); castPaint(d.ip); });
 }
-async function jblStatus(ip) {
-  try {
-    const {recv, media} = await STNative.cast.status(ip);
-    const rs = recv.status || {}, vol = rs.volume || {}, app = (rs.applications || [])[0] || {};
-    const ms = media && media.status && media.status[0], md = ms && ms.media && ms.media.metadata || {};
-    jblState[ip] = {ok: true, vol: Math.round((vol.level || 0) * 100), muted: !!vol.muted, app: app.displayName && !app.isIdleScreen ? app.displayName : '',
-      state: ms ? ms.playerState : '', title: [md.title, md.artist].filter(Boolean).join(' – ')};
-  } catch (e) { jblState[ip] = {ok: false, vol: 0}; }
+function castPaint(ip) {
+  const card = document.querySelector('#jblbody [data-ip="' + ip + '"]'); if (!card) return;
+  const s = castSt[ip] || {}, st = s.st, f = n => card.querySelector('[data-f=' + n + ']'), a = n => card.querySelector('[data-cact=' + n + ']');
+  const playing = !!st && (st.state === 'PLAYING' || st.state === 'BUFFERING');
+  const badge = f('badge');
+  badge.textContent = !st ? (s.err ? t('badge.unreachable') : '…') : playing ? t('cast.playing') : st.state === 'PAUSED' ? t('player.pause') : st.app || t('cast.idle');
+  badge.className = 'badge' + (playing ? ' on' : !st && s.err ? ' err' : '');
+  const has = !!st && !!(st.title || st.artist || st.app);
+  f('now').hidden = !has;
+  if (has) {
+    f('l1').textContent = st.title || st.app;
+    f('l2').textContent = [st.artist, st.album, st.title ? st.app : ''].filter(Boolean).join(' · ');
+    const img = f('img'), ok = /^https?:\/\//.test(st.image || ''); img.hidden = !ok;
+    if (ok && img.getAttribute('src') !== st.image) img.src = st.image;
+  }
+  ['prev', 'next', 'toggle'].forEach(n => { a(n).disabled = !(st && st.state); });
+  a('toggle').innerHTML = cicon(playing ? 'pause' : 'play'); const tip = playing ? t('player.pause') : t('player.play'); a('toggle').title = tip; a('toggle').setAttribute('aria-label', tip);
+  a('stop').disabled = !(st && st.app);
+  const sl = a('vol'), mu = a('mute'), known = !!st && st.volume >= 0;
+  if (known && !(s.touch && Date.now() - s.touch < 2500)) sl.value = Math.round(st.volume * 100);
+  sl.disabled = mu.disabled = !st;
+  f('cv').textContent = known ? sl.value : '';
+  mu.classList.toggle('lit', !!(st && st.muted)); mu.innerHTML = cicon(st && st.muted ? 'mute' : 'vol');
 }
-let jblBusy = false;
-async function jblRefresh() {
-  if (jblBusy) return; jblBusy = true;
-  try { for (const sp of jblLoad().filter(x => x.on)) await jblStatus(sp.ip); } finally { jblBusy = false; }
-  jblShow();
+async function castRefresh(ip) {
+  const s = castSt[ip] = castSt[ip] || {};
+  try { s.st = await STNative.cast.status(ip); s.err = ''; } catch (e) { s.st = null; s.err = e.message; }
+  castPaint(ip);
 }
-setInterval(() => { if (ui.tab === 'jbl' && !document.hidden && !$('#dlg').open) jblRefresh(); }, 4000);
+let castPolling = false;
+async function castPoll() {            // nur solange der Reiter sichtbar ist; die Lautsprecher werden nacheinander abgefragt
+  if (castPolling || document.hidden || ui.tab !== 'jbl' || $('#dlg').open) return;
+  castPolling = true;
+  try { for (const d of castLoad()) await castRefresh(d.ip); } finally { castPolling = false; }
+}
+setInterval(castPoll, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) castPoll(); });
 $('#jblbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
-  if (b.dataset.jblsettings) { $('#btn-settings').click(); setStab('jbl'); return; }
-  const card = b.closest('.jbl'); if (!card || !b.dataset.jcmd) return;
-  const ip = card.dataset.ip, st = jblState[ip] || {};
-  let cmd = b.dataset.jcmd, val = 0;
-  if (cmd === 'mute') val = st.muted ? 0 : 1;
-  if (cmd === 'toggle') cmd = st.state === 'PLAYING' || st.state === 'BUFFERING' ? 'pause' : 'play';
-  tvBusy(b, async () => { await STNative.cast.cmd(ip, cmd, val); await jblStatus(ip); jblShow(); })
-    .catch(e => toast(/NOAPP|NOMEDIA/.test(e.message) ? t('jbl.noMedia') : e.message, true));
+  if (b.dataset.castsettings) { $('#btn-settings').click(); setStab('jbl'); return; }
+  const card = b.closest('[data-ip]'); if (!card || b.dataset.busy) return;
+  const ip = card.dataset.ip, st = (castSt[ip] || {}).st || {}, act = b.dataset.cact;
+  const cmd = {toggle: () => STNative.cast.media(ip, st.state === 'PLAYING' || st.state === 'BUFFERING' ? 'PAUSE' : 'PLAY'), prev: () => STNative.cast.media(ip, 'PREV'),
+    next: () => STNative.cast.media(ip, 'NEXT'), mute: () => STNative.cast.mute(ip, !st.muted), stop: () => STNative.cast.stop(ip)}[act];
+  if (!cmd) return;
+  b.dataset.busy = '1'; b.classList.add('wait');
+  (async () => { try { await cmd(); await new Promise(r => setTimeout(r, 500)); } catch (e) { toast(e.message, true); } await castRefresh(ip); })()
+    .finally(() => { delete b.dataset.busy; b.classList.remove('wait'); });
 });
-$('#jblbody').addEventListener('input', ev => { const r = ev.target; if (r.dataset.role !== 'jvol') return; r.dataset.drag = '1'; r.closest('.jbl').querySelector('.jval').textContent = r.value; });
-$('#jblbody').addEventListener('change', ev => {
-  const r = ev.target; if (r.dataset.role !== 'jvol') return;
-  const ip = r.closest('.jbl').dataset.ip;
-  STNative.cast.cmd(ip, 'volume', +r.value).then(() => { if (jblState[ip]) jblState[ip].vol = +r.value; })
-    .catch(e => toast(e.message, true)).finally(() => { delete r.dataset.drag; });
+// Lautstärke: während des Ziehens nur die Anzeige, 200 ms nach der letzten Bewegung wird gesendet
+$('#jblbody').addEventListener('input', ev => {
+  const r = ev.target; if (r.dataset.cact !== 'vol') return;
+  const card = r.closest('[data-ip]'), ip = card.dataset.ip, s = castSt[ip] = castSt[ip] || {};
+  s.touch = Date.now(); card.querySelector('[data-f=cv]').textContent = r.value;
+  clearTimeout(s.vt);
+  s.vt = setTimeout(() => { s.touch = Date.now(); STNative.cast.volume(ip, +r.value).catch(e => toast(e.message, true)); }, 200);
 });
-// Einstellungen: gefundene Lautsprecher mit Haken (erscheint im Reiter)
-function jblList() {
-  const box = $('#jbl-list'); box.textContent = '';
-  jblLoad().forEach((sp, i) => {
-    const cb = el('input', {type: 'checkbox', checked: sp.on});
-    cb.addEventListener('change', () => { const a = jblLoad(); a[i].on = cb.checked; jblSave(a); buildJbl(); });
-    box.append(el('label', {class: 'chk'}, cb, el('span', {text: sp.name + (sp.model ? ' · ' + sp.model : '') + ' (' + sp.ip + ')'})));
+// Einstellungen: Lautsprecherliste (suchen, von Hand hinzufügen, umbenennen, entfernen)
+function renderCastList() {
+  const box = $('#cast-list'); box.textContent = '';
+  castLoad().forEach((d, i) => {
+    const name = el('input', {type: 'text', value: d.name, maxLength: 40, autocomplete: 'off', title: d.ip});
+    name.addEventListener('change', () => { const l = castLoad(); if (l[i]) { l[i].name = name.value.trim() || 'JBL'; castSave(l); buildCast(); } });
+    const rm = el('button', {type: 'button', title: t('cast.remove'), text: '✕'});
+    rm.onclick = () => { const l = castLoad(); l.splice(i, 1); castSave(l); renderCastList(); buildCast(); };
+    box.append(el('div', {class: 'crow'}, name, rm, el('span', {class: 'hint cip', text: d.ip})));
   });
 }
-$('#jbl-find').onclick = async e => {
-  const b = e.currentTarget, err = $('#dlg-err'); err.textContent = '';
-  b.disabled = true; b.classList.add('wait');
-  try {
-    await new Promise(r => setTimeout(r, 30));
-    const ips = await STNative.cast.scan(netPrefix()), old = jblLoad(), out = [];
-    for (const ip of ips) {
-      let name = ip, model = '', maker = '';
-      try {
-        const j = JSON.parse(await STNative.http('GET', ip, 8008, '/setup/eureka_info?params=name,device_info', null, 3000));
-        name = j.name || ip; model = (j.device_info && j.device_info.model_name) || ''; maker = (j.device_info && j.device_info.manufacturer) || '';
-      } catch (ex) { /* Name unbekannt */ }
-      const prev = old.find(x => x.ip === ip);
-      out.push({ip, name, model, on: prev ? prev.on : /jbl|harman/i.test(name + ' ' + model + ' ' + maker)});
-    }
-    if (!out.length) { err.textContent = t('jbl.none'); return; }
-    jblSave(out); jblList(); buildJbl();
-  } catch (ex) { err.textContent = ex.message; }
-  finally { b.disabled = false; b.classList.remove('wait'); }
+function castAdd(ip, name) {
+  const l = castLoad(); if (l.some(x => x.ip === ip) || l.length >= 12) return;
+  l.push({ip, name: name || t('cast.defName', l.length + 1)}); castSave(l); renderCastList(); buildCast();
+}
+$('#cast-find').onclick = async e => {
+  const b = e.currentTarget, err = $('#dlg-err'), box = $('#cast-found'); err.textContent = ''; box.textContent = '';
+  let found = [];
+  try { await tvBusy(b, async () => { found = await STNative.cast.scan(netPrefix()); }); } catch (ex) { err.textContent = ex.message; return; }
+  if (!found.length) { err.textContent = t('cast.none'); return; }
+  const known = new Set(castLoad().map(x => x.ip));
+  found.forEach(f => box.append(el('button', {type: 'button', text: '+ ' + f.name + ' · ' + f.ip + (known.has(f.ip) ? t('scan.known') : ''), disabled: known.has(f.ip),
+    onclick: ev => { castAdd(f.ip, f.name); ev.currentTarget.disabled = true; }})));
 };
+$('#cast-add').onclick = async e => {
+  const ip = $('#cast-ip').value.trim(), err = $('#dlg-err'); err.textContent = '';
+  if (!IP_RE.test(ip)) { err.textContent = t('err.tvIp'); return; }
+  try { await tvBusy(e.currentTarget, async () => { await STNative.cast.status(ip); }); castAdd(ip, ''); $('#cast-ip').value = ''; }
+  catch (ex) { err.textContent = ex.message; }
+};
+buildTv(); buildCast(); applyTabs();
