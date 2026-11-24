@@ -21,6 +21,18 @@
     if (res.status >= 400) throw new Error('HTTP ' + res.status);
     return typeof res.data === 'string' ? res.data : String(res.data == null ? '' : JSON.stringify(res.data));
   }
+  // Home-Assistant-REST (nativ, keine CORS-Sperre): base = http(s)://host:port, Token = Langzeit-Zugangstoken
+  async function haApi(method, base, path, token, body) {
+    const call = plugin();
+    if (!call) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
+    const opts = {url: base.replace(/\/+$/, '') + path, method, responseType: 'text', connectTimeout: 5000, readTimeout: 8000,
+      headers: Object.assign({Authorization: 'Bearer ' + token}, body ? {'Content-Type': 'application/json'} : {})};
+    if (body) opts.data = body;
+    const res = await call(opts);
+        if (res.status >= 400) throw new Error('Home Assistant: HTTP ' + res.status);
+    const d = res.data;
+    return typeof d === 'string' ? (d ? JSON.parse(d) : null) : d;
+  }
   // Rohe TCP-Zeile (nur Box-Neustart, Port 17000): läuft in einem Android-Thread, der Aufruf blockiert kurz
   async function tcp(ip, port, line, timeout) {
     if (!window.STTcp) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
@@ -45,7 +57,7 @@
     connect: async ip => tvCall('connect', ip), power: async (ip, on) => tvCall('power', ip, !!on), wake: async mac => tvCall('wake', mac),
     // Zeilen "ip TAB name TAB mac" -> [{ip, name, mac}]
     scan: async prefix => tvCall('scan', prefix || '').split('\n').filter(Boolean).map(l => { const f = l.split('\t'); return {ip: f[0], name: f[1] || 'Google TV', mac: f[2] || ''}; }),
-    info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), text: async (ip, txt) => tvCall('text', ip, txt), keyd: async (ip, code, dir) => tvCall('keyd', ip, code, dir), voice: async (ip, on) => tvCall('voice', ip, !!on), projFind: async prefix => tvCall('projFind', prefix || ''), projPoll: () => (window.STTv ? String(window.STTv.projPoll()) : ''), launch: async (ip, link) => tvCall('launch', ip, link)
+    info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), text: async (ip, txt) => tvCall('text', ip, txt), keyd: async (ip, code, dir) => tvCall('keyd', ip, code, dir), voice: async (ip, on) => tvCall('voice', ip, !!on), launch: async (ip, link) => tvCall('launch', ip, link)
   };
   // Home Assistant: natives WebView über dem Platzhalter des Reiters (window.STHa); Ort in CSS-Pixeln
   const ha = {
@@ -63,5 +75,5 @@
   const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
   // Fernseher (Google TV): Klasse "tv" für größere Oberfläche und sichtbaren Fokus; ?tv=1 zum Ansehen im Browser
   try { if ((window.STDevice && window.STDevice.isTv()) || /[?&]tv=1\b/.test(location.search)) document.documentElement.classList.add('tv'); } catch (e) { /* kein Fernseher */ }
-  window.STNative = {http, tcp, tv, ha, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
+  window.STNative = {http, haApi, tcp, tv, ha, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();

@@ -498,7 +498,7 @@ $('#btn-settings').onclick = () => {
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
   if (!$('#scan-net').value.trim()) $('#scan-net').value = netPrefix();
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#proj-mac').value = projMac(); $('#proj-res').textContent = ''; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
@@ -567,7 +567,10 @@ $('#dlg-form').addEventListener('submit', async ev => {
   ev.preventDefault();
   const haUrl = $('#ha-url').value.trim();
   if (haUrl && !HA_RE.test(haUrl)) { $('#dlg-err').textContent = t('ha.badUrl'); return; }
-  haSave({url: haUrl, clean: $('#ha-clean').checked});
+  haSave({url: haUrl, clean: $('#ha-clean').checked, token: $('#ha-token').value.trim()});
+  const ent = $('#plug-ent').value;
+  try { STNative.storage.setItem(PLUG_KEY, ENT_RE.test(ent) ? ent : ''); } catch (ex) { /* egal */ }
+  plugState = ''; buildTv(); plugRefresh();
   const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
   try {
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
@@ -634,18 +637,47 @@ function netPrefix() {
   const ips = [tvLoad().ip, ...cfg.speakers.map(s => s.ip)].filter(ip => IP_RE.test(ip || ''));
   return ips.length ? ips[0].split('.').slice(0, 3).join('.') : '';
 }
-// Projektor (z. B. LG webOS): wird per Weckruf eingeschaltet und weckt den Stick über HDMI-CEC (SIMPLINK) mit
-const PROJ_KEY = 'finglongerer.proj', MAC_RE = /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/;
-const projMac = () => { try { const m = String(STNative.storage.getItem(PROJ_KEY) || ''); return MAC_RE.test(m) ? m : ''; } catch (e) { return ''; } };       // MAC des gerade gesuchten/gekoppelten Fernsehers
+// Strom für Projektor und Stick: eine Steckdose in Home Assistant (switch.*), geschaltet über die REST-Schnittstelle
+const PLUG_KEY = 'finglongerer.plug', ENT_RE = /^(switch|light|input_boolean)\.[a-z0-9_]+$/;
+const plugEnt = () => { try { const v = String(STNative.storage.getItem(PLUG_KEY) || ''); return ENT_RE.test(v) ? v : ''; } catch (e) { return ''; } };
+let plugState = '';          // 'on' | 'off' | '' (unbekannt)
+async function haCall(method, path, body) {
+  const h = haLoad(); if (!h.url || !h.token) throw new Error(t('plug.needHa'));
+  return haReq(method, h.url, path, h.token, body ? JSON.stringify(body) : null);
+}
+const haReq = (method, url, path, token, body) => STNative.haApi(method, url, path, token, body)
+  .catch(e => { throw /HTTP 40[13]\b/.test(e.message) ? new Error(t('plug.badToken')) : e; });
+function plugShow() {
+  document.querySelectorAll('[data-plug]').forEach(b => {
+    b.classList.toggle('pon', plugState === 'on'); b.classList.toggle('poff', plugState === 'off');
+    const tip = plugState === 'on' ? t('plug.on') : plugState === 'off' ? t('plug.off') : t('set.plug');
+    b.title = tip; b.setAttribute('aria-label', tip);
+  });
+}
+async function plugRefresh() {
+  const ent = plugEnt(); if (!ent) return;
+  try { const j = await haCall('GET', '/api/states/' + ent); plugState = j && (j.state === 'on' || j.state === 'off') ? j.state : ''; }
+  catch (e) { plugState = ''; }
+  plugShow();
+}
+// Zustand regelmäßig abfragen, solange die Google-Fernbedienung sichtbar ist
+setInterval(() => { if (ui.tab === 'tv' && plugEnt() && !document.hidden && !$('#dlg').open) plugRefresh(); }, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.tab === 'tv') plugRefresh(); });
 const tvBusy = async (b, fn) => {
   b.disabled = true; b.classList.add('wait');
   try { await new Promise(r => setTimeout(r, 30)); await fn(); } finally { b.disabled = false; b.classList.remove('wait'); }
 };
+function plugBtn() {
+  const b = el('button', {type: 'button', class: 'plug', 'data-plug': '1'});
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>';
+  return b;
+}
 function buildTv() {
   const c = tvLoad(), body = $('#tvbody'); body.textContent = '';
   if (!(c.ip && c.paired)) {
+    if (plugEnt()) body.append(el('div', {class: 'tvrow one'}, plugBtn()));
     body.append(el('p', {class: 'hint', text: t('tv.notPaired')}), el('button', {type: 'button', text: t('tv.openSettings'), 'data-tvsettings': '1'}));
-    return;
+    plugShow(); return;
   }
   // Symbole als Linienzeichnung (Farbe folgt dem Text)
   const ICON = {
@@ -667,8 +699,6 @@ function buildTv() {
   };
   const off = el('button', {type: 'button', class: 'tvoff', title: t('tv.off'), 'aria-label': t('tv.off'), 'data-tvpower': 'off'});
   off.innerHTML = icon('power');
-  const on = el('button', {type: 'button', class: 'tvon', title: t('tv.on'), 'aria-label': t('tv.on'), 'data-projon': '1'});
-  on.innerHTML = icon('power');
   const skip = (n, tip) => { const b = el('button', {type: 'button', title: tip, 'aria-label': tip, 'data-tvskip': n}); b.innerHTML = icon(n); return b; };
   const gap = () => el('span');
   // Tastatur: Taste öffnet die Handy-Tastatur über ein unsichtbares Feld; der Text erscheint in der Taste und live auf dem Fernseher
@@ -677,11 +707,12 @@ function buildTv() {
   const form = el('form', {class: 'tvq', autocomplete: 'off'},
     el('input', {type: 'text', id: 'tv-q', name: 'tvq', enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', 'aria-hidden': 'true', tabindex: '-1'}));
   body.append(
-    el('div', {class: projMac() ? 'tvrow' : 'tvrow two'}, ...(projMac() ? [on] : []), off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
+    el('div', {class: 'tvrow two'}, plugEnt() ? plugBtn() : off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
     el('div', {class: 'tvrow'}, skip('prev', t('tv.prev')), k('play', 85, t('tv.play')), skip('next', t('tv.next'))),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
     kb, form);
+  plugShow();
 }
 const TABS = ['bose', 'tv', 'ha'];
 function setTab(name) {
@@ -764,16 +795,18 @@ const skipEnd = ev => {
 $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
-  if (b.dataset.tvskip) return;
-  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); return; }      // läuft über Zeiger-Ereignisse (kurz/lang)
+  if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
+  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); return; }
   const c = tvLoad();
+  if (!b.dataset.plug && !(c.ip && c.paired)) return;
   tvBusy(b, async () => {
     if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);
-    else if (b.dataset.projon) {
-      // mehrere Weckrufe kurz hintereinander: Geräte im WLAN-Standby verpassen einzelne Pakete leicht
-      const mac = projMac();
-      for (let i = 0; i < 5; i++) { await STNative.tv.wake(mac); await new Promise(r => setTimeout(r, 300)); }
-      toast(t('tv.projOn'));
+    else if (b.dataset.plug) {
+      // Zustand frisch holen, dann umschalten
+      await plugRefresh();
+      const ent = plugEnt(), dom = ent.split('.')[0];
+      await haCall('POST', '/api/services/' + dom + '/' + (plugState === 'on' ? 'turn_off' : 'turn_on'), {entity_id: ent});
+      await new Promise(r => setTimeout(r, 600)); await plugRefresh();
     }
     else if (b.dataset.tvvoice) {
       if (!voiceOn) { await STNative.tv.voice(c.ip, true); voiceOn = true; b.classList.add('rec'); toast(t('tv.voiceOff')); voiceTimer = setTimeout(voiceStop, 21000); }
@@ -800,32 +833,25 @@ async function tvFind(b) {
   box.append(el('p', {class: 'hint', text: t('tv.pick')}), ...list.map(f => el('button', {type: 'button', text: f.name + ' (' + f.ip + ')', onclick: () => take(f)})));
   return list;
 }
-$('#proj-mac').addEventListener('change', e => {
-  const v = e.target.value.trim().toUpperCase().replace(/-/g, ':'); $('#dlg-err').textContent = '';
-  if (v && !MAC_RE.test(v)) { $('#dlg-err').textContent = t('tv.badMac'); return; }
-  e.target.value = v;
-  try { STNative.storage.setItem(PROJ_KEY, v); } catch (ex) { /* egal */ }
-  buildTv();
-});
-// Projektor suchen: Hintergrundsuche im Handy, Stand jede Sekunde abfragen; am Projektor muss die Anfrage bestätigt werden
-$('#proj-find').onclick = async e => {
-  const b = e.currentTarget, res = $('#proj-res'), err = $('#dlg-err'); err.textContent = ''; res.textContent = t('proj.scan');
+// Steckdose wählen: switch-Entitäten aus Home Assistant laden (Adresse und Token aus dem Formular, auch ungespeichert)
+function plugOptions(list) {
+  const sel = $('#plug-ent'), cur = plugEnt(); sel.textContent = '';
+  sel.append(el('option', {value: '', text: t('plug.none')}));
+  const all = list.slice(); if (cur && !all.some(x => x.id === cur)) all.unshift({id: cur, name: cur});
+  all.forEach(x => sel.append(el('option', {value: x.id, text: x.name === x.id ? x.id : x.name + ' (' + x.id + ')'})));
+  sel.value = cur;
+}
+$('#plug-load').onclick = async e => {
+  const b = e.currentTarget, err = $('#dlg-err'); err.textContent = '';
+  const url = $('#ha-url').value.trim(), token = $('#ha-token').value.trim();
+  if (!HA_RE.test(url) || !token) { err.textContent = t('plug.needHa'); return; }
   b.disabled = true; b.classList.add('wait');
   try {
-    await STNative.tv.projFind(netPrefix());
-    for (let i = 0; i < 150; i++) {          // höchstens etwa 2,5 Minuten
-      await new Promise(r => setTimeout(r, 1000));
-      const st = STNative.tv.projPoll(), f = st.split(':');
-      if (f[0] === 'run') { res.textContent = f[1] === 'prompt' ? t('proj.prompt', f.slice(2).join(':')) : f[1] === 'connect' ? t('proj.connect', f.slice(2).join(':')) : t('proj.scan'); continue; }
-      if (f[0] === 'ok') {
-        const [mac, ip] = st.slice(3).split('\t');
-        $('#proj-mac').value = mac; $('#proj-mac').dispatchEvent(new Event('change'));
-        res.textContent = t('proj.found', mac, ip); return;
-      }
-      if (f[0] === 'err') { res.textContent = ''; err.textContent = st === 'err:none' ? t('proj.none') : t('proj.fail', st.slice(4)); return; }
-    }
-    res.textContent = '';
-  } catch (ex) { res.textContent = ''; err.textContent = ex.message; }
+    const all = await haReq('GET', url, '/api/states', token, null);
+    const list = (Array.isArray(all) ? all : []).filter(x => /^switch\./.test(x.entity_id))
+      .map(x => ({id: x.entity_id, name: (x.attributes && x.attributes.friendly_name) || x.entity_id})).sort((a, c) => a.name.localeCompare(c.name));
+    plugOptions(list); toast(t('plug.loaded', list.length));
+  } catch (ex) { err.textContent = ex.message; }
   finally { b.disabled = false; b.classList.remove('wait'); }
 };
 $('#tv-find').onclick = e => { tvFind(e.currentTarget).catch(ex => { $('#dlg-err').textContent = ex.message; }); };
@@ -882,7 +908,7 @@ $('#stabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'
 // ---- Home Assistant: Dashboard im dritten Reiter. Ein natives WebView liegt über dem Platzhalter #habox (bleibt angemeldet, keine Frame-Sperre)
 const HA_KEY = 'finglongerer.ha';
 const HA_RE = /^https?:\/\/[^\s\/$.?#][^\s]*$/i;
-const haLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(HA_KEY) || '{}'); return {url: HA_RE.test(o.url || '') ? o.url : '', clean: o.clean !== false}; } catch (e) { return {url: '', clean: true}; } };
+const haLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(HA_KEY) || '{}'); return {url: HA_RE.test(o.url || '') ? o.url : '', clean: o.clean !== false, token: typeof o.token === 'string' ? o.token : ''}; } catch (e) { return {url: '', clean: true, token: ''}; } };
 const haSave = o => { try { STNative.storage.setItem(HA_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
 function haSync() {
   const url = haLoad().url, on = ui.tab === 'ha' && ui.tabs.ha && !$('#dlg').open;

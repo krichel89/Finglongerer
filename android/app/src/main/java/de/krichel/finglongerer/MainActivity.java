@@ -230,46 +230,6 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception e) { return fail(e); }
         }
 
-        private volatile String projState = "";
-        private volatile Thread projThread;
-
-        /** Projektor (LG webOS) suchen und MAC-Adresse abfragen; läuft im Hintergrund, Stand über projPoll(). */
-        @JavascriptInterface
-        public synchronized String projFind(String prefix) {
-            if (projThread != null) return "ok";
-            String p0 = prefix == null ? "" : prefix.trim();
-            final String p = p0.isEmpty() ? TvScan.localPrefix() : p0;
-            if (!p.matches("^(10|192\\.168|172\\.(1[6-9]|2\\d|3[01]))\\.\\d{1,3}(\\.\\d{1,3})?$") || p.split("\\.").length != 3) return "ERR:ip";
-            projState = "run:scan";
-            Thread t = new Thread(() -> {
-                try {
-                    java.util.List<String> ips = WebOs.scan(p);
-                    if (ips.isEmpty()) { projState = "err:none"; return; }
-                    String err = "";
-                    for (String ip : ips) {
-                        final String cur = ip;
-                        projState = "run:connect:" + cur;
-                        try {
-                            String mac = WebOs.mac(cur, st -> projState = "run:" + st + ":" + cur);
-                            projState = "ok:" + mac + "\t" + cur;
-                            return;
-                        } catch (Exception e) { err = String.valueOf(e.getMessage()); }
-                    }
-                    projState = "err:" + err;
-                } catch (Exception e) {
-                    projState = "err:" + e.getMessage();
-                } finally {
-                    projThread = null;
-                }
-            }, "proj-find");
-            projThread = t;
-            t.start();
-            return "ok";
-        }
-
-        @JavascriptInterface
-        public String projPoll() { return projState; }
-
         @JavascriptInterface
         public String launch(String ip, String link) {
             if (!lan(ip)) return "ERR:ip";

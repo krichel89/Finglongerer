@@ -153,7 +153,10 @@ html.tvmode #tvbody{flex:1;min-height:0}
 #tvbody .kbd.typing{border-color:var(--orange);color:var(--orange)}
 .tvq{position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .tvq input{font-size:16px}
-#tvbody button.tvon{color:#3fb950}
+#tvbody button.plug{color:var(--dim)}
+#tvbody button.plug.pon{color:#fff;background:#238636;border-color:#2ea043}
+#tvbody button.plug.poff{color:#3fb950}
+.tvrow.one{grid-template-columns:1fr;flex:0 0 72px}
 /* Home Assistant: Platzhalter, über dem das native WebView liegt; Seite scrollt dort nicht */
 html.ha,html.ha body{overflow:hidden}
 html.ha main{padding-bottom:0}
