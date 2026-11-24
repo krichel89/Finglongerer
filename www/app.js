@@ -497,7 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
@@ -566,7 +566,7 @@ $('#dlg-form').addEventListener('submit', async ev => {
   ev.preventDefault();
   const haUrl = $('#ha-url').value.trim();
   if (haUrl && !HA_RE.test(haUrl)) { $('#dlg-err').textContent = t('ha.badUrl'); return; }
-  haSave({url: haUrl});
+  haSave({url: haUrl, clean: $('#ha-clean').checked});
   const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
   try {
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
@@ -806,7 +806,7 @@ $('#stabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'
 // ---- Home Assistant: Dashboard im dritten Reiter. Ein natives WebView liegt über dem Platzhalter #habox (bleibt angemeldet, keine Frame-Sperre)
 const HA_KEY = 'finglongerer.ha';
 const HA_RE = /^https?:\/\/[^\s\/$.?#][^\s]*$/i;
-const haLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(HA_KEY) || '{}'); return {url: HA_RE.test(o.url || '') ? o.url : ''}; } catch (e) { return {url: ''}; } };
+const haLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(HA_KEY) || '{}'); return {url: HA_RE.test(o.url || '') ? o.url : '', clean: o.clean !== false}; } catch (e) { return {url: '', clean: true}; } };
 const haSave = o => { try { STNative.storage.setItem(HA_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
 function haSync() {
   const url = haLoad().url, on = ui.tab === 'ha' && ui.tabs.ha && !$('#dlg').open;
@@ -814,7 +814,7 @@ function haSync() {
   if (!on || !url) { STNative.ha.hide(); return; }
   const box = $('#habox'); box.style.height = Math.max(200, Math.floor(window.innerHeight - box.getBoundingClientRect().top)) + 'px';
   const r = box.getBoundingClientRect();
-  try { STNative.ha.show(url, r.left, r.top, r.width, r.height); }
+  try { STNative.ha.show(url, r.left, r.top, r.width, r.height, haLoad().clean); }
   catch (e) { $('#habox').hidden = true; $('#hamsg').hidden = false; $('#hatext').textContent = e.message; }
 }
 $('#ha-open').onclick = () => $('#btn-settings').click();

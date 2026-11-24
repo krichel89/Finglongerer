@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.22.1
+- Home-Assistant-Reiter: Seitenleiste und obere Leiste werden ausgeblendet, sodass nur das Dashboard zu sehen ist. Einstellungen → Home Assistant → „Leiste und Seitenleiste ausblenden" (standardmäßig an). Zum Bearbeiten des Dashboards die Option ausschalten oder im Browser arbeiten.
+
 ## 0.22.0
 - Dritter Reiter „Home Assistant" (rundes blaues Symbol mit dem Haus-Zeichen aus dem Material-Design-Icon-Satz): Das Dashboard von Home Assistant erscheint in der App, ohne Frame-Sperre und angemeldet bleibend. Adresse unter Einstellungen → Home Assistant (http:// oder https:// mit Port).
 - Zurück-Taste geht zuerst im Dashboard zurück. Links auf andere Rechner öffnen im Browser des Handys. Bei Fehler zeigt das Dashboard die Meldung mit Neu-laden-Pfeil.

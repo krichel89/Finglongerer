@@ -248,13 +248,16 @@ public class MainActivity extends BridgeActivity {
         private String host;
         private volatile boolean canBack;
         private volatile boolean shown;
+        private boolean cleanOn;
+        /** Blendet in der Home-Assistant-Oberfläche Seitenleiste und obere Leiste aus (Stile in die offenen Shadow-Roots). */
+        private static final String CLEAN_JS = "(function(){if(window.__fglClean)return;window.__fglClean=true;var css={main:\":host{--mdc-drawer-width:0px!important}ha-sidebar{display:none!important}\",root:\":host{--header-height:0px!important}.header,.toolbar{display:none!important}#view{min-height:100vh!important;padding-top:0!important}\"};function add(r,k){if(!r||r.querySelector('style[data-fgl=\"'+k+'\"]'))return;var s=document.createElement(\"style\");s.setAttribute(\"data-fgl\",k);s.textContent=css[k];r.appendChild(s)}function sr(e){return e&&e.shadowRoot}function tick(){var h=document.querySelector(\"home-assistant\"),m=sr(h)&&sr(h).querySelector(\"home-assistant-main\"),ms=sr(m);if(!ms)return;add(ms,\"main\");var p=ms.querySelector(\"ha-panel-lovelace\"),ps=sr(p),r=ps&&ps.querySelector(\"hui-root\");add(sr(r),\"root\")}tick();setInterval(tick,700)})();";
 
         private boolean valid(String url) {
             return url != null && url.length() < 300 && url.matches("^https?://[^\\s/$.?#][^\\s]*$");
         }
 
         @JavascriptInterface
-        public String show(String url, double x, double y, double w, double h) {
+        public String show(String url, double x, double y, double w, double h, boolean clean) {
             if (!valid(url)) return "ERR:url";
             final float d = getResources().getDisplayMetrics().density;
             final int px = Math.round((float) x * d), py = Math.round((float) y * d);
@@ -265,8 +268,9 @@ public class MainActivity extends BridgeActivity {
                 lp.leftMargin = px;
                 lp.topMargin = py;
                 web.setLayoutParams(lp);
-                if (!url.equals(base)) {
+                if (!url.equals(base) || clean != cleanOn) {
                     base = url;
+                    cleanOn = clean;
                     host = Uri.parse(url).getHost();
                     canBack = false;
                     web.loadUrl(url);
@@ -309,6 +313,12 @@ public class MainActivity extends BridgeActivity {
                     if (("http".equals(sc) || "https".equals(sc)) && host != null && host.equalsIgnoreCase(u.getHost())) return false;
                     try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { /* kein Browser */ }
                     return true;
+                }
+
+                @Override
+                public void onPageFinished(WebView v, String url) {
+                    String h = Uri.parse(String.valueOf(url)).getHost();
+                    if (cleanOn && host != null && host.equalsIgnoreCase(h)) v.evaluateJavascript(CLEAN_JS, null);
                 }
 
                 @Override

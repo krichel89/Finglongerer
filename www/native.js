@@ -49,7 +49,7 @@
   };
   // Home Assistant: natives WebView über dem Platzhalter des Reiters (window.STHa); Ort in CSS-Pixeln
   const ha = {
-    show: (url, x, y, w, h) => { if (!window.STHa) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly')); const r = String(window.STHa.show(url, x, y, w, h)); if (r !== 'ok') throw new Error(r); },
+    show: (url, x, y, w, h, clean) => { if (!window.STHa) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly')); const r = String(window.STHa.show(url, x, y, w, h, !!clean)); if (r !== 'ok') throw new Error(r); },
     hide: () => { try { if (window.STHa) window.STHa.hide(); } catch (e) { /* egal */ } },
     back: () => { try { return !!(window.STHa && window.STHa.back()); } catch (e) { return false; } }
   };
