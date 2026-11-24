@@ -45,7 +45,7 @@
     connect: async ip => tvCall('connect', ip), power: async (ip, on) => tvCall('power', ip, !!on), wake: async mac => tvCall('wake', mac),
     // Zeilen "ip TAB name TAB mac" -> [{ip, name, mac}]
     scan: async prefix => tvCall('scan', prefix || '').split('\n').filter(Boolean).map(l => { const f = l.split('\t'); return {ip: f[0], name: f[1] || 'Google TV', mac: f[2] || ''}; }),
-    info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), text: async (ip, txt) => tvCall('text', ip, txt), keyd: async (ip, code, dir) => tvCall('keyd', ip, code, dir), voice: async (ip, on) => tvCall('voice', ip, !!on), launch: async (ip, link) => tvCall('launch', ip, link)
+    info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), text: async (ip, txt) => tvCall('text', ip, txt), keyd: async (ip, code, dir) => tvCall('keyd', ip, code, dir), voice: async (ip, on) => tvCall('voice', ip, !!on), projFind: async prefix => tvCall('projFind', prefix || ''), projPoll: () => (window.STTv ? String(window.STTv.projPoll()) : ''), launch: async (ip, link) => tvCall('launch', ip, link)
   };
   let storage;
   try { window.localStorage.getItem('x'); storage = window.localStorage; }

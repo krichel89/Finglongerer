@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.23.0
+- „Projektor suchen": findet LG-webOS-Geräte im Heimnetz (Steuerschnittstelle Port 3000/3001), meldet sich an (Anfrage am Projektor bestätigen) und trägt die MAC-Adresse automatisch ein.
+
 ## 0.22.0
 - Projektor ein: In den Einstellungen die MAC-Adresse des Projektors eintragen, dann erscheint eine grüne Ein-Taste. Sie schickt fünf Weckrufe (Wake-on-LAN); der Projektor weckt den Stick über HDMI-CEC (SIMPLINK) mit.
 

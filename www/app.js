@@ -497,7 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#proj-mac').value = projMac(); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#proj-mac').value = projMac(); $('#proj-res').textContent = ''; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   $('#dlg').showModal();
 };
 $('#reboot-go').onclick = async e => {
@@ -793,6 +793,27 @@ $('#proj-mac').addEventListener('change', e => {
   try { STNative.storage.setItem(PROJ_KEY, v); } catch (ex) { /* egal */ }
   buildTv();
 });
+// Projektor suchen: Hintergrundsuche im Handy, Stand jede Sekunde abfragen; am Projektor muss die Anfrage bestätigt werden
+$('#proj-find').onclick = async e => {
+  const b = e.currentTarget, res = $('#proj-res'), err = $('#dlg-err'); err.textContent = ''; res.textContent = t('proj.scan');
+  b.disabled = true; b.classList.add('wait');
+  try {
+    await STNative.tv.projFind($('#scan-net').value.trim());
+    for (let i = 0; i < 150; i++) {          // höchstens etwa 2,5 Minuten
+      await new Promise(r => setTimeout(r, 1000));
+      const st = STNative.tv.projPoll(), f = st.split(':');
+      if (f[0] === 'run') { res.textContent = f[1] === 'prompt' ? t('proj.prompt', f.slice(2).join(':')) : f[1] === 'connect' ? t('proj.connect', f.slice(2).join(':')) : t('proj.scan'); continue; }
+      if (f[0] === 'ok') {
+        const [mac, ip] = st.slice(3).split('\t');
+        $('#proj-mac').value = mac; $('#proj-mac').dispatchEvent(new Event('change'));
+        res.textContent = t('proj.found', mac, ip); return;
+      }
+      if (f[0] === 'err') { res.textContent = ''; err.textContent = st === 'err:none' ? t('proj.none') : t('proj.fail', st.slice(4)); return; }
+    }
+    res.textContent = '';
+  } catch (ex) { res.textContent = ''; err.textContent = ex.message; }
+  finally { b.disabled = false; b.classList.remove('wait'); }
+};
 $('#tv-find').onclick = e => { tvFind(e.currentTarget).catch(ex => { $('#dlg-err').textContent = ex.message; }); };
 // Ist keine IP eingetragen, wird automatisch gesucht (genau ein Treffer wird übernommen)
 async function tvIpOrFind(b) {
