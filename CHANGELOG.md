@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.22.0
+- Dritter Reiter „Home Assistant" (rundes blaues Symbol mit dem Haus-Zeichen aus dem Material-Design-Icon-Satz): Das Dashboard von Home Assistant erscheint in der App, ohne Frame-Sperre und angemeldet bleibend. Adresse unter Einstellungen → Home Assistant (http:// oder https:// mit Port).
+- Zurück-Taste geht zuerst im Dashboard zurück. Links auf andere Rechner öffnen im Browser des Handys. Bei Fehler zeigt das Dashboard die Meldung mit Neu-laden-Pfeil.
+- Einstellungen: „Reiter anzeigen" mit drei Reitern einzeln ein-/ausblendbar.
+
 ## 0.21.3
 - Sprachsuche: Das Mikrofon des Handys wird an den Fernseher gestreamt (Android fragt einmal nach der Mikrofon-Berechtigung). Erster Druck startet, zweiter beendet, nach 20 Sekunden endet es von selbst.
 - Neben Play: Taste Zurück und Taste Vor. Kurz = Titel springen, lang = Zurück-/Vorspulen, solange gehalten.

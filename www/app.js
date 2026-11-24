@@ -21,8 +21,8 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
 const UI_KEY = 'finglongerer.ui';
-const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true}};
-try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' ? 'tv' : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false}; } } catch (e) { /* neu anfangen */ }
+const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, ha: true}};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' || o.tab === 'ha' ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, ha: o.tabs.ha !== false}; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
   Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab, tabs: ui.tabs})); } catch (e) { /* egal */ } };
@@ -497,8 +497,8 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
-  $('#dlg').showModal();
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
   const b = e.currentTarget, rs = $('#reboot-sel'), i = +rs.value, sp = cfg.speakers[i];
@@ -564,6 +564,9 @@ $('#ma-test').onclick = async e => {       // erst speichern (Adresse/Token), da
 $('#dlg-form').addEventListener('submit', async ev => {
   if (ev.submitter && ev.submitter.value !== 'ok') return; // Abbrechen: schließt einfach
   ev.preventDefault();
+  const haUrl = $('#ha-url').value.trim();
+  if (haUrl && !HA_RE.test(haUrl)) { $('#dlg-err').textContent = t('ha.badUrl'); return; }
+  haSave({url: haUrl});
   const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
   try {
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
@@ -605,6 +608,7 @@ setInterval(() => { if (Object.keys(pending).length || Date.now() - lastRefresh 
 // Zurück-Taste (Android/Fernbedienung): schließt zuerst Einstellungen, dann zuletzt aufgeklappte Bereiche; true = etwas wurde geschlossen
 window.STBack = () => {
   const dlg = $('#dlg'); if (dlg && dlg.open) { dlg.close('cancel'); return true; }
+  if (ui.tab === 'ha' && STNative.ha.back()) return true;   // Home Assistant: erst im Dashboard zurück
   const open = Array.from(document.querySelectorAll('details[open]'));
   if (open.length) { const d = open[open.length - 1]; d.open = false; d.dispatchEvent(new Event('toggle')); const sm = d.querySelector('summary'); if (sm) sm.focus(); return true; }
   return false;
@@ -663,22 +667,25 @@ function buildTv() {
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
     form);
 }
+const TABS = ['bose', 'tv', 'ha'];
 function setTab(name) {
-  ui.tab = name === 'tv' ? 'tv' : 'bose'; saveUi();
-  $('#boseview').hidden = ui.tab === 'tv'; $('#tvview').hidden = ui.tab !== 'tv';
-  $('#btn-sort').hidden = ui.tab === 'tv';
+  ui.tab = TABS.includes(name) ? name : 'bose'; saveUi();
+  $('#boseview').hidden = ui.tab !== 'bose'; $('#tvview').hidden = ui.tab !== 'tv'; $('#haview').hidden = ui.tab !== 'ha';
+  $('#btn-sort').hidden = ui.tab !== 'bose';
+  document.documentElement.classList.toggle('ha', ui.tab === 'ha');
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  haSync();
 }
 // Einstellungen: Reiter ein-/ausblenden; bei nur einem Reiter entfällt die Symbolreihe, mindestens einer bleibt
 function applyTabs() {
-  if (!ui.tabs.bose && !ui.tabs.tv) ui.tabs.bose = true;
-  if (!ui.tabs[ui.tab]) ui.tab = ui.tabs.bose ? 'bose' : 'tv';
+  if (!TABS.some(n => ui.tabs[n])) ui.tabs.bose = true;
+  if (!ui.tabs[ui.tab]) ui.tab = TABS.find(n => ui.tabs[n]);
   document.querySelectorAll('#tabs .tab').forEach(b => { b.hidden = !ui.tabs[b.dataset.tab]; });
-  $('#tabs').hidden = !(ui.tabs.bose && ui.tabs.tv);
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv;
+  $('#tabs').hidden = TABS.filter(n => ui.tabs[n]).length < 2;
+  TABS.forEach(n => { $('#tab-' + n).checked = ui.tabs[n]; });
   setTab(ui.tab);
 }
-['bose', 'tv'].forEach(n => $('#tab-' + n).addEventListener('change', e => { ui.tabs[n] = e.target.checked; applyTabs(); }));
+TABS.forEach(n => $('#tab-' + n).addEventListener('change', e => { ui.tabs[n] = e.target.checked; applyTabs(); }));
 $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
 // Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
 $('#tvbody').addEventListener('submit', ev => {
@@ -788,4 +795,21 @@ $('#tv-test').onclick = async e => {
     });
   } catch (ex) { err.textContent = ex.message; }
 };
+// ---- Home Assistant: Dashboard im dritten Reiter. Ein natives WebView liegt über dem Platzhalter #habox (bleibt angemeldet, keine Frame-Sperre)
+const HA_KEY = 'finglongerer.ha';
+const HA_RE = /^https?:\/\/[^\s\/$.?#][^\s]*$/i;
+const haLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(HA_KEY) || '{}'); return {url: HA_RE.test(o.url || '') ? o.url : ''}; } catch (e) { return {url: ''}; } };
+const haSave = o => { try { STNative.storage.setItem(HA_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
+function haSync() {
+  const url = haLoad().url, on = ui.tab === 'ha' && ui.tabs.ha && !$('#dlg').open;
+  $('#habox').hidden = !url; $('#hamsg').hidden = !!url; $('#hatext').textContent = t('ha.none');
+  if (!on || !url) { STNative.ha.hide(); return; }
+  const box = $('#habox'); box.style.height = Math.max(200, Math.floor(window.innerHeight - box.getBoundingClientRect().top)) + 'px';
+  const r = box.getBoundingClientRect();
+  try { STNative.ha.show(url, r.left, r.top, r.width, r.height); }
+  catch (e) { $('#habox').hidden = true; $('#hamsg').hidden = false; $('#hatext').textContent = e.message; }
+}
+$('#ha-open').onclick = () => $('#btn-settings').click();
+$('#dlg').addEventListener('close', haSync);
+window.addEventListener('resize', haSync);
 buildTv(); applyTabs();
