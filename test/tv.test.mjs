@@ -22,7 +22,7 @@ const rem = r('android/app/src/main/java/de/krichel/finglongerer/TvRemote.java')
 assert.match(rem, /pairPort, int remotePort/, 'TvRemote fehlt'); assert.ok(existsSync(new URL('../android/app/src/main/java/de/krichel/finglongerer/TvIdentity.java', import.meta.url)));
 assert.match(r('www/native.js'), /STTv/, 'native.js ruft STTv nicht auf');
 for (const id of ['tv-ip', 'tv-pair', 'tv-code-go', 'tv-find', 'tvview', 'tabs']) assert.ok(r('www/index.html').includes('id="' + id + '"'), id + ' fehlt in index.html');
-assert.match(r('www/app.js'), /\['Jellyfin', 'intent:[^']*org\.jellyfin\.androidtv;end'\]/, 'Jellyfin muss die erste App sein');
-assert.ok(!/Disney/.test(r('www/app.js')), 'Disney+ wurde entfernt');
+assert.ok(!/Jellyfin|Disney/.test(r('www/app.js')), 'Programmstarter wurden entfernt');
+assert.match(r('android/app/src/main/java/de/krichel/finglongerer/TvRemote.java'), /textEdit\(/, 'Texteingabe (IME) fehlt');
 assert.match(r('android/app/src/main/java/de/krichel/finglongerer/MainActivity.java'), /String scan\(String prefix\)/, 'Fernseher-Suche fehlt');
 console.log('Google-TV-Grundlagen vorhanden');

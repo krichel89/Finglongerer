@@ -27,7 +27,7 @@ import javax.net.ssl.SSLSocketFactory;
  */
 final class TvRemote {
     // Funktionen, die wir beim Fernseher anmelden: Ping, Tasten, Ein/Aus, Lautstärke, App-Links
-    static final int FEATURES = 1 | 2 | 32 | 64 | 512;
+    static final int FEATURES = 1 | 2 | 4 | 32 | 64 | 512;   // 4 = IME (Texteingabe)
     static final int DIRECTION_SHORT = 3;
 
     private final SSLSocketFactory factory;
@@ -286,6 +286,14 @@ final class TvRemote {
         return new W().m(10, new W().v(1, code).v(2, direction)).bytes();
     }
 
+    /** Text in das Eingabefeld des Fernsehers einfügen (remote_ime_batch_edit); Zähler stammen vom Fernseher. */
+    static byte[] textEdit(int imeCounter, int fieldCounter, String text) {
+        int n = text.length();
+        W obj = new W().v(1, n).v(2, n).s(3, text);
+        W info = new W().v(1, 1).m(2, obj);
+        return new W().m(21, new W().v(1, imeCounter).v(2, fieldCounter).m(3, info)).bytes();
+    }
+
     static byte[] appLink(String link) {
         return new W().m(90, new W().s(1, link)).bytes();
     }
@@ -312,6 +320,7 @@ final class TvRemote {
         volatile boolean closed;
         volatile int started = -1;      // remote_start: 1 = Fernseher an, 0 = Standby, -1 = noch unbekannt
         volatile String error = "";
+        volatile int imeCounter, imeFieldCounter;      // vom Fernseher gemeldet, für Texteingabe
 
         Conn(SSLSocket s) throws IOException {
             socket = s;
@@ -338,6 +347,17 @@ final class TvRemote {
                             Long st = P.parse(p.bytes.get(40)).ints.get(1);
                             started = st != null && st != 0 ? 1 : 0;
                             ready.countDown();
+                        } else if (p.bytes.containsKey(20)) {               // remote_ime_key_inject: Eingabefeld hat Fokus
+                            P inj = P.parse(p.bytes.get(20));
+                            if (inj.bytes.containsKey(1)) { Long v = P.parse(inj.bytes.get(1)).ints.get(1); imeCounter = v == null ? 0 : (int) (long) v; }
+                            if (inj.bytes.containsKey(2)) { Long v = P.parse(inj.bytes.get(2)).ints.get(1); imeFieldCounter = v == null ? 0 : (int) (long) v; }
+                        } else if (p.bytes.containsKey(22)) {               // remote_ime_show_request
+                            P req = P.parse(p.bytes.get(22));
+                            if (req.bytes.containsKey(2)) { Long v = P.parse(req.bytes.get(2)).ints.get(1); if (v != null) imeFieldCounter = (int) (long) v; }
+                        } else if (p.bytes.containsKey(21)) {               // remote_ime_batch_edit: Zähler übernehmen, falls noch unbekannt
+                            P be = P.parse(p.bytes.get(21));
+                            if (imeCounter == 0 && be.ints.get(1) != null) imeCounter = (int) (long) be.ints.get(1);
+                            if (imeFieldCounter == 0 && be.ints.get(2) != null) imeFieldCounter = (int) (long) be.ints.get(2);
                         } else if (p.bytes.containsKey(3)) {
                             error = "Fernseher meldet Fehler";
                         }
@@ -415,6 +435,12 @@ final class TvRemote {
 
     void key(String ip, int code) throws IOException {
         sendTo(ip, keyInject(code, DIRECTION_SHORT));
+    }
+
+    synchronized void text(String ip, String text) throws IOException {
+        if (text == null || text.isEmpty()) return;
+        Conn c = ensure(ip);
+        sendTo(ip, textEdit(c.imeCounter, c.imeFieldCounter, text));
     }
 
     void launch(String ip, String link) throws IOException {

@@ -115,6 +115,13 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public String text(String ip, String text) {
+            if (!lan(ip)) return "ERR:ip";
+            if (text == null || text.length() > 200) return "ERR:other:Text";
+            try { remote().text(ip, text); return "ok"; } catch (Exception e) { return fail(e); }
+        }
+
+        @JavascriptInterface
         public String power(String ip, boolean on) {
             if (!lan(ip)) return "ERR:ip";
             try { remote().power(ip, on); return "ok"; } catch (Exception e) { return fail(e); }

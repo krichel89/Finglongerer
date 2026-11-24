@@ -4,6 +4,11 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.21.1
+- Texteingabe neu: Der Text wird über die Eingabemethode des Fernsehers eingefügt (wie in der Google-TV-App), nicht mehr als einzelne Tastendrücke. Umlaute und Sonderzeichen gehen jetzt. Enter am Handy schickt den Text und drückt dann Enter am Fernseher.
+- Sprachsuche als kleine Taste neben dem Textfeld.
+- Programmstarter (Jellyfin, YouTube, Netflix, Prime Video) entfernt.
+
 ## 0.21.0
 - Suche neu: Eine Taste „Suche" (Tastencode SEARCH) springt in die Suche der gerade offenen App. Darunter ein Textfeld: am Handy tippen, Enter schickt den Text in das markierte Feld des Fernsehers und drückt dort Enter. Die Anbieter-Suchtasten entfallen.
 - Ein: schickt immer zuerst einen Weckruf (Wake-on-LAN, jetzt auch an die Netz-Broadcast-Adresse), dann WAKEUP; war der Stick im Standby, zusätzlich die Power-Taste.

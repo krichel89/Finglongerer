@@ -128,3 +128,5 @@ button.tab.on{opacity:1;border-color:var(--orange)}
 #tvbody button.tvoff{color:var(--bad)}
 
 button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+
+.tvq{display:flex;gap:8px;align-items:center}.tvq input{flex:1;min-width:0}#tvbody button.small{min-height:36px;padding:4px 12px;font-size:.85rem;width:auto}

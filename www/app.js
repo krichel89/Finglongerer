@@ -619,10 +619,6 @@ document.addEventListener('keydown', ev => {
 
 // ---- Fernseher (Google TV), direkt angesprochen
 const TV_KEY = 'finglongerer.tv';
-const TV_APPS = [['Jellyfin', 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LEANBACK_LAUNCHER;package=org.jellyfin.androidtv;end'], ['YouTube', 'https://www.youtube.com'], ['Netflix', 'netflix://'], ['Prime Video', 'https://app.primevideo.com']];
-// Android-Tastencodes für Text: a-z 29-54, 0-9 7-16, Leerzeichen 62
-const tvKeyFor = ch => /[a-z]/.test(ch) ? 29 + ch.charCodeAt(0) - 97 : /[0-9]/.test(ch) ? 7 + ch.charCodeAt(0) - 48 : ch === ' ' ? 62 : 0;
-const tvFold = x => x.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const IP_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
 const tvLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(TV_KEY) || '{}'); return {ip: IP_RE.test(o.ip || '') ? o.ip : '', paired: !!o.paired, mac: /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(o.mac || '') ? o.mac : ''}; } catch (e) { return {ip: '', paired: false, mac: ''}; } };
 const tvSave = o => { try { STNative.storage.setItem(TV_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
@@ -643,9 +639,9 @@ function buildTv() {
     el('div', {class: 'row2'}, el('button', {type: 'button', text: t('tv.on'), 'data-tvpower': 'on'}), el('button', {type: 'button', text: t('tv.off'), class: 'tvoff', 'data-tvpower': 'off'})),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), k('⏯', 85, t('tv.play'))),
     el('div', {class: 'row3'}, k(t('tv.back'), 4), k(t('tv.home'), 3), k(t('tv.menu'), 82)),
-    el('div', {class: 'row2'}, ...TV_APPS.map(a => el('button', {type: 'button', text: a[0], 'data-tvapp': a[1]}))),
-    el('button', {type: 'button', text: t('tv.search'), 'data-tvkey': 84}),
-    el('input', {type: 'text', id: 'tv-q', placeholder: t('tv.query'), enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off'}));
+    el('div', {class: 'tvq'},
+      el('input', {type: 'text', id: 'tv-q', placeholder: t('tv.query'), enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off'}),
+      el('button', {type: 'button', class: 'small', text: t('tv.search'), title: t('tv.searchTip'), 'data-tvkey': 84})));
 }
 function setTab(name) {
   ui.tab = name === 'tv' ? 'tv' : 'bose'; saveUi();
@@ -658,9 +654,9 @@ $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab')
 $('#tvbody').addEventListener('keydown', ev => {
   if (ev.key !== 'Enter' || ev.target.id !== 'tv-q') return;
   ev.preventDefault();
-  const inp = ev.target, q = tvFold(inp.value.trim()), ip = tvLoad().ip; if (!q) return;
+  const inp = ev.target, q = inp.value.trim(), ip = tvLoad().ip; if (!q) return;
   inp.disabled = true;
-  (async () => { for (const ch of q) { const code = tvKeyFor(ch); if (code) await STNative.tv.key(ip, code); } await STNative.tv.key(ip, 66); inp.value = ''; })()
+  (async () => { await STNative.tv.text(ip, inp.value.trim()); await STNative.tv.key(ip, 66); inp.value = ''; })()
     .catch(e => toast(e.message, true)).finally(() => { inp.disabled = false; });
 });
 $('#tvbody').addEventListener('click', ev => {
@@ -669,7 +665,6 @@ $('#tvbody').addEventListener('click', ev => {
   const c = tvLoad();
   tvBusy(b, async () => {
     if (b.dataset.tvkey) await STNative.tv.key(c.ip, +b.dataset.tvkey);
-    else if (b.dataset.tvapp) await STNative.tv.launch(c.ip, b.dataset.tvapp);
     else if (b.dataset.tvpower) {
       const on = b.dataset.tvpower === 'on';
       // Ein: erst Weckruf (Wake-on-LAN) an die MAC-Adresse, dann Einschalttaste über die Verbindung
