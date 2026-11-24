@@ -36,6 +36,8 @@
       <select id="lang-sel"><option value="auto" data-i18n="lang.auto"></option><option value="de">Deutsch</option><option value="en">English</option></select></label>
     <h3 data-i18n="set.tabs"></h3>
     <div class="tabsel"><label><input type="checkbox" id="tab-bose"> Bose SoundTouch</label><label><input type="checkbox" id="tab-tv"> Google TV</label><label><input type="checkbox" id="tab-ha"> Home Assistant</label></div>
+    <nav id="stabs" role="tablist"></nav>
+    <div class="spane" data-stab="bose">
     <h3 data-i18n="set.boxes"></h3>
     <div id="set-rows"></div>
     <button type="button" id="set-add" data-i18n="set.addBox"></button>
@@ -50,17 +52,6 @@
     <input id="ma-token" type="password" data-i18n-ph="set.maToken" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="row2"><button type="button" id="ma-scan" data-i18n="set.maScan"></button><button type="button" id="ma-test" data-i18n="set.maTest"></button></div>
     <div id="ma-res"></div>
-    <h3 data-i18n="set.tv"></h3>
-    <input id="tv-ip" data-i18n-ph="ph.tvip" inputmode="decimal" autocomplete="off" spellcheck="false">
-    <button type="button" id="tv-find" data-i18n="set.tvFind"></button>
-    <div id="tv-found"></div>
-    <div class="row2"><button type="button" id="tv-pair" data-i18n="set.tvPair"></button><button type="button" id="tv-test" data-i18n="set.tvTest"></button></div>
-    <div class="row2" id="tv-code-row" hidden><input id="tv-code" data-i18n-ph="ph.tvCode" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" id="tv-code-go" data-i18n="set.tvCodeGo"></button></div>
-    <p class="hint" id="tv-res"></p>
-    <p class="hint" data-i18n="set.hintTv"></p>
-    <h3 data-i18n="set.ha"></h3>
-    <input id="ha-url" data-i18n-ph="ph.haurl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <p class="hint" data-i18n="set.hintHa"></p>
     <h3 data-i18n="set.reboot"></h3>
     <div class="row2"><select id="reboot-sel"></select><button type="button" id="reboot-go" data-i18n="set.rebootGo"></button></div>
     <h3 data-i18n="set.diag"></h3>
@@ -70,6 +61,22 @@
     <div id="grp-edit"></div>
     <button type="button" id="grp-add" data-i18n="set.addGroup"></button>
     <p class="hint" data-i18n="set.hintGroup"></p>
+    </div>
+    <div class="spane" data-stab="tv" hidden>
+    <h3 data-i18n="set.tv"></h3>
+    <input id="tv-ip" data-i18n-ph="ph.tvip" inputmode="decimal" autocomplete="off" spellcheck="false">
+    <button type="button" id="tv-find" data-i18n="set.tvFind"></button>
+    <div id="tv-found"></div>
+    <div class="row2"><button type="button" id="tv-pair" data-i18n="set.tvPair"></button><button type="button" id="tv-test" data-i18n="set.tvTest"></button></div>
+    <div class="row2" id="tv-code-row" hidden><input id="tv-code" data-i18n-ph="ph.tvCode" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" id="tv-code-go" data-i18n="set.tvCodeGo"></button></div>
+    <p class="hint" id="tv-res"></p>
+    <p class="hint" data-i18n="set.hintTv"></p>
+    </div>
+    <div class="spane" data-stab="ha" hidden>
+    <h3 data-i18n="set.ha"></h3>
+    <input id="ha-url" data-i18n-ph="ph.haurl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p class="hint" data-i18n="set.hintHa"></p>
+    </div>
     <p class="err" id="dlg-err"></p>
     <p class="version" id="version"></p>
     <div class="row2">

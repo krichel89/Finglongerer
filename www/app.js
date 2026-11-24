@@ -498,7 +498,7 @@ $('#btn-settings').onclick = () => {
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
   $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
-  $('#dlg').showModal(); haSync();
+  setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
   const b = e.currentTarget, rs = $('#reboot-sel'), i = +rs.value, sp = cfg.speakers[i];
@@ -795,6 +795,14 @@ $('#tv-test').onclick = async e => {
     });
   } catch (ex) { err.textContent = ex.message; }
 };
+// Einstellungen in Unterreitern (gleiche Symbole wie die Hauptreiter, immer alle drei)
+function setStab(name) {
+  const box = $('#stabs');
+  if (!box.children.length) document.querySelectorAll('#tabs .tab').forEach(b => { const c = b.cloneNode(true); c.hidden = false; box.append(c); });
+  box.querySelectorAll('.tab').forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  document.querySelectorAll('.spane').forEach(p => { p.hidden = p.dataset.stab !== name; });
+}
+$('#stabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setStab(b.dataset.tab); });
 // ---- Home Assistant: Dashboard im dritten Reiter. Ein natives WebView liegt über dem Platzhalter #habox (bleibt angemeldet, keine Frame-Sperre)
 const HA_KEY = 'finglongerer.ha';
 const HA_RE = /^https?:\/\/[^\s\/$.?#][^\s]*$/i;

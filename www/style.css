@@ -147,3 +147,6 @@ html.ha,html.ha body{overflow:hidden}
 html.ha main{padding-bottom:0}
 #habox{width:100%;min-height:200px}
 #hamsg{display:grid;gap:10px}
+/* Einstellungen: Unterreiter wie die Hauptreiter */
+#stabs{display:flex;gap:16px;justify-content:center;padding:2px 0 4px}
+.spane{display:grid;gap:12px}.spane[hidden]{display:none}

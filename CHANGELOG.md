@@ -8,6 +8,7 @@ und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub
 - Dritter Reiter „Home Assistant" (rundes blaues Symbol mit dem Haus-Zeichen aus dem Material-Design-Icon-Satz): Das Dashboard von Home Assistant erscheint in der App, ohne Frame-Sperre und angemeldet bleibend. Adresse unter Einstellungen → Home Assistant (http:// oder https:// mit Port).
 - Zurück-Taste geht zuerst im Dashboard zurück. Links auf andere Rechner öffnen im Browser des Handys. Bei Fehler zeigt das Dashboard die Meldung mit Neu-laden-Pfeil.
 - Einstellungen: „Reiter anzeigen" mit drei Reitern einzeln ein-/ausblendbar.
+- Einstellungen in Unterreiter geteilt (Bose, Google TV, Home Assistant) mit denselben runden Symbolen wie die Hauptansicht; beim Öffnen steht der Reiter der aktuellen Hauptansicht vorn. Sprache und „Reiter anzeigen" bleiben oben für alle.
 
 ## 0.21.3
 - Sprachsuche: Das Mikrofon des Handys wird an den Fernseher gestreamt (Android fragt einmal nach der Mikrofon-Berechtigung). Erster Druck startet, zweiter beendet, nach 20 Sekunden endet es von selbst.
