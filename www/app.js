@@ -497,6 +497,7 @@ $('#btn-settings').onclick = () => {
   const rs = $('#reboot-sel'); rs.textContent = '';
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
+  if (!$('#scan-net').value.trim()) $('#scan-net').value = netPrefix();
   $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#proj-mac').value = projMac(); $('#proj-res').textContent = ''; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
@@ -627,6 +628,12 @@ const IP_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
 const tvLoad = () => { try { const o = JSON.parse(STNative.storage.getItem(TV_KEY) || '{}'); return {ip: IP_RE.test(o.ip || '') ? o.ip : '', paired: !!o.paired, mac: /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(o.mac || '') ? o.mac : ''}; } catch (e) { return {ip: '', paired: false, mac: ''}; } };
 const tvSave = o => { try { STNative.storage.setItem(TV_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } };
 let tvMac = '';
+// Suchbereich (/24): eingetragen, sonst aus schon bekannten Geräten (Fernseher, Boxen), sonst leer = Netz des Handys
+function netPrefix() {
+  const v = $('#scan-net').value.trim(); if (v) return v;
+  const ips = [tvLoad().ip, ...cfg.speakers.map(s => s.ip)].filter(ip => IP_RE.test(ip || ''));
+  return ips.length ? ips[0].split('.').slice(0, 3).join('.') : '';
+}
 // Projektor (z. B. LG webOS): wird per Weckruf eingeschaltet und weckt den Stick über HDMI-CEC (SIMPLINK) mit
 const PROJ_KEY = 'finglongerer.proj', MAC_RE = /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/;
 const projMac = () => { try { const m = String(STNative.storage.getItem(PROJ_KEY) || ''); return MAC_RE.test(m) ? m : ''; } catch (e) { return ''; } };       // MAC des gerade gesuchten/gekoppelten Fernsehers
@@ -786,7 +793,7 @@ $('#tvbody').addEventListener('click', ev => {
 async function tvFind(b) {
   const err = $('#dlg-err'), box = $('#tv-found'); err.textContent = ''; box.textContent = '';
   let list = [];
-  await tvBusy(b, async () => { list = await STNative.tv.scan($('#scan-net').value.trim()); });
+  await tvBusy(b, async () => { list = await STNative.tv.scan(netPrefix()); });
   if (!list.length) { err.textContent = t('tv.none'); return list; }
   const take = f => { $('#tv-ip').value = f.ip; tvMac = f.mac; box.textContent = ''; };
   if (list.length === 1) { take(list[0]); return list; }
@@ -805,7 +812,7 @@ $('#proj-find').onclick = async e => {
   const b = e.currentTarget, res = $('#proj-res'), err = $('#dlg-err'); err.textContent = ''; res.textContent = t('proj.scan');
   b.disabled = true; b.classList.add('wait');
   try {
-    await STNative.tv.projFind($('#scan-net').value.trim());
+    await STNative.tv.projFind(netPrefix());
     for (let i = 0; i < 150; i++) {          // höchstens etwa 2,5 Minuten
       await new Promise(r => setTimeout(r, 1000));
       const st = STNative.tv.projPoll(), f = st.split(':');

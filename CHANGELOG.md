@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.24.1
+- Suchbereich automatisch: Ist er leer, nimmt die App die ersten drei Zahlenblöcke eines schon bekannten Geräts (Fernseher, Boxen) und trägt sie beim Öffnen der Einstellungen ein; sonst das Netz des Handys.
+
 ## 0.24.0
 - Home-Assistant-Reiter und Einstellungen mit Unterreitern (bisher nur auf dem Zweig ha-tab als 0.22.0/0.22.1) in die Hauptlinie übernommen, zusammen mit allem aus 0.21.4–0.23.0. Die Projektor-Einstellungen stehen im Unterreiter Google TV.
 ### ha-tab 0.22.1
