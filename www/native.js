@@ -75,5 +75,17 @@
   const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
   // Fernseher (Google TV): Klasse "tv" für größere Oberfläche und sichtbaren Fokus; ?tv=1 zum Ansehen im Browser
   try { if ((window.STDevice && window.STDevice.isTv()) || /[?&]tv=1\b/.test(location.search)) document.documentElement.classList.add('tv'); } catch (e) { /* kein Fernseher */ }
-  window.STNative = {http, haApi, tcp, tv, ha, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
+  // Chromecast-Lautsprecher (JBL): Antworten "ok", Text oder "ERR:…"
+  function castCall(fn, ...args) {
+    if (!window.STCast) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
+    const r = String(window.STCast[fn](...args));
+    if (r.startsWith('ERR:')) { const e = new Error(r.slice(4)); e.code = r.slice(4); throw e; }
+    return r;
+  }
+  const cast = {
+    scan: async prefix => castCall('scan', prefix || '').split('\n').filter(Boolean),
+    status: async ip => { const [r, m] = castCall('status', ip).split('\n'); return {recv: JSON.parse(r || '{}'), media: m ? JSON.parse(m) : null}; },
+    cmd: async (ip, c, v) => castCall('cmd', ip, c, v | 0)
+  };
+  window.STNative = {http, haApi, cast, tcp, tv, ha, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();

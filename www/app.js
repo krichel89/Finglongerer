@@ -21,8 +21,8 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
 const UI_KEY = 'finglongerer.ui';
-const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, ha: true}};
-try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = o.tab === 'tv' || o.tab === 'ha' ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, ha: o.tabs.ha !== false}; } } catch (e) { /* neu anfangen */ }
+const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, jbl: true, ha: true}};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = ['tv', 'jbl', 'ha'].includes(o.tab) ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, jbl: o.tabs.jbl !== false, ha: o.tabs.ha !== false}; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
   Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab, tabs: ui.tabs})); } catch (e) { /* egal */ } };
@@ -498,7 +498,7 @@ $('#btn-settings').onclick = () => {
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
   if (!$('#scan-net').value.trim()) $('#scan-net').value = netPrefix();
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#tab-jbl').checked = ui.tabs.jbl; jblList(); $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
@@ -714,15 +714,16 @@ function buildTv() {
     kb, form);
   plugShow();
 }
-const TABS = ['bose', 'tv', 'ha'];
+const TABS = ['bose', 'tv', 'jbl', 'ha'];
 function setTab(name) {
   ui.tab = TABS.includes(name) ? name : 'bose'; saveUi();
-  $('#boseview').hidden = ui.tab !== 'bose'; $('#tvview').hidden = ui.tab !== 'tv'; $('#haview').hidden = ui.tab !== 'ha';
+  $('#boseview').hidden = ui.tab !== 'bose'; $('#tvview').hidden = ui.tab !== 'tv'; $('#haview').hidden = ui.tab !== 'ha'; $('#jblview').hidden = ui.tab !== 'jbl';
   $('#btn-sort').hidden = ui.tab !== 'bose';
   document.documentElement.classList.toggle('ha', ui.tab === 'ha');
   document.documentElement.classList.toggle('tvmode', ui.tab === 'tv');
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   haSync();
+  if (ui.tab === 'jbl') { buildJbl(); jblRefresh(); }
 }
 // Einstellungen: Reiter ein-/ausblenden; bei nur einem Reiter entfällt die Symbolreihe, mindestens einer bleibt
 function applyTabs() {
@@ -923,3 +924,101 @@ $('#ha-open').onclick = () => $('#btn-settings').click();
 $('#dlg').addEventListener('close', haSync);
 window.addEventListener('resize', haSync);
 buildTv(); applyTabs();
+
+// ---- JBL-Lautsprecher (Chromecast): eigener Reiter mit Lautstärke, Stumm und Wiedergabe-Tasten
+const JBL_KEY = 'finglongerer.jbl';
+const jblLoad = () => { try { const a = JSON.parse(STNative.storage.getItem(JBL_KEY) || '[]'); return Array.isArray(a) ? a.filter(x => x && IP_RE.test(x.ip || '')).map(x => ({ip: x.ip, name: String(x.name || x.ip), model: String(x.model || ''), on: x.on !== false})) : []; } catch (e) { return []; } };
+const jblSave = a => { try { STNative.storage.setItem(JBL_KEY, JSON.stringify(a)); } catch (e) { /* egal */ } };
+const jblIcon = n => {
+  const P = {mute: '<path d="M11 5L6 9H3v6h3l5 4z"/><path d="M16 9l5 6M21 9l-5 6"/>', vol: '<path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 6a9 9 0 0 1 0 12"/>',
+    prev: '<path d="M6 5v14M19 5l-10 7 10 7z"/>', next: '<path d="M18 5v14M5 5l10 7-10 7z"/>', play: '<path d="M7 5l12 7-12 7z"/>', pause: '<path d="M8 5v14M16 5v14"/>'};
+  return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P[n] + '</svg>';
+};
+const jblState = {};      // ip -> {vol, muted, state, title, ok}
+function buildJbl() {
+  const body = $('#jblbody'), list = jblLoad().filter(x => x.on); body.textContent = '';
+  if (!list.length) { body.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: t('jbl.empty')}), el('button', {type: 'button', text: t('tv.openSettings'), 'data-jblsettings': '1'}))); return; }
+  list.forEach(sp => {
+    const btn = (n, cmd, tip) => { const b = el('button', {type: 'button', title: tip || '', 'aria-label': tip || n, 'data-jcmd': cmd}); b.innerHTML = jblIcon(n); return b; };
+    body.append(el('div', {class: 'card jbl', 'data-ip': sp.ip},
+      el('div', {class: 'jhead'}, el('strong', {text: sp.name}), el('span', {class: 'jnow hint', text: '…'})),
+      el('div', {class: 'jvol'}, btn('vol', 'mute', t('jbl.mute')), el('input', {type: 'range', min: 0, max: 100, value: 0, 'data-role': 'jvol'}), el('span', {class: 'jval', text: ''})),
+      el('div', {class: 'tvrow'}, btn('prev', 'prev', t('tv.prev')), btn('play', 'toggle', t('tv.play')), btn('next', 'next', t('tv.next')))));
+  });
+  jblShow();
+}
+function jblShow() {
+  document.querySelectorAll('#jblbody .jbl').forEach(c => {
+    const st = jblState[c.dataset.ip]; if (!st) return;
+    c.classList.toggle('offline', !st.ok);
+    c.querySelector('.jnow').textContent = !st.ok ? t('jbl.off') : st.title || (st.app ? st.app : t('jbl.idle'));
+    const r = c.querySelector('[data-role=jvol]');
+    if (document.activeElement !== r && !r.dataset.drag) r.value = st.vol;
+    c.querySelector('.jval').textContent = r.value;
+    const m = c.querySelector('[data-jcmd=mute]'); m.innerHTML = jblIcon(st.muted ? 'mute' : 'vol'); m.classList.toggle('on', !!st.muted);
+    c.querySelector('[data-jcmd=toggle]').innerHTML = jblIcon(st.state === 'PLAYING' || st.state === 'BUFFERING' ? 'pause' : 'play');
+  });
+}
+async function jblStatus(ip) {
+  try {
+    const {recv, media} = await STNative.cast.status(ip);
+    const rs = recv.status || {}, vol = rs.volume || {}, app = (rs.applications || [])[0] || {};
+    const ms = media && media.status && media.status[0], md = ms && ms.media && ms.media.metadata || {};
+    jblState[ip] = {ok: true, vol: Math.round((vol.level || 0) * 100), muted: !!vol.muted, app: app.displayName && !app.isIdleScreen ? app.displayName : '',
+      state: ms ? ms.playerState : '', title: [md.title, md.artist].filter(Boolean).join(' – ')};
+  } catch (e) { jblState[ip] = {ok: false, vol: 0}; }
+}
+let jblBusy = false;
+async function jblRefresh() {
+  if (jblBusy) return; jblBusy = true;
+  try { for (const sp of jblLoad().filter(x => x.on)) await jblStatus(sp.ip); } finally { jblBusy = false; }
+  jblShow();
+}
+setInterval(() => { if (ui.tab === 'jbl' && !document.hidden && !$('#dlg').open) jblRefresh(); }, 4000);
+$('#jblbody').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.jblsettings) { $('#btn-settings').click(); setStab('jbl'); return; }
+  const card = b.closest('.jbl'); if (!card || !b.dataset.jcmd) return;
+  const ip = card.dataset.ip, st = jblState[ip] || {};
+  let cmd = b.dataset.jcmd, val = 0;
+  if (cmd === 'mute') val = st.muted ? 0 : 1;
+  if (cmd === 'toggle') cmd = st.state === 'PLAYING' || st.state === 'BUFFERING' ? 'pause' : 'play';
+  tvBusy(b, async () => { await STNative.cast.cmd(ip, cmd, val); await jblStatus(ip); jblShow(); })
+    .catch(e => toast(/NOAPP|NOMEDIA/.test(e.message) ? t('jbl.noMedia') : e.message, true));
+});
+$('#jblbody').addEventListener('input', ev => { const r = ev.target; if (r.dataset.role !== 'jvol') return; r.dataset.drag = '1'; r.closest('.jbl').querySelector('.jval').textContent = r.value; });
+$('#jblbody').addEventListener('change', ev => {
+  const r = ev.target; if (r.dataset.role !== 'jvol') return;
+  const ip = r.closest('.jbl').dataset.ip;
+  STNative.cast.cmd(ip, 'volume', +r.value).then(() => { if (jblState[ip]) jblState[ip].vol = +r.value; })
+    .catch(e => toast(e.message, true)).finally(() => { delete r.dataset.drag; });
+});
+// Einstellungen: gefundene Lautsprecher mit Haken (erscheint im Reiter)
+function jblList() {
+  const box = $('#jbl-list'); box.textContent = '';
+  jblLoad().forEach((sp, i) => {
+    const cb = el('input', {type: 'checkbox', checked: sp.on});
+    cb.addEventListener('change', () => { const a = jblLoad(); a[i].on = cb.checked; jblSave(a); buildJbl(); });
+    box.append(el('label', {class: 'chk'}, cb, el('span', {text: sp.name + (sp.model ? ' · ' + sp.model : '') + ' (' + sp.ip + ')'})));
+  });
+}
+$('#jbl-find').onclick = async e => {
+  const b = e.currentTarget, err = $('#dlg-err'); err.textContent = '';
+  b.disabled = true; b.classList.add('wait');
+  try {
+    await new Promise(r => setTimeout(r, 30));
+    const ips = await STNative.cast.scan(netPrefix()), old = jblLoad(), out = [];
+    for (const ip of ips) {
+      let name = ip, model = '', maker = '';
+      try {
+        const j = JSON.parse(await STNative.http('GET', ip, 8008, '/setup/eureka_info?params=name,device_info', null, 3000));
+        name = j.name || ip; model = (j.device_info && j.device_info.model_name) || ''; maker = (j.device_info && j.device_info.manufacturer) || '';
+      } catch (ex) { /* Name unbekannt */ }
+      const prev = old.find(x => x.ip === ip);
+      out.push({ip, name, model, on: prev ? prev.on : /jbl|harman/i.test(name + ' ' + model + ' ' + maker)});
+    }
+    if (!out.length) { err.textContent = t('jbl.none'); return; }
+    jblSave(out); jblList(); buildJbl();
+  } catch (ex) { err.textContent = ex.message; }
+  finally { b.disabled = false; b.classList.remove('wait'); }
+};

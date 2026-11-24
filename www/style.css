@@ -166,3 +166,11 @@ html.ha main{padding-bottom:0}
 /* Einstellungen: Unterreiter wie die Hauptreiter */
 #stabs{display:flex;gap:16px;justify-content:center;padding:2px 0 4px}
 .spane{display:grid;gap:12px}.spane[hidden]{display:none}
+#jblbody{display:grid;gap:12px}
+.jbl .jhead{display:flex;flex-direction:column;gap:2px;min-width:0}
+.jbl .jnow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jbl .jvol{display:flex;align-items:center;gap:10px}.jbl .jvol input{flex:1}.jbl .jval{min-width:2.5em;text-align:right;color:var(--dim)}
+.jbl .jvol button{width:52px;flex:none}.jbl button.on{color:var(--bad)}
+.jbl .tvrow button{min-height:56px}.jbl svg{display:block;margin:auto}
+.jbl.offline{opacity:.55}
+#jbl-list{display:grid;gap:4px}

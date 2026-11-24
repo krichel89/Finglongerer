@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.26.0
+- JBL-Reiter (orangenes Lautsprecher-Symbol): Chromecast-Lautsprecher wie JBL Playlist direkt steuern – Lautstärke-Regler, Stumm, Zurück/Play-Pause/Vor, Anzeige des laufenden Titels bzw. der App. Einrichtung: Einstellungen → JBL → „Lautsprecher suchen“ (JBL-Geräte sind vorausgewählt). Der Reiter lässt sich wie die anderen ausblenden.
+
 ## 0.25.0
 - Strom über Home Assistant: Die grüne Taste der Google-Fernbedienung schaltet eine Steckdose (z. B. Sonoff vor Projektor und Stick) ein und aus und zeigt den Zustand (grün gefüllt = an, grüner Umriss = aus, grau = unbekannt). Einrichtung: Einstellungen → Home Assistant → Zugangstoken; Einstellungen → Google TV → „Steckdosen laden" und Steckdose wählen. Ist eine Steckdose gewählt, ersetzt sie die rote Aus-Taste.
 - Weckruf an den Projektor und Projektor-Suche entfernt (Projektor wacht im Standby nicht per Netzwerk auf).

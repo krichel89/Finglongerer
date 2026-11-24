@@ -243,6 +243,36 @@ public class MainActivity extends BridgeActivity {
      * Eigener Cookie-/Speicherbereich, bleibt angemeldet, keine Frame-Sperre. Hat selbst keine JS-Brücken;
      * Links auf andere Rechner öffnen im Browser des Handys.
      */
+    /** Brücke zu Chromecast-Lautsprechern (JBL Playlist): Suche, Zustand, Befehle. Nur Heimnetz-Adressen. */
+    public class CastBridge {
+        private boolean lan(String ip) {
+            return ip != null && ip.matches("^(10\\.\\d+\\.\\d+\\.\\d+|192\\.168\\.\\d+\\.\\d+|172\\.(1[6-9]|2\\d|3[01])\\.\\d+\\.\\d+)$");
+        }
+
+        @JavascriptInterface
+        public String scan(String prefix) {
+            try {
+                String p = prefix == null ? "" : prefix.trim();
+                if (p.isEmpty()) p = TvScan.localPrefix();
+                if (!p.matches("^(10|192\\.168|172\\.(1[6-9]|2\\d|3[01]))\\.\\d{1,3}(\\.\\d{1,3})?$") || p.split("\\.").length != 3) return "ERR:ip";
+                return String.join("\n", Cast.scan(p));
+            } catch (Exception e) { return "ERR:" + e.getMessage(); }
+        }
+
+        @JavascriptInterface
+        public String status(String ip) {
+            if (!lan(ip)) return "ERR:ip";
+            try { return Cast.status(ip); } catch (Exception e) { return "ERR:" + e.getMessage(); }
+        }
+
+        @JavascriptInterface
+        public String cmd(String ip, String cmd, int value) {
+            if (!lan(ip)) return "ERR:ip";
+            if (cmd == null || !cmd.matches("^(volume|mute|play|pause|next|prev|stop)$")) return "ERR:cmd";
+            try { Cast.command(ip, cmd, value); return "ok"; } catch (Exception e) { return "ERR:" + e.getMessage(); }
+        }
+    }
+
     public class HaBridge {
         private WebView web;
         private String base;
@@ -347,6 +377,7 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new DeviceBridge(), "STDevice");
         getBridge().getWebView().addJavascriptInterface(new TvBridge(), "STTv");
         getBridge().getWebView().addJavascriptInterface(new HaBridge(), "STHa");
+        getBridge().getWebView().addJavascriptInterface(new CastBridge(), "STCast");
         remember(getIntent());
         // Zurück schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche); erst ohne offenes Fenster verlässt es die App
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
