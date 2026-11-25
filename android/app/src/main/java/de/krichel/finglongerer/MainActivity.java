@@ -92,6 +92,12 @@ public class MainActivity extends BridgeActivity {
 
     /** Meldet der Oberfläche, ob die App auf einem Fernseher (Google TV / Android TV) läuft: window.STDevice.isTv(). */
     public class DeviceBridge {
+        /** Kurzes Antippen-Feedback (Vibration nach der Systemeinstellung "Touch-Feedback"). */
+        @JavascriptInterface
+        public void tick() {
+            runOnUiThread(() -> getWindow().getDecorView().performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY));
+        }
+
         @JavascriptInterface
         public boolean isTv() {
             UiModeManager m = (UiModeManager) getSystemService(UI_MODE_SERVICE);
@@ -261,6 +267,13 @@ public class MainActivity extends BridgeActivity {
                 remote = null;                              // beim nächsten Zugriff mit der neuen Identität verbinden
                 return "ok";
             } catch (Exception e) { return "ERR"; }
+        }
+
+        /** Eingabefeld am Fernseher prüfen (ggf. neu verbinden); "ok" oder "nofield:<Meldungsnummern>". */
+        @JavascriptInterface
+        public String kbProbe(String ip) {
+            if (!lan(ip)) return "ERR:ip";
+            try { return remote().probeField(ip); } catch (Exception e) { return fail(e); }
         }
 
         @JavascriptInterface

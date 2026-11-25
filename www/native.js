@@ -48,7 +48,7 @@
   function tvCall(fn, ...args) {
     if (!window.STTv) throw new Error(window.STI18n.t(lang(), 'err.nativeOnly'));
     const r = String(window.STTv[fn](...args));
-    if (r === 'ok' || r === 'nofield' || (fn === 'scan' && !r.startsWith('ERR:'))) return r;
+    if (r === 'ok' || r.startsWith('nofield') || (fn === 'scan' && !r.startsWith('ERR:'))) return r;
     const m = /^ERR:(\w+)(?::([\s\S]*))?$/.exec(r) || [], T = (k, a) => window.STI18n.t(lang(), k, a);
     if (m[1] === 'net') throw new Error(T('err.tvNet'));
     if (m[1] === 'auth') throw new Error(T('err.tvAuth'));
@@ -61,7 +61,7 @@
     connect: async ip => tvCall('connect', ip), power: async (ip, on) => tvCall('power', ip, !!on), wake: async mac => tvCall('wake', mac),
     // Zeilen "ip TAB name TAB mac" -> [{ip, name, mac}]
     scan: async prefix => tvCall('scan', prefix || '').split('\n').filter(Boolean).map(l => { const f = l.split('\t'); return {ip: f[0], name: f[1] || 'Google TV', mac: f[2] || ''}; }),
-    info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), text: async (ip, txt) => tvCall('text', ip, txt), keyd: async (ip, code, dir) => tvCall('keyd', ip, code, dir), voice: async (ip, on) => tvCall('voice', ip, !!on), launch: async (ip, link) => tvCall('launch', ip, link)
+    info: () => { try { const f = String(window.STTv.lastInfo()).split('\t'); return {name: f[0] || '', mac: f[1] || ''}; } catch (e) { return {name: '', mac: ''}; } }, key: async (ip, code) => tvCall('key', ip, code), text: async (ip, txt) => tvCall('text', ip, txt), kbProbe: async ip => tvCall('kbProbe', ip), keyd: async (ip, code, dir) => tvCall('keyd', ip, code, dir), voice: async (ip, on) => tvCall('voice', ip, !!on), launch: async (ip, link) => tvCall('launch', ip, link)
   };
   // Home Assistant: natives WebView über dem Platzhalter des Reiters (window.STHa); Ort in CSS-Pixeln
   const ha = {
@@ -79,5 +79,6 @@
   const setLangPref = v => { try { storage.setItem(LANG_KEY, v === 'de' || v === 'en' ? v : 'auto'); } catch (e) { /* egal */ } };
   // Fernseher (Google TV): Klasse "tv" für größere Oberfläche und sichtbaren Fokus; ?tv=1 zum Ansehen im Browser
   try { if ((window.STDevice && window.STDevice.isTv()) || /[?&]tv=1\b/.test(location.search)) document.documentElement.classList.add('tv'); } catch (e) { /* kein Fernseher */ }
-  window.STNative = {http, haApi, tcp, tv, ha, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
+  const tick = () => { try { if (window.STDevice && window.STDevice.tick) window.STDevice.tick(); } catch (e) { /* ohne Vibration */ } };
+  window.STNative = {http, haApi, tcp, tv, ha, tick, WebSocket: window.WebSocket, storage, lang, langPref, setLangPref};
 })();

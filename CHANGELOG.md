@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.36.0
+- Tastatur: Text geht nur noch über den Texteingabe-Kanal des Fernsehers (wie die Google-TV-App), keine Tastendrücke mehr – die haben in YouTube andere Aktionen ausgelöst. Beim Antippen der Tastatur wird das Eingabefeld geprüft (bei Bedarf neu verbunden); fehlt es, erscheint eine Meldung mit den Nummern der Fernseher-Nachrichten zur Diagnose. Das Feld muss am Fernseher offen sein (OK auf das Suchfeld, bis die Bildschirmtastatur erscheint).
+- Kurzes Antippen-Feedback (Vibration) bei allen Tasten; nicht bei Reglern und Eingabefeldern.
+
 ## 0.35.0
 - Die Chromecast-Lautsprecher-Funktion ist entfernt (Reiter, Einstellungen, Suche, Steuerung, zugehöriger Code und Tests). Es bleiben die Reiter Bose SoundTouch, Google TV und Home Assistant. Gespeicherte Lautsprecherlisten werden nicht mehr verwendet und nicht mehr gesichert; alte Sicherungen lassen sich weiter importieren.
 

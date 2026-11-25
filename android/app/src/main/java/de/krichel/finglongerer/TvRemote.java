@@ -318,6 +318,7 @@ final class TvRemote {
         final OutputStream out;
         final CountDownLatch ready = new CountDownLatch(1);
         volatile boolean closed;
+        final java.util.Set<Integer> seen = java.util.Collections.synchronizedSet(new java.util.TreeSet<Integer>());   // Nummern der Meldungen des Fernsehers (Diagnose)
         volatile int started = -1;      // remote_start: 1 = Fernseher an, 0 = Standby, -1 = noch unbekannt
         volatile String error = "";
         volatile int voiceBegin = -1;                  // Sitzungsnummer, wenn der Fernseher die Sprachsuche öffnet
@@ -332,6 +333,7 @@ final class TvRemote {
                     s.setSoTimeout(0);
                     while (!closed) {
                         P p = P.parse(readFrame(in));
+                        seen.addAll(p.bytes.keySet()); seen.addAll(p.ints.keySet());
                         if (p.bytes.containsKey(1)) {                       // remote_configure: unsere Funktionen melden
                             P cfg = P.parse(p.bytes.get(1));
                             Long code1 = cfg.ints.get(1);
@@ -439,6 +441,19 @@ final class TvRemote {
 
     void key(String ip, int code) throws IOException {
         sendTo(ip, keyInject(code, DIRECTION_SHORT));
+    }
+
+    /** Wurde schon ein Eingabefeld gemeldet? Sonst neu verbinden und bis zu 1,5 s auf die Meldung warten. Antwort "ok" oder "nofield:<Meldungsnummern>". */
+    synchronized String probeField(String ip) throws IOException {
+        Conn c = ensure(ip);
+        if (c.imeCounter != 0 || c.imeFieldCounter != 0) return "ok";
+        disconnect();
+        c = ensure(ip);
+        long end = System.currentTimeMillis() + 1500;
+        while (c.imeCounter == 0 && c.imeFieldCounter == 0 && !c.closed && System.currentTimeMillis() < end) {
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        return c.imeCounter != 0 || c.imeFieldCounter != 0 ? "ok" : "nofield:" + c.seen;
     }
 
     /** Inhalt des Eingabefelds auf dem Fernseher setzen. false = der Fernseher hat (noch) kein Eingabefeld gemeldet, nichts gesendet. */

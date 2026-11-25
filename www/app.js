@@ -784,27 +784,17 @@ TABS.forEach(n => $('#tab-' + n).addEventListener('change', e => { ui.tabs[n] = 
 $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
 // Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
 // Texteingabe: jede Änderung wird als ganzer Feldinhalt an das Eingabefeld des Fernsehers geschickt (wie die Google-TV-App).
-// Meldet der Fernseher kein Eingabefeld, wird beim Senden ersatzweise Taste für Taste getippt.
-const KEYS = ch => /[a-z]/.test(ch) ? 29 + ch.charCodeAt(0) - 97 : /[0-9]/.test(ch) ? 7 + ch.charCodeAt(0) - 48 : ch === ' ' ? 62 : ch === '.' ? 56 : ch === '-' ? 69 : 0;
-const tvText = {live: true, sent: '', timer: 0, chain: Promise.resolve()};
+// Der Fernseher meldet das Feld nur, solange dort die Bildschirmtastatur offen ist (z. B. in der YouTube-Suche OK auf dem Feld).
+const tvText = {live: true, timer: 0, chain: Promise.resolve()};
 function kbShow() {
   const inp = $('#tv-q'), span = $('#tvbody .kbtxt'); if (!span) return;
   span.textContent = inp.value || t('tv.kbd'); $('#tvbody .kbd').classList.toggle('typing', document.activeElement === inp);
 }
-// Ersatz ohne gemeldetes Eingabefeld (z. B. YouTube-Suche): wie eine Tastatur-Fernbedienung Taste für Taste tippen; nur a–z, 0–9, Leerzeichen, Punkt, Minus
-const tvTypeKeys = async (ip, v) => {
-  const prev = tvText.sent; let cp = 0; while (cp < prev.length && cp < v.length && prev[cp] === v[cp]) cp++;
-  for (let n = prev.length - cp; n > 0; n--) await STNative.tv.key(ip, 67);              // Löschen
-  for (const ch of v.slice(cp).toLowerCase()) { const k = KEYS(ch); if (k) await STNative.tv.key(ip, k); }
-  tvText.sent = v;
-};
-const tvKeyable = v => [...v.toLowerCase()].every(ch => KEYS(ch));
+const tvNoField = r => toast(t('tv.noField') + (r.includes(':') ? ' [' + r.split(':')[1] + ']' : ''), true);
 const tvSend = v => { tvText.chain = tvText.chain.then(async () => {
   if (!tvText.live) return;
-  const ip = tvLoad().ip;
-  if (tvKeyable(v) && tvKeyable(tvText.sent)) { await tvTypeKeys(ip, v); return; }   // immer wie eine Tastatur-Fernbedienung: Taste für Taste
-  const r = await STNative.tv.text(ip, v);                                            // Umlaute usw.: ganzen Text ins Eingabefeld setzen
-  if (r === 'nofield') toast(t('tv.noField')); else tvText.sent = v;
+  const r = await STNative.tv.text(tvLoad().ip, v);
+  if (r === 'nofield') tvNoField(await STNative.tv.kbProbe(tvLoad().ip));
 }).catch(e => toast(e.message, true)); return tvText.chain; };
 $('#tvbody').addEventListener('input', ev => {
   if (ev.target.id !== 'tv-q') return;
@@ -819,7 +809,6 @@ $('#tvbody').addEventListener('submit', ev => {
   clearTimeout(tvText.timer); inp.blur();
   (async () => {
     if (tvText.live) { await tvSend(v); }
-    if (!tvText.live) { for (const ch of v.toLowerCase()) { const c = KEYS(ch); if (c) await STNative.tv.key(ip, c); } }
     await STNative.tv.key(ip, 66);
     inp.value = ''; kbShow();
   })().catch(e => toast(e.message, true));
@@ -853,7 +842,7 @@ $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
   if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
-  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; tvText.sent = ''; inp.focus(); kbShow(); return; }
+  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); STNative.tv.kbProbe(tvLoad().ip).then(r => { if (r !== 'ok') tvNoField(r); }).catch(() => { /* Meldung kommt beim Senden */ }); return; }
   const c = tvLoad();
   if (b.dataset.plug) { plugClick(b, c); return; }
   if (b.dataset.plugoff) { plugOffNow(b); return; }
@@ -1023,3 +1012,7 @@ $('#ha-open').onclick = () => $('#btn-settings').click();
 $('#dlg').addEventListener('close', haSync);
 window.addEventListener('resize', haSync);
 buildTv(); applyTabs();
+
+// Kurzes Antippen-Feedback für alle Tasten (nicht für Regler, Auswahl- und Eingabefelder)
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('button:not([data-tvskip])'); if (b && !b.disabled) STNative.tick(); }, true);
+document.addEventListener('pointerdown', ev => { const b = ev.target.closest && ev.target.closest('button[data-tvskip]'); if (b && !b.disabled) STNative.tick(); }, true);
