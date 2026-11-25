@@ -37,7 +37,7 @@ jobs:
             echo "Tag ${GITHUB_REF_NAME} passt nicht zur Version $V"; exit 1
           fi
       - name: Übersetzungen und Persönliches prüfen
-        run: node test/i18n.test.mjs && node test/hygiene.test.mjs && node test/tv.test.mjs && node test/cast.test.mjs
+        run: node test/i18n.test.mjs && node test/hygiene.test.mjs && node test/tv.test.mjs
       - run: node test/core.test.mjs
         continue-on-error: true
       - run: npx cap sync android

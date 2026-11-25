@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.35.0
+- Die Chromecast-Lautsprecher-Funktion ist entfernt (Reiter, Einstellungen, Suche, Steuerung, zugehöriger Code und Tests). Es bleiben die Reiter Bose SoundTouch, Google TV und Home Assistant. Gespeicherte Lautsprecherlisten werden nicht mehr verwendet und nicht mehr gesichert; alte Sicherungen lassen sich weiter importieren.
+
 ## 0.34.0
 - Virtuelle Balance (Gruppen ohne Stereopaar): Die abgewandte Seite wird weiter leiser, die zugewandte Seite wird jetzt – soweit bis zum „Max“ der Box Spielraum ist – etwas lauter (bis +50 % bei voller Balance). So lässt sich die Gesamtlautstärke bis 100 einstellen, ohne Platz für die Balance zu reservieren.
 - „Max“ einer neuen Box ist jetzt 100 (vorher 70). Bestehende Boxen behalten ihren Wert; in den Einstellungen auf 100 setzen.

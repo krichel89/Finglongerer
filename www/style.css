@@ -164,20 +164,6 @@ html.ha main{padding-bottom:0}
 /* Einstellungen: Unterreiter wie die Hauptreiter */
 #stabs{display:flex;gap:16px;justify-content:center;padding:2px 0 4px}
 .spane{display:grid;gap:12px}.spane[hidden]{display:none}
-/* JBL / Chromecast-Lautsprecher */
-#jblview[hidden]{display:none}
-#jblbody{display:grid;gap:12px}
-.cast .cvol{display:grid;grid-template-columns:56px 1fr 44px;gap:10px;align-items:center}
-.cast .cvol .cv{text-align:right;color:var(--dim);font-size:.9rem}
-.cast .cvol button{min-height:46px;padding:4px}
-.cast .cvol button.lit{color:var(--orange)}
-.cast .player button svg{display:block;margin:auto}
-.cast button.cstop{color:var(--dim)}
-#cast-list{display:grid;gap:8px}
-#cast-list .crow{display:grid;grid-template-columns:1fr 44px;gap:6px;align-items:center}
-#cast-list .crow button{min-height:46px;padding:4px}
-#cast-list .cip{grid-column:1/-1;margin-top:-4px}
-.cast [hidden]{display:none!important}
 #tvbody button.plug{display:flex;align-items:center;justify-content:center;gap:8px}#tvbody button.plug svg{margin:0}
 #tvbody button.plug.count{background:#5a3b00;border-color:var(--orange);color:var(--orange)}
 #tvbody .pcount{font-weight:700;font-size:1.1rem}#tvbody .pcount:empty{display:none}
