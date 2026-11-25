@@ -21,11 +21,11 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
 const UI_KEY = 'finglongerer.ui';
-const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, ha: true}, plugSplit: false};
-try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.plugSplit = o.plugSplit === true; ui.tab = ['tv', 'ha'].includes(o.tab) ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, ha: o.tabs.ha !== false}; } } catch (e) { /* neu anfangen */ }
+const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, ha: true}};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.tab = ['tv', 'ha'].includes(o.tab) ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, ha: o.tabs.ha !== false}; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
   Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
-const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab, tabs: ui.tabs, plugSplit: ui.plugSplit})); } catch (e) { /* egal */ } };
+const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab, tabs: ui.tabs})); } catch (e) { /* egal */ } };
 const presetNames = {}, presetLoc = {}, presetRows = {}, presetRow2 = {};
 
 async function api(path, body) {
@@ -498,7 +498,7 @@ $('#btn-settings').onclick = () => {
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
   if (!$('#scan-net').value.trim()) $('#scan-net').value = netPrefix();
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#plug-split').checked = ui.plugSplit; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
@@ -568,7 +568,7 @@ $('#dlg-form').addEventListener('submit', async ev => {
   const haUrl = $('#ha-url').value.trim();
   if (haUrl && !HA_RE.test(haUrl)) { $('#dlg-err').textContent = t('ha.badUrl'); return; }
   haSave({url: haUrl, clean: $('#ha-clean').checked, token: $('#ha-token').value.trim()});
-  ui.plugSplit = $('#plug-split').checked; saveUi();
+  saveUi();
   const ent = $('#plug-ent').value;
   try { STNative.storage.setItem(PLUG_KEY, ENT_RE.test(ent) ? ent : ''); } catch (ex) { /* egal */ }
   plugState = ''; buildTv(); plugRefresh();
@@ -649,7 +649,7 @@ async function haCall(method, path, body) {
 const haReq = (method, url, path, token, body) => STNative.haApi(method, url, path, token, body)
   .catch(e => { throw /HTTP 40[13]\b/.test(e.message) ? new Error(t('plug.badToken')) : e; });
 function plugShow() {
-  document.querySelectorAll('[data-plug]').forEach(b => {
+  document.querySelectorAll('[data-plug], [data-plugoff]').forEach(b => {
     b.classList.toggle('pon', plugState === 'on'); b.classList.toggle('poff', plugState === 'off');
     const tip = plugState === 'on' ? t('plug.on') : plugState === 'off' ? t('plug.off') : t('set.plug');
     b.title = tip; b.setAttribute('aria-label', tip);
@@ -686,12 +686,15 @@ async function plugClick(b, c) {
     try { await plugSwitch(false); } catch (e) { toast(e.message, true); }
   }, 1000);
 }
-// Nur die Steckdose ausschalten (ohne Stick herunterzufahren, ohne Wartezeit); ein laufender Countdown wird beendet
+// Stromtaste: ist die Steckdose aus, einschalten; sonst sofort ausschalten (ohne Stick herunterzufahren, ohne Wartezeit); ein laufender Countdown wird beendet
 async function plugOffNow(b) {
   if (b.disabled) return;
   if (plugCount) { clearInterval(plugCount.timer); plugCount = null; plugCountShow(null); }
   b.disabled = true;
-  try { await plugSwitch(false); toast(t('plug.offDone')); } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+  try {
+    await plugRefresh();
+    if (plugState === 'on') { await plugSwitch(false); toast(t('plug.offDone')); } else await plugSwitch(true);
+  } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
 }
 async function plugRefresh() {
   const ent = plugEnt(); if (!ent) return;
@@ -712,10 +715,9 @@ function plugBtn() {
   if (plugCount) setTimeout(() => plugCountShow(plugCount ? plugCount.n : null), 0);
   return b;
 }
-function plugOffBtn() {
-  const b = el('button', {type: 'button', class: 'plugoff', title: t('plug.offNow'), 'aria-label': t('plug.offNow'), 'data-plugoff': '1'});
-  b.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>';
-  b.append(el('span', {class: 'ptxt', text: t('plug.offShort')}));
+function plugOffBtn() {   // Stromtaste: zeigt den Zustand der Steckdose; antippen schaltet sie um (an → sofort aus)
+  const b = el('button', {type: 'button', class: 'plugoff', 'data-plugoff': '1'});
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>';
   return b;
 }
 function buildTv() {
@@ -753,8 +755,9 @@ function buildTv() {
   const form = el('form', {class: 'tvq', autocomplete: 'off'},
     el('input', {type: 'text', id: 'tv-q', name: 'tvq', enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', 'aria-hidden': 'true', tabindex: '-1'}));
   body.append(
-    el('div', {class: 'tvrow two'}, plugEnt() ? plugBtn() : off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
-    ...(plugEnt() && ui.plugSplit ? [el('div', {class: 'tvrow two'}, (off.title = t('plug.standby'), off.setAttribute("aria-label", t('plug.standby')), off), plugOffBtn())] : []),
+    ...(plugEnt()
+      ? [el('div', {class: 'tvrow'}, (off.title = t('plug.standby'), off.setAttribute('aria-label', t('plug.standby')), off), plugOffBtn(), (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })())]
+      : [el('div', {class: 'tvrow two'}, off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })())]),
     el('div', {class: 'tvrow'}, skip('prev', t('tv.prev')), k('play', 85, t('tv.play')), skip('next', t('tv.next'))),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),

@@ -168,4 +168,4 @@ html.ha main{padding-bottom:0}
 #tvbody button.plug.count{background:#5a3b00;border-color:var(--orange);color:var(--orange)}
 #tvbody .pcount{font-weight:700;font-size:1.1rem}#tvbody .pcount:empty{display:none}
 
-#tvbody button.plugoff{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--bad)}#tvbody button.plugoff svg{margin:0}#tvbody button.plugoff .ptxt{font-size:.9rem}
+#tvbody button.plugoff{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dim)}#tvbody button.plugoff.pon{color:#fff;background:#238636;border-color:#2ea043}#tvbody button.plugoff.poff{color:#3fb950}#tvbody button.plugoff svg{margin:0}#tvbody button.plugoff .ptxt{font-size:.9rem}

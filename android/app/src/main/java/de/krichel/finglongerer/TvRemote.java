@@ -446,14 +446,14 @@ final class TvRemote {
     /** Wurde schon ein Eingabefeld gemeldet? Sonst neu verbinden und bis zu 1,5 s auf die Meldung warten. Antwort "ok" oder "nofield:<Meldungsnummern>". */
     synchronized String probeField(String ip) throws IOException {
         Conn c = ensure(ip);
-        if (c.imeCounter != 0 || c.imeFieldCounter != 0) return "ok";
+        if (c.imeCounter != 0 || c.imeFieldCounter != 0 || c.seen.contains(20)) return "ok";
         disconnect();
         c = ensure(ip);
         long end = System.currentTimeMillis() + 1500;
-        while (c.imeCounter == 0 && c.imeFieldCounter == 0 && !c.closed && System.currentTimeMillis() < end) {
+        while (c.imeCounter == 0 && c.imeFieldCounter == 0 && !c.seen.contains(20) && !c.closed && System.currentTimeMillis() < end) {
             try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
-        return c.imeCounter != 0 || c.imeFieldCounter != 0 ? "ok" : "nofield:" + c.seen;
+        return c.imeCounter != 0 || c.imeFieldCounter != 0 || c.seen.contains(20) ? "ok" : "nofield:" + c.seen;
     }
 
     /** Inhalt des Eingabefelds auf dem Fernseher setzen. false = der Fernseher hat (noch) kein Eingabefeld gemeldet, nichts gesendet. */
