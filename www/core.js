@@ -73,7 +73,7 @@
       const ip = raw ? validIp(raw) : '';
       if (raw && !ip) throw new Error(T('err.cfgIp', name, raw.slice(0, 40)));
       let mx = parseInt(sp.max, 10);
-      if (!Number.isFinite(mx)) mx = 70;
+      if (!Number.isFinite(mx)) mx = 100;
       const cap = v => { const o = parseInt(v, 10); return Number.isFinite(o) && o > 0 ? Math.max(10, Math.min(100, o)) : 0; };   // 0 = wie „Max“
       speakers.push({id: uniqueId(sp.id, used), name, ip, max: Math.max(10, Math.min(100, mx)), maxAux: cap(sp.maxAux), maxBt: cap(sp.maxBt)});
     }
@@ -687,7 +687,7 @@
       return {mode: 'pair', balance: bal};
     }
     async function doDuo(left, right, master, balance) {
-      const cap = Math.min(capFor(left, (await nowPlaying(left.ip))[0]), capFor(right, (await nowPlaying(right.ip))[0]));
+      const capL = capFor(left, (await nowPlaying(left.ip))[0]), capR = capFor(right, (await nowPlaying(right.ip))[0]), cap = Math.min(capL, capR);
       master = Math.max(0, Math.min(cap, parseInt(master, 10) || 0));
       balance = Math.max(-100, Math.min(100, parseInt(balance, 10) || 0));
       const g = await getGroup(left.ip);
@@ -702,8 +702,10 @@
         await wsSetBalance(box.ip, dev, target);
         return T('act.pairVol', master, (target > 0 ? '+' : '') + target);
       }
-      const lv = Math.round(master * (1 - Math.max(0, balance) / 100));
-      const rv = Math.round(master * (1 - Math.max(0, -balance) / 100));
+      // Virtuelle Balance: die abgewandte Seite wird leiser; die zugewandte Seite wird (bis zum Max der Box) etwas lauter, soweit Spielraum da ist
+      const side = (toward, away, capX) => Math.round(away ? master * (1 - away / 100) : Math.min(capX, master * (1 + toward / 200)));
+      const lv = side(Math.max(0, -balance), Math.max(0, balance), capL);
+      const rv = side(Math.max(0, balance), Math.max(0, -balance), capR);
       const errs = [];
       await Promise.all([[left, lv], [right, rv]].map(async ([sp, v]) => {
         try { await setVolume(sp.ip, v); } catch (e) { errs.push(sp.name + ': ' + e.message); }

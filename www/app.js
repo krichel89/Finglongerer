@@ -448,7 +448,7 @@ function addRow(sp) {
   const row = el('div', {class: 'srow', 'data-id': sp.id || newId()},
     el('input', {placeholder: t('ph.name'), value: sp.name || '', maxLength: 40, 'data-f': 'name', oninput: renderGroupEditor}),
     el('input', {placeholder: '192.168.x.y', value: sp.ip || '', inputMode: 'decimal', 'data-f': 'ip'}),
-    el('input', {placeholder: t('ph.max'), value: sp.max || 70, type: 'number', min: 10, max: 100, 'data-f': 'max'}),
+    el('input', {placeholder: t('ph.max'), value: sp.max || 100, type: 'number', min: 10, max: 100, 'data-f': 'max'}),
     el('button', {type: 'button', text: '✕', onclick: () => {
       editGroups.forEach(g => { g.members = g.members.filter(id => id !== row.dataset.id); });
       row.remove(); renderGroupEditor(); }}),
@@ -484,7 +484,7 @@ function takeFound(f) {
   const row = rows.find(r => rowVal(r, 'ip') === '' && rowVal(r, 'name').toLowerCase() === f.name.toLowerCase())
     || rows.find(r => rowVal(r, 'ip') === '' && rowVal(r, 'name') === '');
   if (row) { $('[data-f=ip]', row).value = f.ip; if (!rowVal(row, 'name')) $('[data-f=name]', row).value = f.name; }
-  else addRow({name: f.name, ip: f.ip, max: 70});
+  else addRow({name: f.name, ip: f.ip, max: 100});
   renderGroupEditor();
 }
 $('#btn-settings').onclick = () => {
@@ -509,7 +509,7 @@ $('#reboot-go').onclick = async e => {
   catch (ex) { $('#dlg-err').textContent = ex.message; }
   finally { b.disabled = false; b.classList.remove('wait'); }
 };
-$('#set-add').onclick = () => { addRow({max: 70}); renderGroupEditor(); };
+$('#set-add').onclick = () => { addRow({max: 100}); renderGroupEditor(); };
 $('#grp-add').onclick = () => { editGroups.push({name: t('grp.defaultName', editGroups.length + 1), members: []}); renderGroupEditor(); };
 $('#scan-go').onclick = async e => {
   const b = e.currentTarget, v = $('#scan-net').value.trim(), err = $('#dlg-err');
@@ -555,7 +555,7 @@ $('#ma-test').onclick = async e => {       // erst speichern (Adresse/Token), da
   const b = e.currentTarget, err = $('#dlg-err'), res = $('#ma-res');
   b.disabled = true; b.classList.add('wait'); err.textContent = ''; res.textContent = '';
   try {
-    const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
+    const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 100, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
     const j = await api('/api/ma/test'); res.append(el('p', {class: 'hint', text: j.message}));
     j.lines.forEach(t => res.append(el('p', {class: 'hint', text: t})));
@@ -572,7 +572,7 @@ $('#dlg-form').addEventListener('submit', async ev => {
   const ent = $('#plug-ent').value;
   try { STNative.storage.setItem(PLUG_KEY, ENT_RE.test(ent) ? ent : ''); } catch (ex) { /* egal */ }
   plugState = ''; buildTv(); plugRefresh();
-  const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 70, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
+  const speakers = rowsOf().map(r => ({id: r.dataset.id, name: rowVal(r, 'name'), ip: rowVal(r, 'ip'), max: +rowVal(r, 'max') || 100, maxAux: +rowVal(r, 'maxAux') || 0, maxBt: +rowVal(r, 'maxBt') || 0}));
   try {
     await api('/api/config', {speakers, groups: editGroups, ma: $('#ma-url').value, maToken: $('#ma-token').value});
     $('#dlg').close(); toast(t('toast.saved')); refresh(true);

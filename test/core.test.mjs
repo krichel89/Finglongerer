@@ -59,7 +59,9 @@ try {
   r = await call('/api/volume', { idx: 1, delta: -9 }); st = await call('/api/state'); assert.equal(st.speakers[1].volume, 11); ok('einzelne Box: Lautstärke relativ (20-9)');
 
   r = await call('/api/group', { gid: G, action: 'volume', master: 40, balance: 50 });
-  assert.match(r.message, /links 20, rechts 40/); ok('2er-Gruppe: virtuelle Balance +50 → links 20, rechts 40');
+  assert.match(r.message, /links 20, rechts 50/); ok('2er-Gruppe: virtuelle Balance +50 → links 20 (leiser), rechts 50 (zugewandte Seite etwas lauter)');
+  r = await call('/api/group', { gid: G, action: 'volume', master: 60, balance: -100 });
+  assert.match(r.message, /links 70, rechts 0/); ok('2er-Gruppe: Balance -100 → zugewandte Seite höchstens bis Max der Box');
   r = await call('/api/group', { gid: G, action: 'volume', master: 99, balance: -25 });
   assert.match(r.message, /links 60, rechts 45/); ok('Gesamtlautstärke auf kleineres max (60) begrenzt, Balance -25');
   r = await call('/api/group', { gid: G, action: 'read' }); assert.equal(r.mode, 'virtual'); ok('ungepaart = virtual');
