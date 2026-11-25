@@ -235,6 +235,41 @@ public class MainActivity extends BridgeActivity {
             try { return remote().openField(ip) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
         }
 
+        /** Kopplungs-Identität (Schlüssel + Zertifikat) für die Sicherung: JSON mit Base64, leer wenn es noch keine gibt. */
+        @JavascriptInterface
+        public synchronized String identityExport() {
+            try {
+                java.io.File k = new java.io.File(getFilesDir(), "tv-client.key"), c = new java.io.File(getFilesDir(), "tv-client.crt");
+                if (!k.isFile() || !c.isFile()) return "";
+                String kb = android.util.Base64.encodeToString(java.nio.file.Files.readAllBytes(k.toPath()), android.util.Base64.NO_WRAP);
+                String cb = android.util.Base64.encodeToString(java.nio.file.Files.readAllBytes(c.toPath()), android.util.Base64.NO_WRAP);
+                return "{\"key\":\"" + kb + "\",\"crt\":\"" + cb + "\"}";
+            } catch (Exception e) { return ""; }
+        }
+
+        /** Gesicherte Identität einspielen (der Fernseher bleibt gekoppelt). Antwort "ok" oder "ERR". */
+        @JavascriptInterface
+        public synchronized String identityImport(String json) {
+            if (json == null || json.length() > 20000) return "ERR";
+            java.io.File k = new java.io.File(getFilesDir(), "tv-client.key"), c = new java.io.File(getFilesDir(), "tv-client.crt");
+            try {
+                java.util.regex.Matcher mk = java.util.regex.Pattern.compile("\"key\"\\s*:\\s*\"([A-Za-z0-9+/=]+)\"").matcher(json);
+                java.util.regex.Matcher mc = java.util.regex.Pattern.compile("\"crt\"\\s*:\\s*\"([A-Za-z0-9+/=]+)\"").matcher(json);
+                if (!mk.find() || !mc.find()) return "ERR";
+                byte[] kb = android.util.Base64.decode(mk.group(1), android.util.Base64.DEFAULT), cb = android.util.Base64.decode(mc.group(1), android.util.Base64.DEFAULT);
+                java.io.File dir = new java.io.File(getCacheDir(), "tvid-check");
+                dir.mkdirs();
+                java.nio.file.Files.write(new java.io.File(dir, "tv-client.key").toPath(), kb);
+                java.nio.file.Files.write(new java.io.File(dir, "tv-client.crt").toPath(), cb);
+                TvIdentity.load(dir);                       // prüft, ob beide Dateien zusammen lesbar sind
+                new java.io.File(dir, "tv-client.key").delete(); new java.io.File(dir, "tv-client.crt").delete(); dir.delete();
+                java.nio.file.Files.write(k.toPath(), kb);
+                java.nio.file.Files.write(c.toPath(), cb);
+                remote = null;                              // beim nächsten Zugriff mit der neuen Identität verbinden
+                return "ok";
+            } catch (Exception e) { return "ERR"; }
+        }
+
         @JavascriptInterface
         public String power(String ip, boolean on) {
             if (!lan(ip)) return "ERR:ip";

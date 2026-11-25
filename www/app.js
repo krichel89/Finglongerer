@@ -938,10 +938,11 @@ function setStab(name) {
 }
 $('#stabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setStab(b.dataset.tab); });
 // ---- Einstellungen sichern: alle Werte der App (Boxen, Gruppen, Reiter, Fernseher, Steckdose, Home Assistant inkl. Token, Lautsprecher) als eine JSON-Datei
-const BK_KEYS = ['config', 'ui', 'tv', 'plug', 'ha', 'cast', 'lang'].map(k => 'finglongerer.' + k);
+const BK_KEYS = ['config', 'ui', 'tv', 'plug', 'ha', 'cast', 'jbl', 'lang'].map(k => 'finglongerer.' + k), BK_TVID = 'finglongerer.tvid';   // tvid: Kopplungs-Identität aus der Android-Brücke, nicht aus dem Speicher
 function bkBuild() {
   const data = {};
   for (const k of BK_KEYS) { const v = STNative.storage.getItem(k); if (typeof v === 'string' && v) data[k] = v; }
+  try { const id = window.STTv && window.STTv.identityExport ? String(window.STTv.identityExport()) : ''; if (id) data[BK_TVID] = id; } catch (e) { /* ohne Fernseher */ }
   return JSON.stringify({app: 'Finglongerer', version: window.APP_VERSION || '', exported: new Date().toISOString(), data}, null, 1);
 }
 function bkApply(text) {
@@ -955,13 +956,15 @@ function bkApply(text) {
     if (k !== 'finglongerer.lang') { try { JSON.parse(v); } catch (e) { throw new Error(t('err.bkBad')); } }
     take[k] = v;
   }
+  if (typeof o.data[BK_TVID] === 'string' && o.data[BK_TVID].length < 20000) { try { JSON.parse(o.data[BK_TVID]); take[BK_TVID] = o.data[BK_TVID]; } catch (e) { /* ignorieren */ } }
   if (!Object.keys(take).length) throw new Error(t('err.bkBad'));
   return take;
 }
 async function bkImport(text) {
   const take = bkApply(text);
   if (take['finglongerer.config']) await api('/api/config', JSON.parse(take['finglongerer.config']));   // prüft und bereinigt wie beim Speichern
-  for (const k of Object.keys(take)) if (k !== 'finglongerer.config') STNative.storage.setItem(k, take[k]);
+  for (const k of Object.keys(take)) if (k !== 'finglongerer.config' && k !== BK_TVID) STNative.storage.setItem(k, take[k]);
+  if (take[BK_TVID]) { try { if (String(window.STTv.identityImport(take[BK_TVID])) !== 'ok') toast(t('err.bkTv'), true); } catch (e) { toast(t('err.bkTv'), true); } }
   toast(t('toast.bkDone')); setTimeout(() => location.reload(), 700);
 }
 $('#bk-export').onclick = async () => {
