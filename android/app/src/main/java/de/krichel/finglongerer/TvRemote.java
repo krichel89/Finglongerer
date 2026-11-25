@@ -359,8 +359,8 @@ final class TvRemote {
                             if (req.bytes.containsKey(2)) { Long v = P.parse(req.bytes.get(2)).ints.get(1); if (v != null) imeFieldCounter = (int) (long) v; }
                         } else if (p.bytes.containsKey(21)) {               // remote_ime_batch_edit: Zähler übernehmen, falls noch unbekannt
                             P be = P.parse(p.bytes.get(21));
-                            if (imeCounter == 0 && be.ints.get(1) != null) imeCounter = (int) (long) be.ints.get(1);
-                            if (imeFieldCounter == 0 && be.ints.get(2) != null) imeFieldCounter = (int) (long) be.ints.get(2);
+                            if (be.ints.get(1) != null) imeCounter = (int) (long) be.ints.get(1);
+                            if (be.ints.get(2) != null) imeFieldCounter = (int) (long) be.ints.get(2);
                         } else if (p.bytes.containsKey(30)) {               // remote_voice_begin
                             Long id = P.parse(p.bytes.get(30)).ints.get(1);
                             voiceBegin = id == null ? 0 : (int) (long) id;
@@ -459,7 +459,7 @@ final class TvRemote {
     /** Inhalt des Eingabefelds auf dem Fernseher setzen. false = der Fernseher hat (noch) kein Eingabefeld gemeldet, nichts gesendet. */
     synchronized boolean text(String ip, String text) throws IOException {
         Conn c = ensure(ip);
-        if (c.imeCounter == 0 && c.imeFieldCounter == 0) return false;
+        if (c.imeCounter == 0 && c.imeFieldCounter == 0 && !c.seen.contains(20)) return false;   // der Fernseher kennt keine Texteingabe
         sendTo(ip, textEdit(c.imeCounter, c.imeFieldCounter, text == null ? "" : text));
         return true;
     }
