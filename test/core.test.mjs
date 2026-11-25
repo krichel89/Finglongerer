@@ -63,7 +63,7 @@ try {
   r = await call('/api/group', { gid: G, action: 'volume', master: 60, balance: -100 });
   assert.match(r.message, /links 70, rechts 0/); ok('2er-Gruppe: Balance -100 → zugewandte Seite höchstens bis Max der Box');
   r = await call('/api/group', { gid: G, action: 'volume', master: 99, balance: -25 });
-  assert.match(r.message, /links 60, rechts 45/); ok('Gesamtlautstärke auf kleineres max (60) begrenzt, Balance -25');
+  assert.match(r.message, /links 68, rechts 45/); ok('Gesamtlautstärke auf kleineres max (60) begrenzt, Balance -25 (links als zugewandte Seite etwas lauter)');
   r = await call('/api/group', { gid: G, action: 'read' }); assert.equal(r.mode, 'virtual'); ok('ungepaart = virtual');
 
   r = await call('/api/group', { gid: G, action: 'pair' }); assert.match(r.message, /gebildet/); ok('Stereopaar bilden');
