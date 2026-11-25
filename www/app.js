@@ -788,16 +788,26 @@ $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab')
 // Text am Handy eintippen, Enter: wird in das Feld getippt, das auf dem Fernseher gerade Fokus hat, danach Enter
 // Texteingabe: jede Änderung wird als ganzer Feldinhalt an das Eingabefeld des Fernsehers geschickt (wie die Google-TV-App).
 // Der Fernseher meldet das Feld nur, solange dort die Bildschirmtastatur offen ist (z. B. in der YouTube-Suche OK auf dem Feld).
-const tvText = {live: true, timer: 0, chain: Promise.resolve()};
+const tvText = {live: true, sent: '', timer: 0, chain: Promise.resolve()};
 function kbShow() {
   const inp = $('#tv-q'), span = $('#tvbody .kbtxt'); if (!span) return;
   span.textContent = inp.value || t('tv.kbd'); $('#tvbody .kbd').classList.toggle('typing', document.activeElement === inp);
 }
 const tvNoField = r => toast(t('tv.noField') + (r.includes(':') ? ' [' + r.split(':')[1] + ']' : ''), true);
+// Der Fernseher fügt den gesendeten Text an der Cursorstelle ein: nur das Neue senden, Löschen als Rücktaste (Taste 67)
 const tvSend = v => { tvText.chain = tvText.chain.then(async () => {
   if (!tvText.live) return;
-  const r = await STNative.tv.text(tvLoad().ip, v);
-  if (r === 'nofield') tvNoField(await STNative.tv.kbProbe(tvLoad().ip));
+  const ip = tvLoad().ip, prev = tvText.sent;
+  let cp = 0; while (cp < prev.length && cp < v.length && prev[cp] === v[cp]) cp++;
+  for (let n = prev.length - cp; n > 0; n--) await STNative.tv.key(ip, 67);
+  tvText.sent = v.slice(0, cp);
+  const add = v.slice(cp);
+  if (add) {
+    const r = await STNative.tv.text(ip, add);
+    if (r === 'nofield') { tvNoField(await STNative.tv.kbProbe(ip)); return; }
+    await new Promise(r2 => setTimeout(r2, 80));          // dem Fernseher Zeit geben, die neuen Zähler zu melden
+  }
+  tvText.sent = v;
 }).catch(e => toast(e.message, true)); return tvText.chain; };
 $('#tvbody').addEventListener('input', ev => {
   if (ev.target.id !== 'tv-q') return;
@@ -813,7 +823,7 @@ $('#tvbody').addEventListener('submit', ev => {
   (async () => {
     if (tvText.live) { await tvSend(v); }
     await STNative.tv.key(ip, 66);
-    inp.value = ''; kbShow();
+    inp.value = ''; tvText.sent = ''; kbShow();
   })().catch(e => toast(e.message, true));
 });
 // Sprachsuche: Mikrofon des Handys wird an den Fernseher gestreamt; erster Druck startet, zweiter beendet (nach 20 s automatisch)
@@ -845,7 +855,7 @@ $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
   if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
-  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); STNative.tv.kbProbe(tvLoad().ip).then(r => { if (r !== 'ok') tvNoField(r); }).catch(() => { /* Meldung kommt beim Senden */ }); return; }
+  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.sent = ''; tvText.live = true; inp.focus(); kbShow(); STNative.tv.kbProbe(tvLoad().ip).then(r => { if (r !== 'ok') tvNoField(r); }).catch(() => { /* Meldung kommt beim Senden */ }); return; }
   const c = tvLoad();
   if (b.dataset.plug) { plugClick(b, c); return; }
   if (b.dataset.plugoff) { plugOffNow(b); return; }

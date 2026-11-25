@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.36.3
+- Tastatur: Der Fernseher fügt gesendeten Text an der Cursorstelle ein. Deshalb wird nur noch das Neue gesendet (vorher kamen bei schnellem Tippen Zeichen doppelt an); Löschen läuft als Rücktaste.
+
 ## 0.36.2
 - Google-TV-Reiter mit Steckdose: Die große Ein/Aus-Taste ist ersetzt durch zwei Tasten – Standby (nur der Stick) und die Stromtaste. Die Stromtaste zeigt den Zustand der Steckdose (grün = an) und schaltet sie um: an → sofort aus, aus → an. Die Option „zusätzlich getrennte Tasten“ und der Countdown-Ausschalter entfallen.
 - Tastatur: Die Meldung „kein offenes Eingabefeld“ erscheint nicht mehr, wenn der Fernseher die Texteingabe kennt.
