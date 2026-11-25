@@ -772,15 +772,23 @@ $('#tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab')
 // Texteingabe: jede Änderung wird als ganzer Feldinhalt an das Eingabefeld des Fernsehers geschickt (wie die Google-TV-App).
 // Meldet der Fernseher kein Eingabefeld, wird beim Senden ersatzweise Taste für Taste getippt.
 const KEYS = ch => /[a-z]/.test(ch) ? 29 + ch.charCodeAt(0) - 97 : /[0-9]/.test(ch) ? 7 + ch.charCodeAt(0) - 48 : ch === ' ' ? 62 : ch === '.' ? 56 : ch === '-' ? 69 : 0;
-const tvText = {live: true, timer: 0, chain: Promise.resolve()};
+const tvText = {live: true, keys: false, sent: '', timer: 0, chain: Promise.resolve()};
 function kbShow() {
   const inp = $('#tv-q'), span = $('#tvbody .kbtxt'); if (!span) return;
   span.textContent = inp.value || t('tv.kbd'); $('#tvbody .kbd').classList.toggle('typing', document.activeElement === inp);
 }
+// Ersatz ohne gemeldetes Eingabefeld (z. B. YouTube-Suche): wie eine Tastatur-Fernbedienung Taste für Taste tippen; nur a–z, 0–9, Leerzeichen, Punkt, Minus
+const tvTypeKeys = async (ip, v) => {
+  const prev = tvText.sent; let cp = 0; while (cp < prev.length && cp < v.length && prev[cp] === v[cp]) cp++;
+  for (let n = prev.length - cp; n > 0; n--) await STNative.tv.key(ip, 67);              // Löschen
+  for (const ch of v.slice(cp).toLowerCase()) { const k = KEYS(ch); if (k) await STNative.tv.key(ip, k); }
+  tvText.sent = v;
+};
 const tvSend = v => { tvText.chain = tvText.chain.then(async () => {
   if (!tvText.live) return;
-  const r = await STNative.tv.text(tvLoad().ip, v);
-  if (r === 'nofield') { tvText.live = false; toast(t('tv.noField')); }
+  const ip = tvLoad().ip;
+  if (!tvText.keys) { const r = await STNative.tv.text(ip, v); if (r !== 'nofield') return; tvText.keys = true; tvText.sent = ''; toast(t('tv.noField')); }
+  await tvTypeKeys(ip, v);
 }).catch(e => toast(e.message, true)); return tvText.chain; };
 $('#tvbody').addEventListener('input', ev => {
   if (ev.target.id !== 'tv-q') return;
@@ -829,12 +837,7 @@ $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
   if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
-  if (b.dataset.tvkbd) {
-    const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow();
-    const ip = tvLoad().ip;      // kein Feld am Fernseher offen: Such-Taste senden, damit es aufgeht
-    if (ip) setTimeout(async () => { try { if (await STNative.tv.kbOpen(ip) === 'nofield') toast(t('tv.noField')); } catch (e) { toast(e.message, true); } }, 60);
-    return;
-  }
+  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; tvText.keys = false; tvText.sent = ''; inp.focus(); kbShow(); return; }
   const c = tvLoad();
   if (b.dataset.plug) { plugClick(b, c); return; }
   if (!(c.ip && c.paired)) return;

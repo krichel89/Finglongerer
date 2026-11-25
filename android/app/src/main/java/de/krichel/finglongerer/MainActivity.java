@@ -228,13 +228,6 @@ public class MainActivity extends BridgeActivity {
             try { return remote().text(ip, text) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
         }
 
-        /** Eingabefeld am Fernseher öffnen: meldet er keines, kommt die Such-Taste (wie bei der Google-Fernbedienung); "ok" oder "nofield". */
-        @JavascriptInterface
-        public String kbOpen(String ip) {
-            if (!lan(ip)) return "ERR:ip";
-            try { return remote().openField(ip) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
-        }
-
         /** Kopplungs-Identität (Schlüssel + Zertifikat) für die Sicherung: JSON mit Base64, leer wenn es noch keine gibt. */
         @JavascriptInterface
         public synchronized String identityExport() {

@@ -4,6 +4,9 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.32.3
+- Tastatur (Google TV): Die Such-Taste aus 0.32.0 öffnete bei manchen Sticks die Spracheingabe und ist wieder entfernt. Meldet der Fernseher kein Eingabefeld (z. B. YouTube-Suche), tippt die App stattdessen Taste für Taste wie eine Tastatur-Fernbedienung (a–z, 0–9, Leerzeichen, Punkt, Minus; Löschen wird mitgesendet). Das Suchfeld muss am Fernseher markiert sein.
+
 ## 0.32.2
 - Import der Einstellungen: Eine Sicherung mit gesetzter Steckdose wurde komplett abgelehnt („keine gültige Sicherung“), so dass nichts ankam. Behoben; unbrauchbare Einzeleinträge werden jetzt übersprungen, der Rest wird übernommen.
 - Export: Unter den Tasten steht jetzt dauerhaft, wohin gespeichert wurde (Ordner „Downloads“ und Dateiname).
