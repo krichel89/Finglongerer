@@ -43,6 +43,33 @@ public class MainActivity extends BridgeActivity {
             shared = null;
             return t == null ? "" : t;
         }
+
+        /** Sicherung als Datei in "Downloads" ablegen (ab Android 10), sonst über das Teilen-Menü. Antwort "ok", "share" oder "ERR". */
+        @JavascriptInterface
+        public String save(String name, String text) {
+            if (name == null || !name.matches("^[A-Za-z0-9._-]{1,60}$") || text == null || text.length() > 400000) return "ERR";
+            try {
+                byte[] data = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    android.content.ContentValues v = new android.content.ContentValues();
+                    v.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+                    v.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/json");
+                    v.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+                    android.net.Uri u = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (u == null) return "ERR";
+                    try (java.io.OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
+                    return "ok";
+                }
+                java.io.File dir = new java.io.File(getCacheDir(), "export");
+                dir.mkdirs();
+                java.io.File f = new java.io.File(dir, name);
+                try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(data); }
+                android.net.Uri u = androidx.core.content.FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", f);
+                final Intent i = new Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                runOnUiThread(() -> startActivity(Intent.createChooser(i, name)));
+                return "share";
+            } catch (Exception e) { return "ERR"; }
+        }
     }
 
     /** Brücke für den Box-Neustart: schickt eine Textzeile an die Diagnose-Shell der Box (Port 17000) und meldet "ok" oder "ERR: ...". Nur Adressen des Heimnetzes. */
@@ -199,6 +226,48 @@ public class MainActivity extends BridgeActivity {
             if (!lan(ip)) return "ERR:ip";
             if (text == null || text.length() > 200) return "ERR:other:Text";
             try { return remote().text(ip, text) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
+        }
+
+        /** Eingabefeld am Fernseher öffnen: meldet er keines, kommt die Such-Taste (wie bei der Google-Fernbedienung); "ok" oder "nofield". */
+        @JavascriptInterface
+        public String kbOpen(String ip) {
+            if (!lan(ip)) return "ERR:ip";
+            try { return remote().openField(ip) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
+        }
+
+        /** Kopplungs-Identität (Schlüssel + Zertifikat) für die Sicherung: JSON mit Base64, leer wenn es noch keine gibt. */
+        @JavascriptInterface
+        public synchronized String identityExport() {
+            try {
+                java.io.File k = new java.io.File(getFilesDir(), "tv-client.key"), c = new java.io.File(getFilesDir(), "tv-client.crt");
+                if (!k.isFile() || !c.isFile()) return "";
+                String kb = android.util.Base64.encodeToString(java.nio.file.Files.readAllBytes(k.toPath()), android.util.Base64.NO_WRAP);
+                String cb = android.util.Base64.encodeToString(java.nio.file.Files.readAllBytes(c.toPath()), android.util.Base64.NO_WRAP);
+                return "{\"key\":\"" + kb + "\",\"crt\":\"" + cb + "\"}";
+            } catch (Exception e) { return ""; }
+        }
+
+        /** Gesicherte Identität einspielen (der Fernseher bleibt gekoppelt). Antwort "ok" oder "ERR". */
+        @JavascriptInterface
+        public synchronized String identityImport(String json) {
+            if (json == null || json.length() > 20000) return "ERR";
+            java.io.File k = new java.io.File(getFilesDir(), "tv-client.key"), c = new java.io.File(getFilesDir(), "tv-client.crt");
+            try {
+                java.util.regex.Matcher mk = java.util.regex.Pattern.compile("\"key\"\\s*:\\s*\"([A-Za-z0-9+/=]+)\"").matcher(json);
+                java.util.regex.Matcher mc = java.util.regex.Pattern.compile("\"crt\"\\s*:\\s*\"([A-Za-z0-9+/=]+)\"").matcher(json);
+                if (!mk.find() || !mc.find()) return "ERR";
+                byte[] kb = android.util.Base64.decode(mk.group(1), android.util.Base64.DEFAULT), cb = android.util.Base64.decode(mc.group(1), android.util.Base64.DEFAULT);
+                java.io.File dir = new java.io.File(getCacheDir(), "tvid-check");
+                dir.mkdirs();
+                java.nio.file.Files.write(new java.io.File(dir, "tv-client.key").toPath(), kb);
+                java.nio.file.Files.write(new java.io.File(dir, "tv-client.crt").toPath(), cb);
+                TvIdentity.load(dir);                       // prüft, ob beide Dateien zusammen lesbar sind
+                new java.io.File(dir, "tv-client.key").delete(); new java.io.File(dir, "tv-client.crt").delete(); dir.delete();
+                java.nio.file.Files.write(k.toPath(), kb);
+                java.nio.file.Files.write(c.toPath(), cb);
+                remote = null;                              // beim nächsten Zugriff mit der neuen Identität verbinden
+                return "ok";
+            } catch (Exception e) { return "ERR"; }
         }
 
         @JavascriptInterface

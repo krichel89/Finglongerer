@@ -4,6 +4,16 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.32.1
+- Sicherung enthält jetzt auch die Kopplung mit dem Google TV (Schlüssel und Zertifikat): nach dem Import bleibt der Fernseher gekoppelt, kein neues Koppeln nötig. Außerdem wird die ältere Lautsprecherliste (Chromecast) mitgesichert.
+
+## 0.32.0
+- Einstellungen sichern: Exportieren legt jetzt direkt eine Datei im Ordner „Downloads“ ab (Android 9 und älter: Teilen-Menü); das Textfeld und das Kopieren entfallen. Importiert wird weiter aus der Datei.
+- Tastatur (Google TV): Ist am Fernseher kein Eingabefeld offen, sendet die App die Such-Taste, damit sich das Suchfeld öffnet (z. B. bei YouTube), und wartet bis zu 2 Sekunden auf das Feld.
+
+## 0.31.1
+- Grüne Taste, Ausschalten: Der Stick wird jetzt mit der Power-Taste (wie die rote Taste der Fernbedienung, nur wenn er an ist) heruntergefahren statt mit der Schlaf-Taste, die er ignorierte. Schlägt das fehl, erscheint eine Meldung.
+
 ## 0.31.0
 - Einstellungen sichern: Exportieren (Datei und Zwischenablage) und Importieren einer Sicherung mit allen Einstellungen (Boxen, Gruppen, Reiter, Fernseher, Steckdose, Home Assistant, Lautsprecher, Sprache). Die Datei enthält die Zugangstoken. Beim Import wird geprüft und die App neu geladen.
 

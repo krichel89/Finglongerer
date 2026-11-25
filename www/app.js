@@ -676,7 +676,7 @@ async function plugClick(b, c) {
   b.disabled = true;
   try { await plugRefresh(); } finally { b.disabled = false; }
   if (plugState !== 'on') { b.disabled = true; try { await plugSwitch(true); } catch (e) { toast(e.message, true); } finally { b.disabled = false; } return; }
-  if (c.ip && c.paired) { try { await STNative.tv.key(c.ip, 223); } catch (e) { /* Stick nicht erreichbar: trotzdem nach Ablauf ausschalten */ } }
+  if (c.ip && c.paired) { try { await STNative.tv.power(c.ip, false); } catch (e) { toast(e.message, true); /* Stick nicht erreichbar: trotzdem nach Ablauf ausschalten */ } }
   const pc = {n: PLUG_DELAY}; plugCount = pc; plugCountShow(pc.n); toast(t('plug.shutdown', PLUG_DELAY));
   pc.timer = setInterval(async () => {
     pc.n--; plugCountShow(pc.n);
@@ -829,7 +829,12 @@ $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
   if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
-  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); return; }
+  if (b.dataset.tvkbd) {
+    const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow();
+    const ip = tvLoad().ip;      // kein Feld am Fernseher offen: Such-Taste senden, damit es aufgeht
+    if (ip) setTimeout(async () => { try { if (await STNative.tv.kbOpen(ip) === 'nofield') toast(t('tv.noField')); } catch (e) { toast(e.message, true); } }, 60);
+    return;
+  }
   const c = tvLoad();
   if (b.dataset.plug) { plugClick(b, c); return; }
   if (!(c.ip && c.paired)) return;
@@ -933,10 +938,11 @@ function setStab(name) {
 }
 $('#stabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setStab(b.dataset.tab); });
 // ---- Einstellungen sichern: alle Werte der App (Boxen, Gruppen, Reiter, Fernseher, Steckdose, Home Assistant inkl. Token, Lautsprecher) als eine JSON-Datei
-const BK_KEYS = ['config', 'ui', 'tv', 'plug', 'ha', 'cast', 'lang'].map(k => 'finglongerer.' + k);
+const BK_KEYS = ['config', 'ui', 'tv', 'plug', 'ha', 'cast', 'jbl', 'lang'].map(k => 'finglongerer.' + k), BK_TVID = 'finglongerer.tvid';   // tvid: Kopplungs-Identität aus der Android-Brücke, nicht aus dem Speicher
 function bkBuild() {
   const data = {};
   for (const k of BK_KEYS) { const v = STNative.storage.getItem(k); if (typeof v === 'string' && v) data[k] = v; }
+  try { const id = window.STTv && window.STTv.identityExport ? String(window.STTv.identityExport()) : ''; if (id) data[BK_TVID] = id; } catch (e) { /* ohne Fernseher */ }
   return JSON.stringify({app: 'Finglongerer', version: window.APP_VERSION || '', exported: new Date().toISOString(), data}, null, 1);
 }
 function bkApply(text) {
@@ -950,19 +956,27 @@ function bkApply(text) {
     if (k !== 'finglongerer.lang') { try { JSON.parse(v); } catch (e) { throw new Error(t('err.bkBad')); } }
     take[k] = v;
   }
+  if (typeof o.data[BK_TVID] === 'string' && o.data[BK_TVID].length < 20000) { try { JSON.parse(o.data[BK_TVID]); take[BK_TVID] = o.data[BK_TVID]; } catch (e) { /* ignorieren */ } }
   if (!Object.keys(take).length) throw new Error(t('err.bkBad'));
   return take;
 }
 async function bkImport(text) {
   const take = bkApply(text);
   if (take['finglongerer.config']) await api('/api/config', JSON.parse(take['finglongerer.config']));   // prüft und bereinigt wie beim Speichern
-  for (const k of Object.keys(take)) if (k !== 'finglongerer.config') STNative.storage.setItem(k, take[k]);
+  for (const k of Object.keys(take)) if (k !== 'finglongerer.config' && k !== BK_TVID) STNative.storage.setItem(k, take[k]);
+  if (take[BK_TVID]) { try { if (String(window.STTv.identityImport(take[BK_TVID])) !== 'ok') toast(t('err.bkTv'), true); } catch (e) { toast(t('err.bkTv'), true); } }
   toast(t('toast.bkDone')); setTimeout(() => location.reload(), 700);
 }
 $('#bk-export').onclick = async () => {
-  const out = $('#bk-text'); out.value = bkBuild(); out.hidden = false;
-  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out.value], {type: 'application/json'})); a.download = 'finglongerer-einstellungen.json'; document.body.append(a); a.click(); a.remove(); } catch (e) { /* Textfeld bleibt */ }
-  try { await navigator.clipboard.writeText(out.value); toast(t('toast.bkCopied')); } catch (e) { out.focus(); out.select(); toast(t('toast.copyManual'), true); }
+  const text = bkBuild(), name = 'finglongerer-einstellungen-' + new Date().toISOString().slice(0, 10) + '.json';
+  try {
+    const r = window.STShare && window.STShare.save ? String(window.STShare.save(name, text)) : '';
+    if (r === 'ok') { toast(t('toast.bkSaved')); return; }
+    if (r === 'share') return;
+    if (r === 'ERR') throw new Error(t('err.bkSave'));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type: 'application/json'})); a.download = name;   // Browser
+    document.body.append(a); a.click(); a.remove(); toast(t('toast.bkSaved'));
+  } catch (e) { toast(e.message, true); }
 };
 $('#bk-file').onclick = () => $('#bk-pick').click();
 $('#bk-pick').onchange = async e => {
