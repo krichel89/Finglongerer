@@ -301,65 +301,6 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * Brücke zu Chromecast-Lautsprechern (z. B. JBL Playlist). Jeder Aufruf läuft im Hintergrund, damit die Oberfläche nicht stockt:
-     * start() liefert eine Auftrags-Nummer, poll() liefert "" solange der Auftrag läuft, danach das Ergebnis (JSON oder "ERR:art[:text]").
-     */
-    public class CastBridge {
-        private final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newCachedThreadPool();
-        private final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.Future<String>> jobs = new java.util.concurrent.ConcurrentHashMap<>();
-        private final java.util.concurrent.atomic.AtomicInteger seq = new java.util.concurrent.atomic.AtomicInteger();
-
-        private String fail(Exception e) {
-            String m = String.valueOf(e.getMessage());
-            if (m.startsWith("CAST:")) return "ERR:other:" + m.substring(5);
-            if (e instanceof java.net.SocketException || e instanceof java.net.SocketTimeoutException || e instanceof java.net.UnknownHostException
-                    || e instanceof javax.net.ssl.SSLException || e instanceof java.io.EOFException) return "ERR:net";
-            return "ERR:other:" + m;
-        }
-
-        /** op: scan (arg = Suchbereich), status, volume (arg = 0..100), mute (arg = 1/0), media (arg = PLAY/PAUSE/NEXT/PREV), stop. */
-        @JavascriptInterface
-        public String start(final String op, final String ip, final String arg) {
-            if (op == null || !op.matches("scan|status|volume|mute|media|stop")) return "ERR:other:Befehl";
-            final String a = arg == null ? "" : arg;
-            if (!op.equals("scan") && !CastLink.lanIp(ip)) return "ERR:ip";
-            if (op.equals("volume") && !a.matches("^\\d{1,3}$")) return "ERR:other:Wert";
-            if (op.equals("mute") && !a.matches("^[01]$")) return "ERR:other:Wert";
-            if (op.equals("media") && !a.matches("^(PLAY|PAUSE|NEXT|PREV)$")) return "ERR:other:Wert";
-            if (jobs.size() > 64) for (java.util.Map.Entry<String, java.util.concurrent.Future<String>> e : jobs.entrySet()) if (e.getValue().isDone()) jobs.remove(e.getKey());
-            final String id = String.valueOf(seq.incrementAndGet());
-            jobs.put(id, pool.submit(() -> {
-                try {
-                    switch (op) {
-                        case "scan": {
-                            String p = a.trim().isEmpty() ? CastLink.localPrefix() : a.trim();
-                            if (!p.matches("^(10|192\\.168|172\\.(1[6-9]|2\\d|3[01]))\\.\\d{1,3}(\\.\\d{1,3})?$") || p.split("\\.").length != 3) return "ERR:ip";
-                            return String.join("\n", CastLink.scan(p, CastLink.PORT, 8008));
-                        }
-                        case "status": return CastLink.status(ip);
-                        case "volume": return CastLink.volume(ip, Integer.parseInt(a) / 100.0, -1);
-                        case "mute": return CastLink.volume(ip, 0, a.equals("1") ? 1 : 0);
-                        case "media": return CastLink.media(ip, a);
-                        default: return CastLink.stop(ip);
-                    }
-                } catch (Exception e) {
-                    return fail(e);
-                }
-            }));
-            return id;
-        }
-
-        @JavascriptInterface
-        public String poll(String id) {
-            java.util.concurrent.Future<String> f = id == null ? null : jobs.get(id);
-            if (f == null) return "ERR:other:Auftrag";
-            if (!f.isDone()) return "";
-            jobs.remove(id);
-            try { String r = f.get(); return r.isEmpty() ? "-" : r; } catch (Exception e) { return fail(e); }
-        }
-    }
-
-    /**
      * Home Assistant: zweites WebView über dem Platzhalter des dritten Reiters (Ort in CSS-Pixeln).
      * Eigener Cookie-/Speicherbereich, bleibt angemeldet, keine Frame-Sperre. Hat selbst keine JS-Brücken;
      * Links auf andere Rechner öffnen im Browser des Handys.
@@ -479,7 +420,6 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new DeviceBridge(), "STDevice");
         getBridge().getWebView().addJavascriptInterface(new TvBridge(), "STTv");
         getBridge().getWebView().addJavascriptInterface((haBridge = new HaBridge()), "STHa");
-        getBridge().getWebView().addJavascriptInterface(new CastBridge(), "STCast");
         remember(getIntent());
         // Zurück schließt zuerst Unterfenster (Einstellungen, aufgeklappte Bereiche); erst ohne offenes Fenster verlässt es die App
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {

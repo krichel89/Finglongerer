@@ -21,8 +21,8 @@ const newId = () => Math.random().toString(36).slice(2, 8);
 
 // ---- gemerkter Zustand der Oberfläche: Reihenfolge, aufgeklappte Einträge
 const UI_KEY = 'finglongerer.ui';
-const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, jbl: true, ha: true}, plugSplit: false};
-try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.plugSplit = o.plugSplit === true; ui.tab = ['tv', 'jbl', 'ha'].includes(o.tab) ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, jbl: o.tabs.jbl !== false, ha: o.tabs.ha !== false}; } } catch (e) { /* neu anfangen */ }
+const ui = {order: [], open: {}, sort: false, tab: 'bose', tabs: {bose: true, tv: true, ha: true}, plugSplit: false};
+try { const r = STNative.storage.getItem(UI_KEY); if (r) { const o = JSON.parse(r); ui.order = o.order || []; ui.open = o.open || {}; ui.plugSplit = o.plugSplit === true; ui.tab = ['tv', 'ha'].includes(o.tab) ? o.tab : 'bose'; if (o.tabs) ui.tabs = {bose: o.tabs.bose !== false, tv: o.tabs.tv !== false, ha: o.tabs.ha !== false}; } } catch (e) { /* neu anfangen */ }
 { const first = Object.keys(ui.open).find(k => /^[gb]:/.test(k) && ui.open[k]);   // alte Stände: nur einen offen lassen
   Object.keys(ui.open).forEach(k => { if (/^[gb]:/.test(k) && k !== first) ui.open[k] = false; }); }
 const saveUi = () => { try { STNative.storage.setItem(UI_KEY, JSON.stringify({order: ui.order, open: ui.open, tab: ui.tab, tabs: ui.tabs, plugSplit: ui.plugSplit})); } catch (e) { /* egal */ } };
@@ -498,7 +498,7 @@ $('#btn-settings').onclick = () => {
   cfg.speakers.forEach((sp, i) => { if (sp.ip) rs.append(el('option', {value: i, text: sp.name})); });
   $('#reboot-go').disabled = !rs.options.length;
   if (!$('#scan-net').value.trim()) $('#scan-net').value = netPrefix();
-  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#tab-jbl').checked = ui.tabs.jbl; $('#cast-found').textContent = ''; $('#cast-ip').value = ''; renderCastList(); $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#plug-split').checked = ui.plugSplit; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
+  $('#tab-bose').checked = ui.tabs.bose; $('#tab-tv').checked = ui.tabs.tv; $('#tab-ha').checked = ui.tabs.ha; $('#ha-url').value = haLoad().url; $('#ha-clean').checked = haLoad().clean; $('#ha-token').value = haLoad().token; plugOptions([]); $('#plug-split').checked = ui.plugSplit; $('#tv-ip').value = tvLoad().ip; tvMac = tvLoad().mac; $('#tv-code-row').hidden = true; $('#tv-res').textContent = ''; $('#tv-found').textContent = '';
   setStab(ui.tab); $('#dlg').showModal(); haSync();
 };
 $('#reboot-go').onclick = async e => {
@@ -603,7 +603,7 @@ window.addEventListener('focus', () => window.STShareCheck());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) window.STShareCheck(); });
 setTimeout(() => window.STShareCheck(), 800);
 $('#lang-sel').onchange = e => {       // Sprache sofort umschalten (auto = Systemsprache)
-  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render(); buildTv(); buildCast(); renderCastList();
+  STNative.setLangPref(e.target.value); applyStatic(); renderGroupEditor(); render(); buildTv();
 };
 $('#btn-sort').onclick = () => { ui.sort = !ui.sort; dragging = false; render(); };
 document.addEventListener('visibilitychange', () => refresh());
@@ -761,16 +761,15 @@ function buildTv() {
     kb, form);
   plugShow();
 }
-const TABS = ['bose', 'tv', 'jbl', 'ha'];
+const TABS = ['bose', 'tv', 'ha'];
 function setTab(name) {
   ui.tab = TABS.includes(name) ? name : 'bose'; saveUi();
-  $('#boseview').hidden = ui.tab !== 'bose'; $('#tvview').hidden = ui.tab !== 'tv'; $('#haview').hidden = ui.tab !== 'ha'; $('#jblview').hidden = ui.tab !== 'jbl';
+  $('#boseview').hidden = ui.tab !== 'bose'; $('#tvview').hidden = ui.tab !== 'tv'; $('#haview').hidden = ui.tab !== 'ha';
   $('#btn-sort').hidden = ui.tab !== 'bose';
   document.documentElement.classList.toggle('ha', ui.tab === 'ha');
   document.documentElement.classList.toggle('tvmode', ui.tab === 'tv');
   document.querySelectorAll('#tabs .tab').forEach(b => { const on = b.dataset.tab === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   haSync();
-  if (ui.tab === 'jbl') castPoll();
 }
 // Einstellungen: Reiter ein-/ausblenden; bei nur einem Reiter entfällt die Symbolreihe, mindestens einer bleibt
 function applyTabs() {
@@ -959,7 +958,7 @@ function setStab(name) {
 }
 $('#stabs').addEventListener('click', ev => { const b = ev.target.closest('.tab'); if (b) setStab(b.dataset.tab); });
 // ---- Einstellungen sichern: alle Werte der App (Boxen, Gruppen, Reiter, Fernseher, Steckdose, Home Assistant inkl. Token, Lautsprecher) als eine JSON-Datei
-const BK_KEYS = ['config', 'ui', 'tv', 'plug', 'ha', 'cast', 'jbl', 'lang'].map(k => 'finglongerer.' + k), BK_TVID = 'finglongerer.tvid';   // tvid: Kopplungs-Identität aus der Android-Brücke, nicht aus dem Speicher
+const BK_KEYS = ['config', 'ui', 'tv', 'plug', 'ha', 'lang'].map(k => 'finglongerer.' + k), BK_TVID = 'finglongerer.tvid';   // tvid: Kopplungs-Identität aus der Android-Brücke, nicht aus dem Speicher
 function bkBuild() {
   const data = {};
   for (const k of BK_KEYS) { const v = STNative.storage.getItem(k); if (typeof v === 'string' && v) data[k] = v; }
@@ -1023,119 +1022,4 @@ function haSync() {
 $('#ha-open').onclick = () => $('#btn-settings').click();
 $('#dlg').addEventListener('close', haSync);
 window.addEventListener('resize', haSync);
-// ---- Chromecast-Lautsprecher (z. B. JBL Playlist), direkt angesprochen
-const CAST_KEY = 'finglongerer.cast';
-const castLoad = () => { try { let raw = STNative.storage.getItem(CAST_KEY);
-    if (raw === null || raw === undefined) { const o = JSON.parse(STNative.storage.getItem('finglongerer.jbl') || '[]'); raw = JSON.stringify((Array.isArray(o) ? o : []).filter(x => x && x.on !== false)); }   // Liste aus 0.26.0 übernehmen
-    const a = JSON.parse(raw || '[]'); return (Array.isArray(a) ? a : []).filter(x => x && IP_RE.test(x.ip || '')).slice(0, 12).map(x => ({ip: x.ip, name: String(x.name || '').slice(0, 40) || 'Chromecast'})); } catch (e) { return []; } };
-const castSave = list => { try { STNative.storage.setItem(CAST_KEY, JSON.stringify(list)); } catch (e) { /* egal */ } };
-const castSt = {};         // ip -> {st: letzter Zustand, err, touch: Zeit der letzten Reglerbewegung, vt: Zeitgeber}
-const CIC = {
-  play: '<path d="M7 4l12 8-12 8z"/>', pause: '<path d="M8 5v14M16 5v14"/>',
-  prev: '<path d="M6 5v14M19 5l-10 7 10 7z"/>', next: '<path d="M18 5v14M5 5l10 7-10 7z"/>',
-  vol: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6"/>', mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/>'
-};
-const cicon = n => '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + CIC[n] + '</svg>';
-function castCard(d) {
-  const b = (name, tip, act) => { const x = el('button', {type: 'button', title: tip, 'data-cact': act}); x.setAttribute('aria-label', tip); x.innerHTML = cicon(name); return x; };
-  return el('div', {class: 'card cast', 'data-ip': d.ip},
-    el('div', {class: 'head'}, el('span', {class: 'ename', text: d.name}), el('span', {class: 'badge', 'data-f': 'badge'})),
-    el('div', {class: 'enp', 'data-f': 'now', hidden: true}, el('img', {alt: '', hidden: true, 'data-f': 'img'}), el('div', {class: 'enl'}, el('div', {class: 'l1', 'data-f': 'l1'}), el('div', {class: 'l2', 'data-f': 'l2'}))),
-    el('div', {class: 'player'}, b('prev', t('player.prev'), 'prev'), b('play', t('player.play'), 'toggle'), b('next', t('player.next'), 'next')),
-    el('div', {class: 'cvol'}, b('vol', t('cast.mute'), 'mute'), el('input', {type: 'range', min: 0, max: 100, step: 1, value: 0, title: d.name, 'data-cact': 'vol'}), el('span', {class: 'cv', 'data-f': 'cv'})),
-    el('button', {type: 'button', class: 'cstop', text: t('cast.stop'), 'data-cact': 'stop'}));
-}
-function buildCast() {
-  const body = $('#jblbody'), list = castLoad(); body.textContent = '';
-  if (!list.length) { body.append(el('div', {class: 'card'}, el('p', {class: 'hint', text: t('cast.empty')}), el('button', {type: 'button', text: t('cast.openSettings'), 'data-castsettings': '1'}))); return; }
-  list.forEach(d => { body.append(castCard(d)); castPaint(d.ip); });
-}
-function castPaint(ip) {
-  const card = document.querySelector('#jblbody [data-ip="' + ip + '"]'); if (!card) return;
-  const s = castSt[ip] || {}, st = s.st, f = n => card.querySelector('[data-f=' + n + ']'), a = n => card.querySelector('[data-cact=' + n + ']');
-  const playing = !!st && (st.state === 'PLAYING' || st.state === 'BUFFERING');
-  const badge = f('badge');
-  badge.textContent = !st ? (s.err ? t('badge.unreachable') : '…') : playing ? t('cast.playing') : st.state === 'PAUSED' ? t('player.pause') : st.app || t('cast.idle');
-  badge.className = 'badge' + (playing ? ' on' : !st && s.err ? ' err' : '');
-  const has = !!st && !!(st.title || st.artist || st.app);
-  f('now').hidden = !has;
-  if (has) {
-    f('l1').textContent = st.title || st.app;
-    f('l2').textContent = [st.artist, st.album, st.title ? st.app : ''].filter(Boolean).join(' · ');
-    const img = f('img'), ok = /^https?:\/\//.test(st.image || ''); img.hidden = !ok;
-    if (ok && img.getAttribute('src') !== st.image) img.src = st.image;
-  }
-  ['prev', 'next', 'toggle'].forEach(n => { a(n).disabled = !(st && st.state); });
-  a('toggle').innerHTML = cicon(playing ? 'pause' : 'play'); const tip = playing ? t('player.pause') : t('player.play'); a('toggle').title = tip; a('toggle').setAttribute('aria-label', tip);
-  a('stop').disabled = !(st && st.app);
-  const sl = a('vol'), mu = a('mute'), known = !!st && st.volume >= 0;
-  if (known && !(s.touch && Date.now() - s.touch < 2500)) sl.value = Math.round(st.volume * 100);
-  sl.disabled = mu.disabled = !st || !!st.fixed;   // fixed: Lautsprecher meldet feste Lautstärke (z. B. AUX)
-  if (!sl.dataset.name) sl.dataset.name = sl.title; sl.title = st && st.fixed ? t('cast.fixedVol') : sl.dataset.name;
-  f('cv').textContent = known ? sl.value : '';
-  mu.classList.toggle('lit', !!(st && st.muted)); mu.innerHTML = cicon(st && st.muted ? 'mute' : 'vol');
-}
-async function castRefresh(ip) {
-  const s = castSt[ip] = castSt[ip] || {};
-  try { s.st = await STNative.cast.status(ip); s.err = ''; } catch (e) { s.st = null; s.err = e.message; }
-  castPaint(ip);
-}
-let castPolling = false;
-async function castPoll() {            // nur solange der Reiter sichtbar ist; die Lautsprecher werden nacheinander abgefragt
-  if (castPolling || document.hidden || ui.tab !== 'jbl' || $('#dlg').open) return;
-  castPolling = true;
-  try { for (const d of castLoad()) await castRefresh(d.ip); } finally { castPolling = false; }
-}
-setInterval(castPoll, 5000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) castPoll(); });
-$('#jblbody').addEventListener('click', ev => {
-  const b = ev.target.closest('button'); if (!b) return;
-  if (b.dataset.castsettings) { $('#btn-settings').click(); setStab('jbl'); return; }
-  const card = b.closest('[data-ip]'); if (!card || b.dataset.busy) return;
-  const ip = card.dataset.ip, st = (castSt[ip] || {}).st || {}, act = b.dataset.cact;
-  const cmd = {toggle: () => STNative.cast.media(ip, st.state === 'PLAYING' || st.state === 'BUFFERING' ? 'PAUSE' : 'PLAY'), prev: () => STNative.cast.media(ip, 'PREV'),
-    next: () => STNative.cast.media(ip, 'NEXT'), mute: () => STNative.cast.mute(ip, !st.muted), stop: () => STNative.cast.stop(ip)}[act];
-  if (!cmd) return;
-  b.dataset.busy = '1'; b.classList.add('wait');
-  (async () => { try { await cmd(); await new Promise(r => setTimeout(r, 500)); } catch (e) { toast(e.message, true); } await castRefresh(ip); })()
-    .finally(() => { delete b.dataset.busy; b.classList.remove('wait'); });
-});
-// Lautstärke: während des Ziehens nur die Anzeige, 200 ms nach der letzten Bewegung wird gesendet
-$('#jblbody').addEventListener('input', ev => {
-  const r = ev.target; if (r.dataset.cact !== 'vol') return;
-  const card = r.closest('[data-ip]'), ip = card.dataset.ip, s = castSt[ip] = castSt[ip] || {};
-  s.touch = Date.now(); card.querySelector('[data-f=cv]').textContent = r.value;
-  clearTimeout(s.vt);
-  s.vt = setTimeout(() => { s.touch = Date.now(); STNative.cast.volume(ip, +r.value).catch(e => toast(e.message, true)); }, 200);
-});
-// Einstellungen: Lautsprecherliste (suchen, von Hand hinzufügen, umbenennen, entfernen)
-function renderCastList() {
-  const box = $('#cast-list'); box.textContent = '';
-  castLoad().forEach((d, i) => {
-    const name = el('input', {type: 'text', value: d.name, maxLength: 40, autocomplete: 'off', title: d.ip});
-    name.addEventListener('change', () => { const l = castLoad(); if (l[i]) { l[i].name = name.value.trim() || 'Chromecast'; castSave(l); buildCast(); } });
-    const rm = el('button', {type: 'button', title: t('cast.remove'), text: '✕'});
-    rm.onclick = () => { const l = castLoad(); l.splice(i, 1); castSave(l); renderCastList(); buildCast(); };
-    box.append(el('div', {class: 'crow'}, name, rm, el('span', {class: 'hint cip', text: d.ip})));
-  });
-}
-function castAdd(ip, name) {
-  const l = castLoad(); if (l.some(x => x.ip === ip) || l.length >= 12) return;
-  l.push({ip, name: name || t('cast.defName', l.length + 1)}); castSave(l); renderCastList(); buildCast();
-}
-$('#cast-find').onclick = async e => {
-  const b = e.currentTarget, err = $('#dlg-err'), box = $('#cast-found'); err.textContent = ''; box.textContent = '';
-  let found = [];
-  try { await tvBusy(b, async () => { found = await STNative.cast.scan(netPrefix()); }); } catch (ex) { err.textContent = ex.message; return; }
-  if (!found.length) { err.textContent = t('cast.none'); return; }
-  const known = new Set(castLoad().map(x => x.ip));
-  found.forEach(f => box.append(el('button', {type: 'button', text: '+ ' + f.name + ' · ' + f.ip + (known.has(f.ip) ? t('scan.known') : ''), disabled: known.has(f.ip),
-    onclick: ev => { castAdd(f.ip, f.name); ev.currentTarget.disabled = true; }})));
-};
-$('#cast-add').onclick = async e => {
-  const ip = $('#cast-ip').value.trim(), err = $('#dlg-err'); err.textContent = '';
-  if (!IP_RE.test(ip)) { err.textContent = t('err.tvIp'); return; }
-  try { await tvBusy(e.currentTarget, async () => { await STNative.cast.status(ip); }); castAdd(ip, ''); $('#cast-ip').value = ''; }
-  catch (ex) { err.textContent = ex.message; }
-};
-buildTv(); buildCast(); applyTabs();
+buildTv(); applyTabs();
