@@ -829,7 +829,12 @@ $('#tvbody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.tvsettings) { $('#btn-settings').click(); return; }
   if (b.dataset.tvskip) return;      // läuft über Zeiger-Ereignisse (kurz/lang)
-  if (b.dataset.tvkbd) { const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow(); return; }
+  if (b.dataset.tvkbd) {
+    const inp = $('#tv-q'); inp.value = ''; tvText.live = true; inp.focus(); kbShow();
+    const ip = tvLoad().ip;      // kein Feld am Fernseher offen: Such-Taste senden, damit es aufgeht
+    if (ip) setTimeout(async () => { try { if (await STNative.tv.kbOpen(ip) === 'nofield') toast(t('tv.noField')); } catch (e) { toast(e.message, true); } }, 60);
+    return;
+  }
   const c = tvLoad();
   if (b.dataset.plug) { plugClick(b, c); return; }
   if (!(c.ip && c.paired)) return;
@@ -960,9 +965,15 @@ async function bkImport(text) {
   toast(t('toast.bkDone')); setTimeout(() => location.reload(), 700);
 }
 $('#bk-export').onclick = async () => {
-  const out = $('#bk-text'); out.value = bkBuild(); out.hidden = false;
-  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out.value], {type: 'application/json'})); a.download = 'finglongerer-einstellungen.json'; document.body.append(a); a.click(); a.remove(); } catch (e) { /* Textfeld bleibt */ }
-  try { await navigator.clipboard.writeText(out.value); toast(t('toast.bkCopied')); } catch (e) { out.focus(); out.select(); toast(t('toast.copyManual'), true); }
+  const text = bkBuild(), name = 'finglongerer-einstellungen-' + new Date().toISOString().slice(0, 10) + '.json';
+  try {
+    const r = window.STShare && window.STShare.save ? String(window.STShare.save(name, text)) : '';
+    if (r === 'ok') { toast(t('toast.bkSaved')); return; }
+    if (r === 'share') return;
+    if (r === 'ERR') throw new Error(t('err.bkSave'));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type: 'application/json'})); a.download = name;   // Browser
+    document.body.append(a); a.click(); a.remove(); toast(t('toast.bkSaved'));
+  } catch (e) { toast(e.message, true); }
 };
 $('#bk-file').onclick = () => $('#bk-pick').click();
 $('#bk-pick').onchange = async e => {

@@ -43,6 +43,33 @@ public class MainActivity extends BridgeActivity {
             shared = null;
             return t == null ? "" : t;
         }
+
+        /** Sicherung als Datei in "Downloads" ablegen (ab Android 10), sonst über das Teilen-Menü. Antwort "ok", "share" oder "ERR". */
+        @JavascriptInterface
+        public String save(String name, String text) {
+            if (name == null || !name.matches("^[A-Za-z0-9._-]{1,60}$") || text == null || text.length() > 400000) return "ERR";
+            try {
+                byte[] data = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    android.content.ContentValues v = new android.content.ContentValues();
+                    v.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+                    v.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/json");
+                    v.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+                    android.net.Uri u = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (u == null) return "ERR";
+                    try (java.io.OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
+                    return "ok";
+                }
+                java.io.File dir = new java.io.File(getCacheDir(), "export");
+                dir.mkdirs();
+                java.io.File f = new java.io.File(dir, name);
+                try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(data); }
+                android.net.Uri u = androidx.core.content.FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", f);
+                final Intent i = new Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                runOnUiThread(() -> startActivity(Intent.createChooser(i, name)));
+                return "share";
+            } catch (Exception e) { return "ERR"; }
+        }
     }
 
     /** Brücke für den Box-Neustart: schickt eine Textzeile an die Diagnose-Shell der Box (Port 17000) und meldet "ok" oder "ERR: ...". Nur Adressen des Heimnetzes. */
@@ -199,6 +226,13 @@ public class MainActivity extends BridgeActivity {
             if (!lan(ip)) return "ERR:ip";
             if (text == null || text.length() > 200) return "ERR:other:Text";
             try { return remote().text(ip, text) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
+        }
+
+        /** Eingabefeld am Fernseher öffnen: meldet er keines, kommt die Such-Taste (wie bei der Google-Fernbedienung); "ok" oder "nofield". */
+        @JavascriptInterface
+        public String kbOpen(String ip) {
+            if (!lan(ip)) return "ERR:ip";
+            try { return remote().openField(ip) ? "ok" : "nofield"; } catch (Exception e) { return fail(e); }
         }
 
         @JavascriptInterface

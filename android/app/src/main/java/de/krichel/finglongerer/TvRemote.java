@@ -441,6 +441,18 @@ final class TvRemote {
         sendTo(ip, keyInject(code, DIRECTION_SHORT));
     }
 
+    /** Sorgt für ein Eingabefeld am Fernseher: ist keines gemeldet, wird die Such-Taste (84) gesendet und bis zu 2 s auf die Meldung gewartet. */
+    synchronized boolean openField(String ip) throws IOException {
+        Conn c = ensure(ip);
+        if (c.imeCounter != 0 || c.imeFieldCounter != 0) return true;
+        sendTo(ip, keyInject(84, DIRECTION_SHORT));
+        long end = System.currentTimeMillis() + 2000;
+        while (c.imeCounter == 0 && c.imeFieldCounter == 0 && !c.closed && System.currentTimeMillis() < end) {
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        return c.imeCounter != 0 || c.imeFieldCounter != 0;
+    }
+
     /** Inhalt des Eingabefelds auf dem Fernseher setzen. false = der Fernseher hat (noch) kein Eingabefeld gemeldet, nichts gesendet. */
     synchronized boolean text(String ip, String text) throws IOException {
         Conn c = ensure(ip);
