@@ -676,7 +676,7 @@ async function plugClick(b, c) {
   b.disabled = true;
   try { await plugRefresh(); } finally { b.disabled = false; }
   if (plugState !== 'on') { b.disabled = true; try { await plugSwitch(true); } catch (e) { toast(e.message, true); } finally { b.disabled = false; } return; }
-  if (c.ip && c.paired) { try { await STNative.tv.key(c.ip, 223); } catch (e) { /* Stick nicht erreichbar: trotzdem nach Ablauf ausschalten */ } }
+  if (c.ip && c.paired) { try { await STNative.tv.power(c.ip, false); } catch (e) { toast(e.message, true); /* Stick nicht erreichbar: trotzdem nach Ablauf ausschalten */ } }
   const pc = {n: PLUG_DELAY}; plugCount = pc; plugCountShow(pc.n); toast(t('plug.shutdown', PLUG_DELAY));
   pc.timer = setInterval(async () => {
     pc.n--; plugCountShow(pc.n);
