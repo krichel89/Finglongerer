@@ -4,6 +4,10 @@ Versionierung nach `MAJOR.MINOR.PATCH`. Neue Version setzen: `node scripts/set-v
 (ändert `package.json`, `www/version.js` und die Android-Version zugleich), dann hier eintragen, committen
 und mit `git tag v0.3.0 && git push --tags` markieren – das erzeugt ein GitHub-Release mit der APK.
 
+## 0.33.1
+- Tastatur (Google TV): Texte aus a–z, 0–9, Leerzeichen, Punkt und Minus werden immer Taste für Taste gesendet wie von einer Tastatur-Fernbedienung, auch wenn der Fernseher ein (veraltetes) Eingabefeld meldet. Umlaute und Sonderzeichen gehen weiter als ganzer Text in ein offenes Feld.
+- Chromecast-Lautsprecher: Übernimmt ein Lautsprecher die eingestellte Lautstärke nicht (z. B. bei aktivem AUX-Eingang), erscheint jetzt eine Meldung statt stillem Zurückspringen. Meldet er eine feste Lautstärke, wird der Regler gesperrt.
+
 ## 0.33.0
 - Optional (Einstellungen → Google TV → Steckdose: „Zusätzlich getrennte Tasten“): zwei weitere Tasten im Google-TV-Reiter, „Standby“ (nur der Stick) und „Strom aus“ (Steckdose sofort aus, bricht einen laufenden Countdown ab). Die grüne Taste bleibt unverändert: einschalten bzw. Stick herunterfahren und nach 20 Sekunden Strom aus.
 

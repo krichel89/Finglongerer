@@ -223,7 +223,7 @@ final class CastLink implements AutoCloseable {
     private String describe(Map<String, Object> st, Map<String, Object> media) throws IOException {
         Map<String, Object> vol = MiniJson.obj(st.get("volume"));
         StringBuilder o = new StringBuilder("{");
-        o.append("\"volume\":").append(MiniJson.num(vol, "level", -1)).append(",\"muted\":").append(MiniJson.bool(vol, "muted"));
+        o.append("\"volume\":").append(MiniJson.num(vol, "level", -1)).append(",\"muted\":").append(MiniJson.bool(vol, "muted")).append(",\"fixed\":").append("fixed".equals(MiniJson.str(vol, "controlType")));
         Map<String, Object> app = null;
         for (Object a : MiniJson.list(st.get("applications"))) { app = MiniJson.obj(a); break; }
         if (app != null) {
@@ -269,6 +269,15 @@ final class CastLink implements AutoCloseable {
             c.connect("receiver-0");
             String vol = mute >= 0 ? "{\"muted\":" + (mute == 1) + "}" : "{\"level\":" + String.format(java.util.Locale.US, "%.3f", Math.max(0, Math.min(1, level))) + "}";
             Map<String, Object> st = MiniJson.obj(c.request("receiver-0", NS_RECV, "SET_VOLUME", "\"volume\":" + vol, "RECEIVER_STATUS").get("status"));
+            if (mute < 0) {   // übernimmt der Lautsprecher den Wert nicht (z. B. AUX-Eingang), lieber melden als still ignorieren
+                double want = Math.max(0, Math.min(1, level)), got = MiniJson.num(MiniJson.obj(st.get("volume")), "level", -1);
+                if (Math.abs(got - want) > 0.04) {
+                    try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                    st = c.receiver();
+                    got = MiniJson.num(MiniJson.obj(st.get("volume")), "level", -1);
+                    if (got >= 0 && Math.abs(got - want) > 0.04) throw new IOException("CAST:Der Lautsprecher übernimmt die Lautstärke nicht (AUX-Eingang aktiv?)");
+                }
+            }
             return c.describe(st, Collections.<String, Object>emptyMap());
         }
     }
