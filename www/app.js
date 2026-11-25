@@ -754,7 +754,7 @@ function buildTv() {
     el('input', {type: 'text', id: 'tv-q', name: 'tvq', enterkeyhint: 'send', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', 'aria-hidden': 'true', tabindex: '-1'}));
   body.append(
     el('div', {class: 'tvrow two'}, plugEnt() ? plugBtn() : off, (() => { const m = el('button', {type: 'button', title: t('tv.searchTip'), 'aria-label': t('tv.searchTip'), 'data-tvvoice': '1'}); m.innerHTML = icon('mic'); return m; })()),
-    ...(plugEnt() && ui.plugSplit ? [el('div', {class: 'tvrow two'}, (off.title = t("plug.standby"), off.setAttribute("aria-label", t("plug.standby")), off), plugOffBtn())] : []),
+    ...(plugEnt() && ui.plugSplit ? [el('div', {class: 'tvrow two'}, (off.title = t('plug.standby'), off.setAttribute("aria-label", t('plug.standby')), off), plugOffBtn())] : []),
     el('div', {class: 'tvrow'}, skip('prev', t('tv.prev')), k('play', 85, t('tv.play')), skip('next', t('tv.next'))),
     el('div', {class: 'dpad'}, gap(), k('▲', 19), gap(), k('◀', 21), k('OK', 23, '', 'okb'), k('▶', 22), gap(), k('▼', 20), gap()),
     el('div', {class: 'tvrow'}, k('back', 4, t('tv.back')), k('home', 3, t('tv.home')), k('menu', 82, t('tv.menu'))),
