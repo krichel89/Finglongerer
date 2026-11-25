@@ -950,10 +950,11 @@ function bkApply(text) {
   let o; try { o = JSON.parse(text); } catch (e) { throw new Error(t('err.bkBad')); }
   if (!o || o.app !== 'Finglongerer' || !o.data || typeof o.data !== 'object') throw new Error(t('err.bkBad'));
   const take = {};
-  for (const k of BK_KEYS) {
-    const v = o.data[k]; if (v === undefined) continue;
-    if (typeof v !== 'string' || v.length > 200000) throw new Error(t('err.bkBad'));
-    if (k !== 'finglongerer.lang') { try { JSON.parse(v); } catch (e) { throw new Error(t('err.bkBad')); } }
+  for (const k of BK_KEYS) {                  // einzelne unbrauchbare Einträge werden übersprungen, der Rest wird übernommen
+    const v = o.data[k]; if (typeof v !== 'string' || v.length > 200000) continue;
+    if (k === 'finglongerer.lang') { if (!['auto', 'de', 'en'].includes(v)) continue; }
+    else if (k === 'finglongerer.plug') { if (v && !ENT_RE.test(v)) continue; }       // Steckdose: reiner Text (switch.xyz), kein JSON
+    else { try { JSON.parse(v); } catch (e) { continue; } }
     take[k] = v;
   }
   if (typeof o.data[BK_TVID] === 'string' && o.data[BK_TVID].length < 20000) { try { JSON.parse(o.data[BK_TVID]); take[BK_TVID] = o.data[BK_TVID]; } catch (e) { /* ignorieren */ } }
@@ -965,17 +966,18 @@ async function bkImport(text) {
   if (take['finglongerer.config']) await api('/api/config', JSON.parse(take['finglongerer.config']));   // prüft und bereinigt wie beim Speichern
   for (const k of Object.keys(take)) if (k !== 'finglongerer.config' && k !== BK_TVID) STNative.storage.setItem(k, take[k]);
   if (take[BK_TVID]) { try { if (String(window.STTv.identityImport(take[BK_TVID])) !== 'ok') toast(t('err.bkTv'), true); } catch (e) { toast(t('err.bkTv'), true); } }
-  toast(t('toast.bkDone')); setTimeout(() => location.reload(), 700);
+  bkMsg(t('toast.bkDone')); setTimeout(() => location.reload(), 1200);
 }
+const bkMsg = msg => { $('#bk-res').textContent = msg; toast(msg); };
 $('#bk-export').onclick = async () => {
   const text = bkBuild(), name = 'finglongerer-einstellungen-' + new Date().toISOString().slice(0, 10) + '.json';
   try {
     const r = window.STShare && window.STShare.save ? String(window.STShare.save(name, text)) : '';
-    if (r === 'ok') { toast(t('toast.bkSaved')); return; }
-    if (r === 'share') return;
+    if (r === 'ok') { bkMsg(t('toast.bkSaved', name)); return; }
+    if (r === 'share') { bkMsg(t('toast.bkShared')); return; }
     if (r === 'ERR') throw new Error(t('err.bkSave'));
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type: 'application/json'})); a.download = name;   // Browser
-    document.body.append(a); a.click(); a.remove(); toast(t('toast.bkSaved'));
+    document.body.append(a); a.click(); a.remove(); bkMsg(t('toast.bkSaved', name));
   } catch (e) { toast(e.message, true); }
 };
 $('#bk-file').onclick = () => $('#bk-pick').click();
