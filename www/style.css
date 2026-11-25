@@ -181,3 +181,5 @@ html.ha main{padding-bottom:0}
 #tvbody button.plug{display:flex;align-items:center;justify-content:center;gap:8px}#tvbody button.plug svg{margin:0}
 #tvbody button.plug.count{background:#5a3b00;border-color:var(--orange);color:var(--orange)}
 #tvbody .pcount{font-weight:700;font-size:1.1rem}#tvbody .pcount:empty{display:none}
+
+#tvbody button.plugoff{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--bad)}#tvbody button.plugoff svg{margin:0}#tvbody button.plugoff .ptxt{font-size:.9rem}
